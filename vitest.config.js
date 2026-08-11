@@ -10,7 +10,9 @@ export default defineConfig({
         coverage: {
             provider: 'v8',
             reporter: ['text', 'html'],
+            all: true,
             include: ['flow.js', 'horario.js', 'data.js', 'src/**/*.js'],
+            excludeAfterRemap: true,
             thresholds: {
                 // Ligados progressivamente ao longo dos PRs da Fase 0 (T34).
                 lines: 70,
