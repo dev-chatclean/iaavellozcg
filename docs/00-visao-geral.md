@@ -35,14 +35,14 @@ o lead e entrega ao consultor humano **já aquecido, diagnosticado e com dados d
 Cliente WhatsApp
       │
       ▼
-ChatClean CRM ──── POST /webhook ────▶ Servidor Node.js (este projeto)
+ChatClean CRM ──── POST /webhook ────> Servidor Node.js (este projeto)
       ▲                                       │
-      │                                       ├─▶ OpenAI: extração de campos (gpt-4o-mini, t=0)
-      │                                       ├─▶ OpenAI: geração de resposta (gpt-4o-mini, t=0.7)
-      │                                       ├─▶ OpenAI: Whisper (áudio/vídeo) e visão (gpt-4o)
-      │                                       ├─▶ Redis: estado durável do atendimento
+      │                                       ├─> OpenAI: extração de campos (gpt-4o-mini, t=0)
+      │                                       ├─> OpenAI: geração de resposta (gpt-4o-mini, t=0.7)
+      │                                       ├─> OpenAI: Whisper (áudio/vídeo) e visão (gpt-4o)
+      │                                       ├─> Redis: estado durável do atendimento
       │                                       │
-      └──── POST CC_PUSH_URL ◀────────────────┘
+      └──── POST CC_PUSH_URL <────────────────┘
             { number, body, externalKey }
 ```
 
@@ -54,7 +54,7 @@ transbordo e estado da conversa vivem aqui.
 ```
 1. ACOLHER            "conhece a Avelloz?"
 2. INTERESSE          pra que quer a moto?
-3. DIAGNÓSTICO  ◀── coração do produto, bloqueia tudo que vem depois
+3. DIAGNÓSTICO  <── coração do produto, bloqueia tudo que vem depois
      3.1 como se locomove hoje
      3.2 quanto gasta por mês  (o cliente precisa DIZER o número)
      3.3 situação de moto (tem? própria? alugada? velha?)

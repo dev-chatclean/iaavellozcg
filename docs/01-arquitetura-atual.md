@@ -28,8 +28,8 @@ Retrato fiel do código como ele está hoje. Serve de base para a estrangulaçã
                  │                                  (morto)
                  └── data.js
 
-     test-chat.js ──▶ prompts, data, flow          (duplica index.js)
-     sim-lead.js  ──▶ prompts, data, flow, horario (duplica index.js)
+     test-chat.js ──> prompts, data, flow          (duplica index.js)
+     sim-lead.js  ──> prompts, data, flow, horario (duplica index.js)
 
    externos: express, axios, openai, ioredis, form-data, dotenv, crypto
 ```

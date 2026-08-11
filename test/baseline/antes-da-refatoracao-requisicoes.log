@@ -1,0 +1,125 @@
+== linha de base — porta 3999 ==
+
+### GET /health
+-> http://localhost:3999/health
+<- {"status":"ok","uptime":0.2928494,"timestamp":"2026-08-11T18:21:09.412Z"} [HTTP 200]
+
+### GET /diag sem chave
+-> http://localhost:3999/diag
+<- {"erro":"não autorizado"} [HTTP 401]
+
+### GET /diag com chave
+-> http://localhost:3999/diag?key=chave-baseline
+<- {"ok":true,"expediente":{"aberto":true,"motivo":null,"proximoExpediente":null},"resetInatividadeHoras":24,"redis":false,"pushConfigurado":false,"equipeNumero":false,"pipeline":{"configurado":false,"pushUrlOk":false,"stepId":5,"stepNome":"REUNIÃO MARCADA","userIdSet":false,"responsibleIdSet":false,"oppNome":"REUNIÃO MARCADA","valor":1,"enabled":"(auto)"}} [HTTP 200]
+
+### GET /diag chave errada
+-> http://localhost:3999/diag?key=errada
+<- {"erro":"não autorizado"} [HTTP 401]
+
+### GET /leads com chave
+-> http://localhost:3999/leads?key=chave-baseline
+<- {"total":0,"ativos":[]} [HTTP 200]
+
+### GET /webhook (ping)
+-> http://localhost:3999/webhook
+<- {"status":"ok"} [HTTP 200]
+
+### GET /webhook/<token> (ping)
+-> http://localhost:3999/webhook/qualquer
+<- {"status":"ok"} [HTTP 200]
+
+### aninhado ChatClean (SenderAlt com sufixo de dispositivo)
+-> -X POST http://localhost:3999/webhook -H Content-Type: application/json -d {
+  "contact": {"id": 501, "name": "Joao Baseline"},
+  "ticket": {"status": "pending", "userId": null},
+  "message": {"id": "MSG-A1", "body": "quanto custa a AZ1?", "type": "chat", "fromMe": false,
+    "raw": {"Info": {"SenderAlt": "558491756446:24@s.whatsapp.net", "PushName": "Joao Baseline"}}}
+}
+<- {"status":"ok"} [HTTP 200]
+
+### aninhado sem SenderAlt (usa contact.number)
+-> -X POST http://localhost:3999/webhook -H Content-Type: application/json -d {
+  "contact": {"id": 502, "name": "Maria", "number": "5583988887777"},
+  "ticket": {"status": "pending"},
+  "message": {"id": "MSG-A2", "body": "oi", "type": "chat", "fromMe": false}
+}
+<- {"status":"ok"} [HTTP 200]
+
+### WABA (numero em raw.from)
+-> -X POST http://localhost:3999/webhook -H Content-Type: application/json -d {
+  "contact": {"id": 503, "name": "Pedro"},
+  "ticket": {"status": "open"},
+  "message": {"id": "MSG-A3", "body": "bom dia", "type": "text", "fromMe": false, "raw": {"from": "5583977776666"}}
+}
+<- {"status":"ok"} [HTTP 200]
+
+### formato plano
+-> -X POST http://localhost:3999/webhook -H Content-Type: application/json -d {"number": "5583966665555", "body": "tenho interesse", "type": "text", "contactName": "Ana", "id": "MSG-B1"}
+<- {"status":"ok"} [HTTP 200]
+
+### fromMe (eco do proprio bot)
+-> -X POST http://localhost:3999/webhook -H Content-Type: application/json -d {
+  "contact": {"id": 504, "number": "5583955554444"},
+  "message": {"id": "MSG-C1", "body": "eco", "type": "chat", "fromMe": true}
+}
+<- {"status":"ok"} [HTTP 200]
+
+### grupo por ticket.isGroup
+-> -X POST http://localhost:3999/webhook -H Content-Type: application/json -d {
+  "contact": {"id": 505, "number": "5583944443333"},
+  "ticket": {"status": "pending", "isGroup": true},
+  "message": {"id": "MSG-C2", "body": "mensagem de grupo", "type": "chat", "fromMe": false}
+}
+<- {"status":"ok"} [HTTP 200]
+
+### grupo por JID @g.us
+-> -X POST http://localhost:3999/webhook -H Content-Type: application/json -d {
+  "contact": {"id": 506, "number": "5583933332222"},
+  "message": {"id": "MSG-C3", "body": "grupo jid", "type": "chat", "fromMe": false,
+    "raw": {"Info": {"Chat": "120363000000000000@g.us"}}}
+}
+<- {"status":"ok"} [HTTP 200]
+
+### ticket assumido por humano (userId)
+-> -X POST http://localhost:3999/webhook -H Content-Type: application/json -d {
+  "contact": {"id": 507, "number": "5583922221111"},
+  "ticket": {"status": "open", "userId": 77},
+  "message": {"id": "MSG-C4", "body": "ja tem vendedor", "type": "chat", "fromMe": false}
+}
+<- {"status":"ok"} [HTTP 200]
+
+### ticket closed
+-> -X POST http://localhost:3999/webhook -H Content-Type: application/json -d {
+  "contact": {"id": 508, "number": "5583911110000"},
+  "ticket": {"status": "closed"},
+  "message": {"id": "MSG-C5", "body": "encerrado", "type": "chat", "fromMe": false}
+}
+<- {"status":"ok"} [HTTP 200]
+
+### formato numero_cliente (disparo duplicado)
+-> -X POST http://localhost:3999/webhook -H Content-Type: application/json -d {"numero_cliente": "5583900001111", "mensagem_cliente": "oi"}
+<- {"status":"ok"} [HTTP 200]
+
+### payload desconhecido
+-> -X POST http://localhost:3999/webhook -H Content-Type: application/json -d {"foo": "bar"}
+<- {"status":"ok"} [HTTP 200]
+
+### duplicidade de msgId (MSG-A2 de novo)
+-> -X POST http://localhost:3999/webhook -H Content-Type: application/json -d {
+  "contact": {"id": 502, "name": "Maria", "number": "5583988887777"},
+  "ticket": {"status": "pending"},
+  "message": {"id": "MSG-A2", "body": "oi de novo", "type": "chat", "fromMe": false}
+}
+<- {"status":"ok"} [HTTP 200]
+
+### tipo nao suportado (sticker)
+-> -X POST http://localhost:3999/webhook -H Content-Type: application/json -d {"number": "5583899998888", "body": "", "type": "sticker", "id": "MSG-D1"}
+<- {"status":"ok"} [HTTP 200]
+
+### aguardando drenagem da fila e follow-ups
+
+### GET /leads apos o trafego
+-> http://localhost:3999/leads?key=chave-baseline
+<- {"total":4,"ativos":[{"chatId":"558491756446","nome":"Joao Baseline","finalizado":false},{"chatId":"5583988887777","nome":"Maria","finalizado":false},{"chatId":"5583977776666","nome":"Pedro","finalizado":false},{"chatId":"5583966665555","nome":"Ana","finalizado":false}]} [HTTP 200]
+
+== servidor encerrado ==

@@ -38,7 +38,7 @@ com o estado do atendimento. Relacionado: RN-020 a RN-023.
 
 ### RF-006 — Fallback em falha da OpenAI
 `index.js: processarMensagem (catch da geração)`
-Envia "Opa, tive uma instabilidade rapidinha por aqui 😅 Pode me mandar de novo o que você disse?" e
+Envia "Opa, tive uma instabilidade rapidinha por aqui Pode me mandar de novo o que você disse?" e
 encerra o turno preservando o que já foi extraído.
 
 ---
@@ -136,7 +136,7 @@ Mensagem fixa pedindo a unidade de compra + notificação para o departamento **
 `index.js: montarResumo`
 Contato, perfil, finalidade, transporte atual, gasto, situação de moto, modelo, forma de pagamento,
 loja, bloco de dados de simulação (quando houver), retorno sugerido (fora de expediente) e a linha
-`➡️ Transferir para o departamento <X>`.
+`-> Transferir para o departamento <X>`.
 
 ### RF-034 — Mapeamento loja → departamento
 `data.js: lojaParaDepartamento`
@@ -175,7 +175,7 @@ Passadas `RESET_INATIVIDADE_HORAS` sem interação, o atendimento antigo é desc
 recomeça do zero.
 
 ### RF-044 — Comando `/reset`
-Apaga o estado e responde "🔄 Conversa resetada!". Útil em homologação.
+Apaga o estado e responde "Conversa resetada!". Útil em homologação.
 
 ---
 

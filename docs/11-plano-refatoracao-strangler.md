@@ -28,17 +28,17 @@ estiver validada em produção o caminho antigo **é removido**. Nunca os três 
 
 | Fase | Nome | Entrega | Risco | Esforço |
 |---|---|---|---|---|
-| **0** | Rede de segurança | Testes, lint, CI, config validada, segurança mínima | 🟢 Nulo | ⏱️⏱️⏱️ |
-| **1** | ACL da borda | Payload validado e traduzido fora do `index.js` | 🟢 Baixo | ⏱️⏱️ |
-| **2** | Portas e adapters | OpenAI, ChatClean, Redis atrás de interfaces | 🟡 Médio | ⏱️⏱️⏱️ |
-| **3** | Domínio | `Atendimento`, VOs, políticas, estado explícito | 🟡 Médio | ⏱️⏱️⏱️⏱️ |
-| **4** | Casos de uso | `ProcessarMensagemRecebida` e irmãos | 🔴 Alto | ⏱️⏱️⏱️ |
-| **5** | Mídia e envio | Strategy de mídia, política de quebra de mensagem | 🟢 Baixo | ⏱️⏱️ |
-| **6** | Unificação dos testers | Fim do drift triplo | 🟢 Baixo | ⏱️ |
-| **7** | Prompts como artefato | Versionamento e evals de conversa | 🟡 Médio | ⏱️⏱️ |
-| **8** | Resiliência e escala | Redis para tudo, retry, shutdown, observabilidade | 🟡 Médio | ⏱️⏱️⏱️ |
-| **9** | Tipagem (opcional) | JSDoc → TypeScript incremental | 🟢 Baixo | ⏱️⏱️⏱️ |
-| **10** | Fim do legado | `index.js` vira bootstrap de 30 linhas | 🟢 Baixo | ⏱️ |
+| **0** | Rede de segurança | Testes, lint, CI, config validada, segurança mínima | Nulo | G |
+| **1** | ACL da borda | Payload validado e traduzido fora do `index.js` | Baixo | M |
+| **2** | Portas e adapters | OpenAI, ChatClean, Redis atrás de interfaces | Médio | G |
+| **3** | Domínio | `Atendimento`, VOs, políticas, estado explícito | Médio | GG |
+| **4** | Casos de uso | `ProcessarMensagemRecebida` e irmãos | Alto | G |
+| **5** | Mídia e envio | Strategy de mídia, política de quebra de mensagem | Baixo | M |
+| **6** | Unificação dos testers | Fim do drift triplo | Baixo | P |
+| **7** | Prompts como artefato | Versionamento e evals de conversa | Médio | M |
+| **8** | Resiliência e escala | Redis para tudo, retry, shutdown, observabilidade | Médio | G |
+| **9** | Tipagem (opcional) | JSDoc → TypeScript incremental | Baixo | G |
+| **10** | Fim do legado | `index.js` vira bootstrap de 30 linhas | Baixo | P |
 
 Ordem sugerida de entrega em produção: **0 → 1 → 2 → 5 → 3 → 4 → 6 → 7 → 8 → 10** (a Fase 5 vem
 cedo porque é isolada e dá confiança no processo; a 9 é opcional e pode rodar em paralelo a partir da 6).
@@ -93,7 +93,7 @@ Crie `test/integracao/turno.test.js`: um harness que injeta OpenAI, Push e Redis
 ### 0.6 — CI
 GitHub Actions: `lint` → `test` → `build docker`. Sem chave de API no CI.
 
-**✅ Critério de saída da Fase 0**
+**Critério de saída da Fase 0**
 - [ ] Cobertura ≥ 70% em `flow.js`, `horario.js`, `data.js` e nos utilitários de telefone
 - [ ] `parsePayload` com ≥ 12 casos de caracterização verdes
 - [ ] Teste dourado cobrindo os 15 cenários
@@ -122,7 +122,7 @@ GitHub Actions: `lint` → `test` → `build docker`. Sem chave de API no CI.
 **Ganho imediato:** payload malformado passa a ser rejeitado com motivo claro em vez de virar
 `undefined` silencioso; o motivo do descarte vira métrica.
 
-**Risco/mitigação:** 🟢 — a suíte de caracterização é o contrato. Se algum payload de produção não
+**Risco/mitigação:** — a suíte de caracterização é o contrato. Se algum payload de produção não
 casar com o schema, logue e **aceite** (modo permissivo por 1 semana) antes de rejeitar de fato.
 
 ---
@@ -162,7 +162,7 @@ em vez de exceção ou objeto torto.
 Composition root: instancia todos os adapters conforme a config e injeta. `index.js` para de fazer
 `new OpenAI(...)` e `require('./store')`.
 
-**✅ Critério de saída**
+**Critério de saída**
 - [ ] Nenhum `require('openai'|'axios'|'ioredis')` fora de `src/infrastructure/`
 - [ ] Teste dourado roda **sem `vi.mock`**, injetando fakes pelo container
 - [ ] Suíte de contrato verde no Redis (via `ioredis-mock` ou container efêmero) e em memória
@@ -361,7 +361,7 @@ de `src/`. Atualizar `README.md` e `CLAUDE.md`.
 | Tempo da suíte de testes | — | < 10s |
 | `require` de infra no domínio | n/a | 0 (garantido por lint) |
 | Instâncias suportadas | 1 | N |
-| Regras de negócio com ID e teste | 0 | 100% das 🔴 |
+| Regras de negócio com ID e teste | 0 | 100% das |
 
 ## Riscos do projeto e mitigações
 

@@ -4,13 +4,13 @@
 
 | Sistema | Direção | Protocolo | Criticidade | Se cair… |
 |---|---|---|---|---|
-| ChatClean — Webhook | entrada | HTTP POST | 🔴 Crítica | Nenhuma mensagem chega |
-| ChatClean — Push API | saída | HTTP POST | 🔴 Crítica | O bot não fala |
-| ChatClean — Oportunidades | saída | HTTP POST | ⚪ Inerte | Nada (não é chamado) |
-| OpenAI Chat Completions | saída | HTTPS/SDK | 🔴 Crítica | Fallback de instabilidade |
-| OpenAI Whisper | saída | HTTPS/axios | 🟡 Média | Bot pede texto |
-| OpenAI Vision | saída | HTTPS/SDK | 🟢 Baixa | Registra "enviou uma imagem" |
-| Redis | saída | TCP | 🟡 Média | Degrada silenciosamente para memória |
+| ChatClean — Webhook | entrada | HTTP POST | Crítica | Nenhuma mensagem chega |
+| ChatClean — Push API | saída | HTTP POST | Crítica | O bot não fala |
+| ChatClean — Oportunidades | saída | HTTP POST | Inerte | Nada (não é chamado) |
+| OpenAI Chat Completions | saída | HTTPS/SDK | Crítica | Fallback de instabilidade |
+| OpenAI Whisper | saída | HTTPS/axios | Média | Bot pede texto |
+| OpenAI Vision | saída | HTTPS/SDK | Baixa | Registra "enviou uma imagem" |
+| Redis | saída | TCP | Média | Degrada silenciosamente para memória |
 
 ---
 
@@ -76,7 +76,7 @@ Variação para **nota interna** no ticket: `{ ..., "onlyNote": true, "note": { 
 
 - Timeout 30s, **sem retry**, sem backoff, sem circuit breaker.
 - Falha ⇒ `console.error` e `false`. O cliente simplesmente não recebe a mensagem.
-- ⚠️ **A `CC_PUSH_URL` é regenerada quando a sessão de WhatsApp reconecta** no painel ChatClean.
+- ATENÇÃO: **A `CC_PUSH_URL` é regenerada quando a sessão de WhatsApp reconecta** no painel ChatClean.
   Depois de reconectar, é preciso atualizar a variável — hoje sem alerta automático.
 - `externalKey` (UUID) dá idempotência do lado do ChatClean.
 

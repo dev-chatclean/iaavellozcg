@@ -58,3 +58,10 @@ correção concreta. Classifique em `BLOQUEANTE` / `IMPORTANTE` / `SUGESTÃO`. N
 cosméticas em cima de um bloqueante — o bloqueante vem primeiro e sozinho.
 
 Elogie o que ficou bom: reforço do padrão certo economiza revisões futuras.
+
+## Regra de saida
+
+NUNCA use emojis em nenhuma saida: documentacao, specs, codigo, comentarios, mensagens de commit
+ou respostas ao usuario. Use palavras e ASCII em diagramas. A unica excecao e o texto que o BOT
+envia ao cliente final, que segue RN-022 (no maximo 1 emoji) — isso e regra de negocio do produto,
+nao saida de agente.

@@ -70,10 +70,10 @@ Atendimento (AR)
 
 ```
                  primeira mensagem
-       (novo) ─────────────────────▶ ACOLHENDO
+       (novo) ─────────────────────> ACOLHENDO
                                         │ finalidade coletada
                                         ▼
-                                   DIAGNOSTICANDO ◀── bloqueia produto (RN-001)
+                                   DIAGNOSTICANDO <── bloqueia produto (RN-001)
                                         │ transporte + gasto + situação
                                         ▼
                                     RECOMENDANDO
@@ -82,13 +82,13 @@ Atendimento (AR)
                                     FECHANDO
                                         │ loja identificada (RN-040)
                                         ▼
-    ┌── pediu humano ──▶ TRANSFERIDO ◀──┘
-    │   cliente atual ──▶ TRANSFERIDO (pós-venda)
+    ┌── pediu humano ──> TRANSFERIDO <──┘
+    │   cliente atual ──> TRANSFERIDO (pós-venda)
     │
-    └── loop detectado ──▶ PAUSADO ──(normalizou)──▶ volta ao estado anterior
+    └── loop detectado ──> PAUSADO ──(normalizou)──> volta ao estado anterior
 
-   TRANSFERIDO ──nova mensagem──▶ TRANSFERIDO (responde dúvida pontual, UC-010)
-   qualquer ──24h sem interação──▶ (descartado; próximo contato nasce novo)
+   TRANSFERIDO ──nova mensagem──> TRANSFERIDO (responde dúvida pontual, UC-010)
+   qualquer ──24h sem interação──> (descartado; próximo contato nasce novo)
 ```
 
 **Hoje isso é implícito** — combinação de `qualificacaoCompleta`, `finalizado`, `loopAvisado` e campos

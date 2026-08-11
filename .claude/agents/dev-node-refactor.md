@@ -56,3 +56,10 @@ texto puro; `pipeline.js` é código morto com comentários de outro projeto.
 
 Decisões arquiteturais novas (`arquiteto-ddd`), edição de prompts (`engenheiro-ia-prompt`),
 desenho da estratégia de testes (`qa-testes`).
+
+## Regra de saida
+
+NUNCA use emojis em nenhuma saida: documentacao, specs, codigo, comentarios, mensagens de commit
+ou respostas ao usuario. Use palavras e ASCII em diagramas. A unica excecao e o texto que o BOT
+envia ao cliente final, que segue RN-022 (no maximo 1 emoji) — isso e regra de negocio do produto,
+nao saida de agente.

@@ -7,7 +7,7 @@ o sistema deve fazer; o código é apenas a implementação atual dela.
 
 ```
 ┌────────┐   ┌────────┐   ┌────────┐   ┌────────┐   ┌────────┐
-│  SPEC  │──▶│  PLAN  │──▶│ TASKS  │──▶│  CODE  │──▶│ VERIFY │
+│  SPEC  │──>│  PLAN  │──>│ TASKS  │──>│  CODE  │──>│ VERIFY │
 │ o quê  │   │ o como │   │ passos │   │+ testes│   │ aceite │
 │ porquê │   │técnico │   │ordenad.│   │        │   │        │
 └────────┘   └────────┘   └────────┘   └────────┘   └────────┘
@@ -40,8 +40,8 @@ specs/
 - Escrita em linguagem de **negócio**. Se você precisou citar `axios` ou `Map`, é `plan.md`.
 - **Escopo é contrato**: o que está fora precisa estar escrito como "Fora de escopo".
 - Todo critério de aceite é **testável** e usa Given/When/Then.
-  - ❌ "a IA deve responder bem"
-  - ✅ "**Dado** que `gastoMensal` está vazio, **Quando** o cliente perguntar 'quanto custa a AZ1?',
+  - Ruim: "a IA deve responder bem"
+  - Bom: "**Dado** que `gastoMensal` está vazio, **Quando** o cliente perguntar 'quanto custa a AZ1?',
     **Então** a resposta não contém valor em reais nem nome de modelo, **E** termina com uma pergunta
     sobre a locomoção atual."
 - Referencie sempre os IDs existentes: `RN-NNN` ([regras](../docs/03-regras-de-negocio.md)),

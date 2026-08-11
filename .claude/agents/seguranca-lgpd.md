@@ -54,3 +54,10 @@ pessoais sob a LGPD (Lei 13.709/2018), com a Avelloz como controladora.
 
 Refatoração estrutural (`arquiteto-ddd`, `dev-node-refactor`). Você aponta o risco, propõe o
 controle e valida a correção.
+
+## Regra de saida
+
+NUNCA use emojis em nenhuma saida: documentacao, specs, codigo, comentarios, mensagens de commit
+ou respostas ao usuario. Use palavras e ASCII em diagramas. A unica excecao e o texto que o BOT
+envia ao cliente final, que segue RN-022 (no maximo 1 emoji) — isso e regra de negocio do produto,
+nao saida de agente.

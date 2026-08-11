@@ -21,8 +21,8 @@ Não existe schema declarado — o formato emerge do uso. Reconstruído a partir
 
   // Dados de simulação (flow.js: CAMPOS_EXTRAS) — coletados em bloco
   "nomeCompleto": "João da Silva",
-  "cpf": "12345678900",              // ⚠️ PII em claro
-  "dataNascimento": "10/05/1995",    // ⚠️ PII
+  "cpf": "12345678900",              // ATENÇÃO: PII em claro
+  "dataNascimento": "10/05/1995",    // ATENÇÃO: PII
   "telefone": "83999998888",
   "cnh": "sim",                      // (mutável)
   "corModelo": "AZ125 vermelha",     // (mutável)
@@ -37,7 +37,7 @@ Não existe schema declarado — o formato emerge do uso. Reconstruído a partir
   "analiseImagem": null,
 
   // Controle de fluxo
-  "qualificacaoCompleta": false,     // ⚠️ setado por determinarProximoCampo (efeito colateral)
+  "qualificacaoCompleta": false,     // ATENÇÃO: setado por determinarProximoCampo (efeito colateral)
   "finalizado": false,               // transbordo executado
 
   // Histórico (máx. 100 entradas)
@@ -75,7 +75,7 @@ Não existe schema declarado — o formato emerge do uso. Reconstruído a partir
 | Chave | Tipo | TTL | Escrita | Leitura |
 |---|---|---|---|---|
 | `avellozcg:lead:<chatId>` | string JSON | 30 dias | fim de cada turno | início de cada turno, varredor |
-| `avellozcg:leads` | list | **nenhum** ⚠️ | a cada transbordo | ninguém (nem `/leads` lê!) |
+| `avellozcg:leads` | list | **nenhum** ATENÇÃO: | a cada transbordo | ninguém (nem `/leads` lê!) |
 | `avellozcg:lock:<chatId>` | string | 60s | início do turno | — |
 
 Notas:
@@ -109,9 +109,9 @@ exige mover essas estruturas para o Redis — Fase 8 do plano.
 ```
    mensagem nova
         │
-        ├─ não existe estado ────────────────▶ cria { conversationHistory: [] }
-        ├─ existe e ultimaInteracao > 24h ───▶ DELETE + cria novo         (RN-071)
-        └─ existe e recente ─────────────────▶ carrega
+        ├─ não existe estado ────────────────> cria { conversationHistory: [] }
+        ├─ existe e ultimaInteracao > 24h ───> DELETE + cria novo         (RN-071)
+        └─ existe e recente ─────────────────> carrega
                                                    │
                        ┌───────────────────────────┤
                        │                           │

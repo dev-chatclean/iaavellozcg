@@ -3,13 +3,13 @@
 Catálogo de problemas encontrados na análise do código. IDs `D-NN` (estruturais/qualidade) e `S-N`
 (segurança/LGPD) são referenciados no plano de refatoração e nas specs.
 
-**Severidade:** 🔴 Crítica (risco em produção ou impede evolução) · 🟡 Alta · 🟢 Média.
+**Severidade:** Crítica (risco em produção ou impede evolução) · Alta · Média.
 
 ---
 
 ## Arquitetura e design
 
-### D-01 🔴 — `index.js` é um God Object
+### D-01 (Crítica) — `index.js` é um God Object
 1040 linhas com pelo menos 8 responsabilidades: configuração, servidor HTTP, autenticação,
 parse de payload, proteções (dedup/rate-limit/anti-loop), fila e agrupamento, processamento de mídia,
 chamadas à OpenAI, máquina de estados, montagem de resumo, notificação, transbordo, follow-up,
@@ -18,83 +18,83 @@ endpoints administrativos e bootstrap.
 unidade; impossível ter dois desenvolvedores mexendo em paralelo.
 **Fatia:** Fases 1–6.
 
-### D-02 🔴 — Sem camadas nem inversão de dependência
+### D-02 (Crítica) — Sem camadas nem inversão de dependência
 Regra de negócio, I/O de rede, persistência e HTTP no mesmo arquivo e frequentemente na mesma função.
 `openai`, `axios`, `ioredis` e `express` são acoplados diretamente.
 **Impacto:** trocar OpenAI por outro provedor, ou ChatClean por outro canal, exige reescrever o core.
 Nenhum teste roda sem rede. **Fatia:** Fase 2.
 
-### D-03 🔴 — Regras de negócio espalhadas em quatro lugares
+### D-03 (Crítica) — Regras de negócio espalhadas em quatro lugares
 Código (`index.js`, `flow.js`), dados (`data.js`), **texto de prompt** (`prompts.js`) e strings
 hardcoded no meio do fluxo (ex.: a mensagem de roteamento para Pós-venda).
 **Impacto:** ninguém sabe onde está a regra; mudança no prompt altera comportamento sem revisão de
 código; regras duplicadas divergem (o bloqueio de diagnóstico está no `SYSTEM_SDR` **e** em
 `promptResposta`). **Fatia:** Fases 3–4.
 
-### D-04 🔴 — Três implementações divergentes do mesmo turno de conversa
+### D-04 (Crítica) — Três implementações divergentes do mesmo turno de conversa
 `index.js: processarMensagem`, `test-chat.js: turno` e `sim-lead.js: turno`.
 Divergências **já existentes**:
 
 | | `index.js` | `test-chat.js` | `sim-lead.js` |
 |---|---|---|---|
-| `response_format: json_object` | ✅ | ❌ | ✅ |
-| Passa `expediente` ao prompt | ✅ | ❌ | ✅ |
-| Aplica `tipoContato` | ✅ | ✅ | ❌ |
-| Reavalia perfil em correção | ✅ | ❌ | ❌ |
+| `response_format: json_object` | sim | nao | sim |
+| Passa `expediente` ao prompt | sim | nao | sim |
+| Aplica `tipoContato` | sim | | nao |
+| Reavalia perfil em correção | sim | nao | |
 | Monta resumo | `montarResumo` | ad-hoc | **cópia** de `montarResumo` |
 
 **Impacto:** os testadores validam um comportamento que não é o de produção — pior que não ter
 testador. **Fatia:** Fase 6.
 
-### D-05 🟡 — `pipeline.js` é código morto com comentários de outro projeto
+### D-05 (Alta) — `pipeline.js` é código morto com comentários de outro projeto
 `criarOportunidade()` nunca é chamado. Os comentários descrevem a etapa "REUNIÃO MARCADA" e o
 responsável "Roni" — herança do `iachatclean`. Só `diag()` é usado.
 **Impacto:** confunde quem lê; sugere uma integração que não existe.
 **Decisão do negócio (2026-08-11): os vendedores não usam o funil de Oportunidades — remover.**
 Deletar `pipeline.js`, a referência em `/diag` e as 6 variáveis `PIPELINE_*`. **Fatia:** spec 0007.
 
-### D-06 🟡 — Query com efeito colateral (viola CQS)
+### D-06 (Alta) — Query com efeito colateral (viola CQS)
 `flow.js: determinarProximoCampo(leadData)` **muta** `leadData.qualificacaoCompleta` ao retornar
 `null`. É chamada duas vezes por turno, e também dentro de `montarMsgReativacao` — ou seja,
 **montar uma mensagem de follow-up pode marcar o lead como qualificado**.
 **Impacto:** bug latente sério. **Fatia:** Fase 3.
 
-### D-07 🟡 — Primitive obsession
+### D-07 (Alta) — Primitive obsession
 Telefone, CPF, dinheiro, modelo, loja e datas são strings soltas num objeto anônimo. Nenhuma
 validação de formato em nenhum ponto. **Fatia:** Fase 3.
 
-### D-08 🟡 — Heurística frágil na quebra de mensagens
+### D-08 (Alta) — Heurística frágil na quebra de mensagens
 `enviarMensagensQuebradas` decide enviar inteiro se o texto casar com
 `/encaminhando|consultor|especialista|resumo|repassando/i`. Palavras comuníssimas nesse domínio —
 "nosso consultor" aparece em respostas normais, que então deixam de ser quebradas.
 **Impacto:** comportamento de envio imprevisível. **Fatia:** Fase 5.
 
-### D-09 🟡 — Sem estado explícito do atendimento
+### D-09 (Alta) — Sem estado explícito do atendimento
 O estado é inferido de `qualificacaoCompleta` + `finalizado` + campos vazios. Não há transição
 validada; nada impede combinações inválidas. **Fatia:** Fase 3.
 
-### D-10 🟢 — Duplicação interna
+### D-10 (Média) — Duplicação interna
 `montarResumo` e `notificarEquipe` recalculam `departamento` e `perfilNome` separadamente.
 `processarMensagem` monta o histórico recente com o mesmo `map` em quatro pontos.
 
-### D-11 🟢 — Imports não usados
+### D-11 (Média) — Imports não usados
 `fs`, `path` e `crypto` (parcialmente) importados em `index.js` sem uso pleno.
 
 ---
 
 ## Testes e qualidade
 
-### D-12 🔴 — Zero testes automatizados
+### D-12 (Crítica) — Zero testes automatizados
 Nenhum framework, nenhum arquivo de teste, nenhum script `test` no `package.json`.
 **Impacto:** **nenhuma refatoração é segura**. Este é o bloqueador número um.
 **Fatia:** Fase 0 (obrigatória antes de qualquer outra).
 
-### D-13 🟡 — Sem lint, formatter ou CI
+### D-13 (Alta) — Sem lint, formatter ou CI
 Sem ESLint, Prettier ou GitHub Actions. Estilo inconsistente (indentação de 4 espaços no geral, mas
 variações). Nada impede um `require` de infra entrar no domínio depois da refatoração.
 **Fatia:** Fase 0.
 
-### D-14 🟡 — Sem tipagem
+### D-14 (Alta) — Sem tipagem
 JavaScript puro, sem JSDoc estruturado nem TypeScript. O shape do `leadData` só existe na cabeça de
 quem escreveu. **Fatia:** Fase 9 (opcional, alto retorno).
 
@@ -102,26 +102,26 @@ quem escreveu. **Fatia:** Fase 9 (opcional, alto retorno).
 
 ## Confiabilidade e operação
 
-### D-15 🔴 — Não escala além de uma instância
+### D-15 (Crítica) — Não escala além de uma instância
 Dedup de `msgId`, rate-limit, fila por chat, debounce e o `setInterval` de follow-up vivem na memória
 do processo. Com duas instâncias: mensagens duplicadas, rate-limit multiplicado, agrupamento quebrado
 e follow-up enviado N vezes. Só o lock de processamento é distribuído. **Fatia:** Fase 8.
 
-### D-16 🔴 — Shutdown não é graceful
+### D-16 (Crítica) — Shutdown não é graceful
 `process.exit(0)` imediato em SIGINT/SIGTERM/SIGUSR2. Mensagens na fila e turnos em voo são perdidos;
 o lock Redis fica pendurado até o TTL de 60s. Todo deploy perde atendimentos em andamento.
 **Fatia:** Fase 8.
 
-### D-17 🟡 — Sem retry, backoff ou circuit breaker
+### D-17 (Alta) — Sem retry, backoff ou circuit breaker
 Nenhuma chamada externa (OpenAI, Push, download de mídia) tem retry. Uma instabilidade de 2s da
 OpenAI vira uma mensagem de desculpa ao cliente; uma falha no Push significa que o cliente
 simplesmente não recebe a resposta — **sem nenhum alerta**. **Fatia:** Fase 8.
 
-### D-18 🟡 — Degradação silenciosa do Redis
+### D-18 (Alta) — Degradação silenciosa do Redis
 Sem `REDIS_URL`, o sistema cai para memória sem alarme. Em produção isso significa perder todo o
 estado a cada restart, e ninguém percebe até um cliente reclamar. **Fatia:** Fase 8.
 
-### D-19 🟡 — **BUG confirmado**: sábado tratado como fim de semana
+### D-19 (Alta) — **BUG confirmado**: sábado tratado como fim de semana
 `horario.js` implementa segunda a sexta, 09h–18h (comentário herdado: "expediente do time ChatClean …
 Natal-RN"). Já `data.js: EMPRESA_INFO.horarioSuporte` diz "Segunda a sábado, em horário comercial" —
 e esse texto vai ao cliente pelo prompt.
@@ -131,35 +131,51 @@ equipe etiquetado `FORA DE EXPEDIENTE — AGENDAR RETORNO`, com a loja aberta e 
 É perda de venda, não só inconsistência de código.
 **Fatia:** spec 0009, logo após a Fase 0.
 
-### D-20 🟡 — Sem observabilidade
+### D-20 (Alta) — Sem observabilidade
 `console.log` com emojis, sem níveis, sem correlação, sem métricas, sem alerta. Não é possível
 responder "quantos leads qualificamos ontem?" nem "por que aquele lead não recebeu resposta?".
 **Fatia:** Fase 8.
 
-### D-21 🟢 — `avellozcg:leads` é write-only e sem TTL
+### D-21 (Média) — `avellozcg:leads` é write-only e sem TTL
 Cresce indefinidamente e nenhum endpoint o lê (`/leads` lista atendimentos ativos, não o histórico).
 
-### D-22 🟢 — Campo fantasma no `/leads`
+### D-22 (Média) — Campo fantasma no `/leads`
 Expõe `l.empresa`, que não existe no domínio Avelloz — resquício do `iachatclean`. Sempre `undefined`.
 
-### D-23 🟢 — Configuração não validada no boot
+### D-23 (Média) — Configuração não validada no boot
 21 variáveis de ambiente lidas por `process.env` espalhado em 4 arquivos, sem validação. O processo
 sobe com configuração inválida e falha em runtime. Único caso tratado (`OPENAI_API_KEY`) é verificado
 **depois** do `app.listen`. **Fatia:** Fase 0.
 
-### D-24 🟢 — Erros engolidos
+### D-24 (Média) — Erros engolidos
 Vários `catch (_) {}` e `catch { return null }` sem log. Falhas somem.
 
-### D-25 🟢 — Envio bloqueia o lock do atendimento
+### D-25 (Média) — Envio bloqueia o lock do atendimento
 `enviarMensagensQuebradas` faz `sleep(900 + tamanho×18)` **por parte**, dentro do lock de
 processamento. Uma resposta de 4 linhas segura o lock por vários segundos, atrasando as próximas
 mensagens do mesmo cliente.
 
-### D-26 🟢 — Transcrição fora do SDK
+### D-28 (Crítica) — BUG: o modo plantão nunca chega à resposta do bot
+`promptResposta({ ..., expediente })` recebe o expediente e **nunca o usa** — o parâmetro é
+desestruturado e descartado (revelado pelo ESLint, `prompts.js:148`).
+
+`index.js` calcula `exp = estaEmExpediente()` e o repassa por `gerarRespostaIA` para `promptResposta`,
+mas o texto do prompt não menciona expediente em lugar nenhum. Consequência: **o modelo escreve como
+se a loja estivesse sempre aberta**. A informação de plantão só sobrevive em dois lugares periféricos:
+a etiqueta do resumo interno (`FORA DE EXPEDIENTE`) e a mensagem de fallback do `catch` em
+`encaminhar()` — que só aparece quando a chamada à OpenAI falha.
+
+**Impacto real:** às 23h de um domingo o bot diz "já tô repassando pro nosso consultor, ele assume seu
+atendimento aqui rapidinho" — e ninguém assume. RN-061 está implementada pela metade.
+Combinado com D-19 (sábado tratado como fechado), o expediente está errado nas duas direções.
+
+**Fatia:** correção junto da spec 0009, que já mexe em expediente. Congelar em teste antes.
+
+### D-26 (Média) — Transcrição fora do SDK
 Whisper é chamado com `axios` + `form-data` na mão, com `Authorization` montado manualmente, enquanto
 o resto usa o SDK oficial. Dois caminhos de autenticação e de erro.
 
-### D-27 🟢 — Webhook responde 200 antes de processar
+### D-27 (Média) — Webhook responde 200 antes de processar
 Correto para evitar retry do provedor, mas hoje não há nenhuma compensação: se o processamento falhar,
 a mensagem se perde **silenciosamente**, sem fila de retentativa e sem alerta.
 
@@ -171,32 +187,36 @@ Detalhamento em `.claude/agents/seguranca-lgpd.md`. Resumo:
 
 | ID | Sev. | Problema |
 |---|---|---|
-| **S1** | 🔴 | Payload bruto (com PII e conteúdo da conversa) logado inteiro em `console.log` |
-| **S2** | 🔴 | Resumo com CPF, nascimento e CNH enviado por WhatsApp para `EQUIPE_NUMERO` |
-| **S3** | 🔴 | CPF e demais dados pessoais persistidos em claro no Redis por 30 dias |
-| **S4** | 🔴 | `WEBHOOK_SECRET` vazio deixa `/webhook` **aberto** — qualquer um injeta mensagens e queima crédito da OpenAI |
-| **S5** | 🟡 | `webhookAutorizado` faz `padEnd(128)` (colisão para segredos > 128 chars) e compara comprimento antes do `timingSafeEqual` |
-| **S6** | 🟡 | Sanitização anti-injeção é só `replace(/[<>]/g,'')` |
-| **S7** | 🟡 | `mediaUrl` do webhook é baixada e repassada à OpenAI sem validação de host (SSRF) |
-| **S8** | 🟡 | Sem `.dockerignore` — `docker build` pode copiar `.env` para a imagem |
-| **S9** | 🟡 | Sem política de retenção/expurgo; lista de leads sem TTL |
-| **S10** | 🟢 | Sem aviso de tratamento de dados / base legal declarada na conversa |
+| **S1** | Crítica | Payload bruto (com PII e conteúdo da conversa) logado inteiro em `console.log` |
+| **S2** | Crítica | Resumo com CPF, nascimento e CNH enviado por WhatsApp para `EQUIPE_NUMERO` |
+| **S3** | Crítica | CPF e demais dados pessoais persistidos em claro no Redis por 30 dias |
+| **S4** | Crítica | `WEBHOOK_SECRET` vazio deixa `/webhook` **aberto** — qualquer um injeta mensagens e queima crédito da OpenAI |
+| **S5** | Alta | `webhookAutorizado` faz `padEnd(128)` (colisão para segredos > 128 chars) e compara comprimento antes do `timingSafeEqual` |
+| **S6** | Alta | Sanitização anti-injeção é só `replace(/[<>]/g,'')` |
+| **S7** | Alta | `mediaUrl` do webhook é baixada e repassada à OpenAI sem validação de host (SSRF) |
+| **S8** | Alta | Sem `.dockerignore` — `docker build` pode copiar `.env` para a imagem |
+| **S9** | Alta | Sem política de retenção/expurgo; lista de leads sem TTL |
+| **S10** | Média | Sem aviso de tratamento de dados / base legal declarada na conversa |
 
 ---
 
 ## Priorização
 
 ```
-BLOQUEADOR ─── D-12 (sem testes)  ────────────────────▶ Fase 0
+BLOQUEADOR ─── D-12 (sem testes)  ────────────────────> Fase 0
                D-13, D-23, S1, S4, S8
 
-CRÍTICO ────── D-01, D-02, D-03, D-04 (estrutura)  ───▶ Fases 1–6
-               D-06 (bug latente), D-09
+BUG ────────── D-28 (plantão não chega à resposta)  ──> spec 0009
+               D-19 (sábado tratado como fechado)
+               D-06 (query com efeito colateral)
 
-ALTO ───────── D-15, D-16, D-17, D-18, D-20  ────────▶ Fase 8
+CRÍTICO ────── D-01, D-02, D-03, D-04 (estrutura)  ───> Fases 1–6
+               D-09
+
+ALTO ───────── D-15, D-16, D-17, D-18, D-20  ────────> Fase 8
                S2, S3, S5, S6, S7, S9
 
-MÉDIO ──────── D-05, D-07, D-08, D-19, D-21..D-27  ──▶ ao longo das fases
+MÉDIO ──────── D-05, D-07, D-08, D-19, D-21..D-27  ──> ao longo das fases
 ```
 
 **Regra:** nenhuma fatia de refatoração começa antes da Fase 0 estar concluída. Refatorar sem testes

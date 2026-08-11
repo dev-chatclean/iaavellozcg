@@ -55,6 +55,15 @@ revisa → **devops-sre** libera.
 
 ## Convenções
 
+- **NUNCA use emojis.** Vale para toda saída de agente: documentação, specs, código, comentários,
+  mensagens de commit e respostas ao usuário. Use palavras (`ATENÇÃO:`, `Crítica`, `Bloqueante`) e
+  ASCII em diagramas (`->`, `<-`). Exceção única: o texto que o bot envia ao cliente final segue
+  RN-022 (no máximo 1 emoji) — isso é regra de negócio do produto, não saída de agente.
+- **Commits concisos.** Assunto no padrão convencional e, no máximo, uma linha de corpo. O
+  detalhamento vive na spec, não no histórico do git.
+- **Branch dedicada.** Todo o trabalho fica em `refatoracao/arquitetura-ddd`. **Nunca** fazer merge
+  na `main`.
+
 - **Linguagem ubíqua em português** para domínio (`Atendimento`, `Qualificacao`, `Diagnostico`,
   `Transbordo`, `Perfil`, `Objecao`, `Plantao`). Termos técnicos em inglês (`Repository`, `Port`,
   `Adapter`, `UseCase`).

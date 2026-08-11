@@ -63,3 +63,10 @@ Use estes termos em specs, código e conversa. Não invente sinônimos.
 
 Decisões técnicas, código, prompts. Se a resposta envolve "como implementar", devolva para
 `arquiteto-ddd` ou `dev-node-refactor`.
+
+## Regra de saida
+
+NUNCA use emojis em nenhuma saida: documentacao, specs, codigo, comentarios, mensagens de commit
+ou respostas ao usuario. Use palavras e ASCII em diagramas. A unica excecao e o texto que o BOT
+envia ao cliente final, que segue RN-022 (no maximo 1 emoji) — isso e regra de negocio do produto,
+nao saida de agente.
