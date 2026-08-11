@@ -5,15 +5,15 @@ Ver [docs/11-plano-refatoracao-strangler.md](../docs/11-plano-refatoracao-strang
 
 | # | Spec | Fase | Status | Dívida | Depende de |
 |---|---|---|---|---|---|
-| **0001** | [Rede de segurança: testes, lint e CI](0001-rede-de-seguranca/spec.md) | 0 | Aprovada | D-12, D-13 | — |
-| **0002** | Configuração validada e endurecimento mínimo | 0 | Rascunho | D-23, S1, S4, S5, S8 | — |
-| **0003** | ACL do payload de entrada | 1 | Rascunho | D-01(parcial) | 0001 |
+| **0001** | [Rede de segurança: testes, lint e CI](0001-rede-de-seguranca/spec.md) | 0 | **Implementada** | D-12, D-13 | — |
+| **0002** | Configuração validada e endurecimento mínimo | 0 | Aprovada (liberada) | D-23, S1, S4, S5, S8 | — |
+| **0003** | ACL do payload de entrada | 1 | Aprovada (liberada) | D-01(parcial) | 0001 |
 | **0004** | Portas e adapters: canal, repositório, LLM | 2 | Rascunho | D-02, D-18, D-26, S7 | 0001, 0002 |
 | **0005** | Manipuladores de mídia e política de envio | 5 | Rascunho | D-08, D-25 | 0004 |
 | **0006** | Domínio: `Atendimento`, VOs e políticas | 3 | Rascunho | D-03, D-06, D-07, D-09 | 0004 |
 | **0007** | Remoção do pipeline de oportunidades (código morto) | 10 | Decidida — remover | D-05 | 0001 |
 | **0008** | Casos de uso e morte do `processarMensagem` | 4 | Rascunho | D-01, D-10 | 0006 |
-| **0009** | Expediente incluindo sábado (correção de RN-060) | 0+ | Decidida — implementar | D-19 | 0001 |
+| **0009** | Expediente: sábado (D-19) e plantão na resposta (D-28) | 0+ | Decidida — implementar | D-19, **D-28** | 0001 |
 | **0010** | Unificação dos testers locais | 6 | Rascunho | **D-04** | 0008 |
 | **0011** | Prompts versionados e suíte de evals | 7 | Rascunho | D-03 | 0010 |
 | **0012** | Estado compartilhado no Redis (multi-instância) | 8 | Rascunho | D-15 | 0004 |

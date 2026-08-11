@@ -84,15 +84,17 @@ validada; nada impede combinações inválidas. **Fatia:** Fase 3.
 
 ## Testes e qualidade
 
-### D-12 (Crítica) — Zero testes automatizados
-Nenhum framework, nenhum arquivo de teste, nenhum script `test` no `package.json`.
-**Impacto:** **nenhuma refatoração é segura**. Este é o bloqueador número um.
-**Fatia:** Fase 0 (obrigatória antes de qualquer outra).
+### D-12 — RESOLVIDA (spec 0001, 2026-08-11)
+Era: nenhum framework, nenhum teste, nenhum script `test`. **O bloqueador número um.**
+Agora: **245 testes em 1,8s**, sem nenhuma chamada de rede, com 100% de cobertura nos módulos
+determinísticos e um teste dourado de 41 cenários sobre o turno completo.
+Ver [specs/0001-rede-de-seguranca/resultado.md](../specs/0001-rede-de-seguranca/resultado.md).
 
-### D-13 (Alta) — Sem lint, formatter ou CI
-Sem ESLint, Prettier ou GitHub Actions. Estilo inconsistente (indentação de 4 espaços no geral, mas
-variações). Nada impede um `require` de infra entrar no domínio depois da refatoração.
-**Fatia:** Fase 0.
+### D-13 — RESOLVIDA (spec 0001, 2026-08-11)
+ESLint 9 (flat config) + Prettier + CI no GitHub Actions (lint, test, build da imagem).
+As fronteiras da arquitetura alvo já estão declaradas em `no-restricted-imports` — hoje em aviso,
+viram erro na Fase 2. O legado entrou num **ratchet**: os 9 arquivos antigos ficam em aviso e saem
+da lista conforme forem estrangulados; a lista só encolhe.
 
 ### D-14 (Alta) — Sem tipagem
 JavaScript puro, sem JSDoc estruturado nem TypeScript. O shape do `leadData` só existe na cabeça de
@@ -222,8 +224,9 @@ Detalhamento em `.claude/agents/seguranca-lgpd.md`. Resumo:
 ## Priorização
 
 ```
-BLOQUEADOR ─── D-12 (sem testes)  ────────────────────> Fase 0
-               D-13, D-23, S1, S4, S8
+RESOLVIDO ──── D-12 (sem testes), D-13 (sem lint/CI)  ─> spec 0001, concluída
+
+BLOQUEADOR ─── D-23, S1, S4, S8  ─────────────────────> spec 0002
 
 BUG ────────── D-28 (plantão não chega à resposta)  ──> spec 0009
                D-19 (sábado tratado como fechado)

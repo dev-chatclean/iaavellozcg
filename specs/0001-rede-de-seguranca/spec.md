@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | Aprovada |
+| **Status** | Implementada |
 | **Autor** | analista-specs |
 | **Criada em** | 2026-08-11 |
 | **Fase do plano** | Fase 0 — Rede de segurança |
@@ -128,7 +128,7 @@ mecânica, sem alteração de lógica, coberta pelos testes criados na mesma tar
 - 15 cenários do teste dourado verdes.
 - CI verde no `main` por 7 dias consecutivos.
 
-## 11. Questões em aberto
+## 11. Questões em aberto (resolvidas)
 
 - [ ] Há payloads reais de produção disponíveis no log do servidor para virar fixture? *(sem eles, os
       testes de `parsePayload` cobrem menos do que deveriam)*

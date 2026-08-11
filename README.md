@@ -65,6 +65,37 @@ npm run sim               # simulação de qualificação completa (motoboy/moto
 npm start                 # sobe o servidor (webhook/Push)
 ```
 
+## Testes
+
+```bash
+npm test          # suíte completa: 245 testes, ~2s, sem rede e sem custo de OpenAI
+npm run test:watch
+npm run coverage
+npm run lint
+```
+
+A suíte cobre a lógica pura (funil, expediente, catálogo, telefone), congela o comportamento do
+`parsePayload` e do resumo de transbordo, e roda o turno completo com OpenAI, ChatClean e Redis
+falsificados. Nada nela chama serviço externo.
+
+Além dela há a **linha de base executável**, que sobe o servidor de verdade com ambiente controlado
+e compara a resposta de todas as rotas:
+
+```bash
+bash test/baseline/coletar-baseline.sh <rotulo>
+diff test/baseline/antes-da-refatoracao-requisicoes.log test/baseline/<rotulo>-requisicoes.log
+```
+
+Detalhes em [docs/12-linha-de-base.md](docs/12-linha-de-base.md).
+
+## Refatoração em andamento
+
+O projeto está sendo refatorado para DDD + arquitetura hexagonal pela técnica Strangler Fig, na
+branch `refatoracao/arquitetura-ddd`. Comece por [CLAUDE.md](CLAUDE.md) e
+[docs/README.md](docs/README.md); o plano está em
+[docs/11-plano-refatoracao-strangler.md](docs/11-plano-refatoracao-strangler.md) e o processo de
+trabalho em [specs/README.md](specs/README.md).
+
 `GET /health` → `{ status: 'ok' }` · `GET /leads` e `GET /diag` exigem `ADMIN_KEY`.
 
 ## Deploy (Hostinger)
