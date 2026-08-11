@@ -74,30 +74,14 @@ const processandoMensagem = new Map(); // lock de processamento (por instância)
 
 // =============================================================
 //  UTILITÁRIOS
+//  normalizarPhone / nucleoNumero / contatoPermitido vivem em
+//  src/shared/telefone.js desde a SPEC 0001 (PR3) — mesma lógica, agora
+//  testável em unidade. A allow-list é passada por parâmetro (o módulo
+//  compartilhado não lê process.env).
 // =============================================================
-function normalizarPhone(phone) {
-    // Corta sufixos de JID antes de limpar: "558491756446:24@s.whatsapp.net"
-    // tem o ID do dispositivo (:24) e o servidor (@...). Sem cortar, o :24
-    // grudaria no número (…6446 + 24). Pega só a parte antes de ':' e '@'.
-    return String(phone).split('@')[0].split(':')[0].replace(/\D/g, '');
-}
-
-// Núcleo canônico de um número BR p/ COMPARAÇÃO (ignora o 9º dígito de celular).
-// Ex.: 5584994610845 (13) e 558494610845 (12) viram o mesmo núcleo → casam.
-function nucleoNumero(n) {
-    let d = String(n).split('@')[0].split(':')[0].replace(/\D/g, '');
-    if (d.length === 13 && d.startsWith('55') && d[4] === '9') {
-        d = d.slice(0, 4) + d.slice(5); // remove o 9 logo após o DDD
-    }
-    return d;
-}
-
-// true se o número está na allow-list (tolerante ao 9º dígito). Lista vazia = libera todos.
-function contatoPermitido(numero) {
-    if (!IA_ALLOWED_CONTACTS.length) return true;
-    const alvo = nucleoNumero(numero);
-    return IA_ALLOWED_CONTACTS.some(a => nucleoNumero(a) === alvo);
-}
+const telefone = require('./src/shared/telefone');
+const normalizarPhone = telefone.normalizarPhone;
+const contatoPermitido = (numero) => telefone.contatoPermitido(numero, IA_ALLOWED_CONTACTS);
 
 // =============================================================
 //  CHATCLEAN — ENVIO VIA PUSH API
