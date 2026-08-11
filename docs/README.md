@@ -1,5 +1,8 @@
 # Documentação — IA Avelloz Campina
 
+> **Retomando o trabalho?** Comece por
+> [13 — Estado atual e continuação](13-estado-e-continuacao.md).
+
 ## Ordem de leitura recomendada
 
 **Para entender o produto** (30 min)

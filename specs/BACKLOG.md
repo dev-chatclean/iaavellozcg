@@ -8,7 +8,7 @@ Ver [docs/11-plano-refatoracao-strangler.md](../docs/11-plano-refatoracao-strang
 | **0001** | [Rede de segurança: testes, lint e CI](0001-rede-de-seguranca/spec.md) | 0 | **Implementada** | D-12, D-13 | — |
 | **0002** | [Configuração validada e endurecimento mínimo](0002-configuracao-e-endurecimento/spec.md) | 0 | **Implementada** | D-23, S1, S4, S5, S8 | — |
 | **0003** | [ACL do payload de entrada](0003-acl-payload-de-entrada/spec.md) | 1 | **Implementada** | D-01(parcial), D-29 | 0001 |
-| **0004** | Portas e adapters: canal, repositório, LLM | 2 | Rascunho | D-02, D-18, D-26, S7 | 0001, 0002 |
+| **0004** | [Portas e adapters: canal, repositório, LLM](0004-portas-e-adapters/spec.md) | 2 | Rascunho — **próxima** | D-02, D-18, D-26, S7 | 0003 |
 | **0005** | Manipuladores de mídia e política de envio | 5 | Rascunho | D-08, D-25 | 0004 |
 | **0006** | Domínio: `Atendimento`, VOs e políticas | 3 | Rascunho | D-03, D-06, D-07, D-09 | 0004 |
 | **0007** | Remoção do pipeline de oportunidades (código morto) | 10 | Decidida — remover | D-05 | 0001 |

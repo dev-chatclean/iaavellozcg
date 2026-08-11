@@ -27,10 +27,17 @@ SPEC (o quê/porquê) → PLAN (como) → TASKS (passos) → CODE + TESTS → VE
 
 Nenhum código é escrito sem spec aprovada em `specs/`. Ver [specs/README.md](specs/README.md).
 
+## Comece por aqui
+
+**[docs/13-estado-e-continuacao.md](docs/13-estado-e-continuacao.md)** — onde a refatoração parou,
+o que já foi entregue, qual é o próximo passo e o que está pendente. É o documento de retomada:
+leia antes de qualquer coisa.
+
 ## Mapa de leitura obrigatória
 
 | Preciso de… | Leia |
 |---|---|
+| **Retomar o trabalho** | [docs/13-estado-e-continuacao.md](docs/13-estado-e-continuacao.md) |
 | Visão geral e domínio | [docs/00-visao-geral.md](docs/00-visao-geral.md) |
 | Como o código funciona hoje | [docs/01-arquitetura-atual.md](docs/01-arquitetura-atual.md) |
 | O que o bot faz | [docs/02-funcionalidades.md](docs/02-funcionalidades.md) |
