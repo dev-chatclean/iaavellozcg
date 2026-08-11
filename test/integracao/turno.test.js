@@ -18,9 +18,10 @@ const { montarSistema } = require('../apoio/fakes');
 const CHAT = '5583999998888';
 // Terca-feira, 10h em America/Recife: dentro do expediente atual.
 const TERCA_10H = new Date('2026-08-11T10:00:00-03:00');
-// Sabado, 10h: fora do expediente atual (ver D-19 — o negocio confirmou que a
-// loja ATENDE sabado; a correcao e da spec 0009).
+// Sabado, 10h: ABERTO desde a SPEC 0009 (a loja atende sabado, 08h-18h).
 const SABADO_10H = new Date('2026-08-15T10:00:00-03:00');
+// Domingo, 10h: fechado — cenario de plantao.
+const DOMINGO_10H = new Date('2026-08-16T10:00:00-03:00');
 
 // setTimeout real, capturado antes do stub, para esperar o processamento
 // assincrono disparado pelo webhook.
@@ -255,9 +256,9 @@ describe('cenario 5: cliente atual pedindo pos-venda', () => {
 // -------------------------------------------------------------
 //  6. Fora de expediente (RN-061)
 // -------------------------------------------------------------
-describe('cenario 6: transbordo fora de expediente', () => {
-    it('etiqueta o resumo e sugere o retorno', async () => {
-        vi.setSystemTime(SABADO_10H);
+describe('cenario 6: expediente e modo plantao (SPEC 0009)', () => {
+    it('domingo: etiqueta o resumo e sugere o retorno', async () => {
+        vi.setSystemTime(DOMINGO_10H);
         s = montarSistema();
         s.openai.filaExtracao.push(...FUNIL_COMPLETO);
 
@@ -267,20 +268,58 @@ describe('cenario 6: transbordo fora de expediente', () => {
 
         const nota = s.axios.notas[0].body;
         expect(nota).toContain('[FORA DE EXPEDIENTE — AGENDAR RETORNO]');
-        expect(nota).toContain('Retorno sugerido: na segunda-feira às 9h');
+        expect(nota).toContain('Retorno sugerido: amanhã às 9h');
     });
 
-    // CONGELA BUG D-28 — o expediente e passado para promptResposta e IGNORADO:
-    // o prompt da resposta nao menciona plantao em lugar nenhum, entao o modelo
-    // escreve como se a loja estivesse aberta. Corrigido na spec 0009.
-    it('CONGELA BUG D-28: o prompt da resposta nao informa que esta fora de expediente', async () => {
-        vi.setSystemTime(SABADO_10H);
+    // D-28 CORRIGIDO pela spec 0009: o expediente chegava a promptResposta e era
+    // ignorado. Este teste era o congelamento do bug e foi invertido.
+    it('CA-007: fora do expediente, o prompt instrui a nao prometer atendimento imediato', async () => {
+        vi.setSystemTime(DOMINGO_10H);
         s = montarSistema();
 
         await s.sistema.processarMensagem({ chatId: CHAT, texto: 'oi', tipo: 'text' });
 
         const prompt = s.openai.ultimoPromptDeResposta();
-        expect(prompt).not.toMatch(/expediente|plantão|fechado|amanhã às 9h/i);
+        expect(prompt).toContain('FORA DO EXPEDIENTE');
+        expect(prompt).toContain('NÃO prometa atendimento imediato');
+        expect(prompt).toContain('amanhã às 9h');
+        expect(prompt).toContain('fim de semana');
+    });
+
+    it('CA-008: dentro do expediente, o prompt nao menciona plantao', async () => {
+        vi.setSystemTime(TERCA_10H);
+        s = montarSistema();
+
+        await s.sistema.processarMensagem({ chatId: CHAT, texto: 'oi', tipo: 'text' });
+
+        expect(s.openai.ultimoPromptDeResposta()).not.toContain('FORA DO EXPEDIENTE');
+    });
+
+    it('CA-009: sabado as 10h transborda ao vivo, sem etiqueta de plantao', async () => {
+        vi.setSystemTime(SABADO_10H);
+        s = montarSistema();
+        s.openai.filaExtracao.push(...FUNIL_COMPLETO);
+
+        for (const texto of ['oi', 'uber', '250', 'alugada', 'AZ125', 'financiamento', 'Malvinas']) {
+            await s.sistema.processarMensagem({ chatId: CHAT, texto, tipo: 'text' });
+        }
+
+        const nota = s.axios.notas[0].body;
+        expect(nota).not.toContain('FORA DE EXPEDIENTE');
+        expect(nota).not.toContain('Retorno sugerido');
+        expect(nota).toContain('Transferir para o departamento Loja Malvinas');
+        expect(s.openai.ultimoPromptDeResposta()).not.toContain('FORA DO EXPEDIENTE');
+    });
+
+    it('a instrucao de plantao preserva RN-021 e RN-023 (nao encerra a conversa)', async () => {
+        vi.setSystemTime(DOMINGO_10H);
+        s = montarSistema();
+
+        await s.sistema.processarMensagem({ chatId: CHAT, texto: 'oi', tipo: 'text' });
+
+        const prompt = s.openai.ultimoPromptDeResposta();
+        expect(prompt).toContain('Não encerre a conversa');
+        expect(prompt).toContain('termine com uma pergunta');
     });
 });
 

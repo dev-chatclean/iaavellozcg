@@ -159,6 +159,14 @@ function promptResposta({ isInicioConversa, mensagemSanitizada, proximoCampo, le
     // não fecha, NÃO libere preço/modelo — redirecione com naturalidade.
     const diagnosticoCompleto = !!(leadData.transporteAtual && leadData.gastoMensal && leadData.situacaoMoto);
 
+    // MODO PLANTÃO (RN-061). Até a SPEC 0009 este parâmetro chegava aqui e era
+    // ignorado (D-28): o modelo escrevia sempre como se a loja estivesse aberta
+    // e prometia atendimento imediato de madrugada. Agora, fora do expediente,
+    // a instrução entra no turno.
+    const linhaPlantao = expediente && expediente.aberto === false
+        ? `- ATENÇÃO — O TIME HUMANO ESTÁ FORA DO EXPEDIENTE AGORA${expediente.motivo ? ' (' + expediente.motivo + ')' : ''}. NÃO prometa atendimento imediato nem diga que o consultor "assume agora" ou "já vai te chamar". Continue o atendimento normalmente e, se for encaminhar, diga com naturalidade que o consultor retorna ${expediente.proximoExpediente}. Não encerre a conversa e não mande o cliente voltar depois: siga ajudando aqui e termine com uma pergunta.`
+        : '';
+
     const coletados = [
         leadData.nome ? 'Nome: ' + leadData.nome : null,
         leadData.finalidade ? 'Finalidade: ' + leadData.finalidade : null,
@@ -185,6 +193,7 @@ ${perguntou
     ? '- O CLIENTE FEZ UMA PERGUNTA. Responda a dúvida dele de forma natural (respeitando o bloqueio de diagnóstico acima). Não empilhe perguntas do roteiro nesta resposta; mas, como sempre, termine com UMA pergunta que mantenha a conversa viva.'
     : linhaPasso}
 - Dados já coletados (NÃO pergunte de novo): ${coletados}
+${linhaPlantao}
 ${perfil ? '- Perfil do cliente: ' + perfil.nome + '. Abordagem/gancho da dor: ' + perfil.gancho : ''}
 ${objecaoAtiva ? '- O cliente trouxe uma objeção. Contorne com naturalidade: ' + objecaoAtiva : ''}
 ${usouNomeRecente ? '- IMPORTANTE: você JÁ chamou o cliente pelo nome nas mensagens recentes. NÃO use o nome dele nesta resposta.' : ''}

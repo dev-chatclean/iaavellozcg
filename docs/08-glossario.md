@@ -47,7 +47,7 @@ Não crie sinônimos. Se um termo novo aparecer, ele entra aqui antes de entrar 
 | **Nota interna** | Mensagem visível só para a equipe no ticket (`onlyNote: true`). |
 | **Push** | Envio de mensagem ao cliente via `CC_PUSH_URL`. |
 | **Oportunidade** | Card no funil comercial do CRM. Funcionalidade inerte hoje. |
-| **Expediente** | Segunda a sexta, 09h–18h (America/Recife), exceto feriados. |
+| **Expediente** | Segunda a sexta 09h–18h e sábado 08h–18h (America/Recife), exceto feriados. |
 | **Plantão** | Modo fora de expediente: não promete atendimento imediato, agenda retorno. |
 | **Blindagem anti-loop** | Proteção contra ping-pong com outro bot (RN-054). |
 | **Agrupamento** | Junção de mensagens de texto em rajada num único turno (RN-057). |

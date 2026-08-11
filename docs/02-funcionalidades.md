@@ -155,7 +155,7 @@ refazer a qualificação, sem repetir o resumo, sem informar parcela ou prazo.
 
 ### RF-040 — Modo plantão fora de expediente
 `horario.js: estaEmExpediente` · usado em `encaminhar` e no transbordo
-Segunda a sexta, 09h–18h (`America/Recife`), exceto feriados. Fora disso, o transbordo é etiquetado
+Segunda a sexta 09h–18h e sábado 08h–18h (`America/Recife`), exceto feriados. Fora disso, o transbordo é etiquetado
 `FORA DE EXPEDIENTE — AGENDAR RETORNO` e o resumo ganha "Retorno sugerido: <próximo expediente>".
 
 ### RF-041 — Calendário de feriados

@@ -13,7 +13,7 @@ Ver [docs/11-plano-refatoracao-strangler.md](../docs/11-plano-refatoracao-strang
 | **0006** | Domínio: `Atendimento`, VOs e políticas | 3 | Rascunho | D-03, D-06, D-07, D-09 | 0004 |
 | **0007** | Remoção do pipeline de oportunidades (código morto) | 10 | Decidida — remover | D-05 | 0001 |
 | **0008** | Casos de uso e morte do `processarMensagem` | 4 | Rascunho | D-01, D-10 | 0006 |
-| **0009** | Expediente: sábado (D-19) e plantão na resposta (D-28) | 0+ | Decidida — implementar | D-19, **D-28** | 0001 |
+| **0009** | [Expediente: sábado e plantão na resposta](0009-expediente-sabado-e-plantao/spec.md) | 0+ | **Implementada** | D-19, D-28 | 0001 |
 | **0010** | Unificação dos testers locais | 6 | Rascunho | **D-04** | 0008 |
 | **0011** | Prompts versionados e suíte de evals | 7 | Rascunho | D-03 | 0010 |
 | **0012** | Estado compartilhado no Redis (multi-instância) | 8 | Rascunho | D-15 | 0004 |
@@ -36,24 +36,21 @@ em `/diag` e as 6 variáveis `PIPELINE_*` do `.env.example`.
 Executado na spec 0007, após a Fase 0. Não é urgente — código morto não causa incidente — mas envenena
 a leitura de quem chega ao projeto.
 
-### 0009 — Expediente: **inclui sábado, horário comercial** *(decidido em 2026-08-11)*
-A loja atende de **segunda a sábado, em horário comercial**. O `horario.js` está errado ao tratar
-sábado como fim de semana — hoje um lead que chega no sábado recebe modo plantão e o transbordo é
-etiquetado "FORA DE EXPEDIENTE", quando a loja está aberta. O texto do `data.js` (que chega ao cliente
-pelo prompt) já está correto.
+### 0009 — Expediente: sábado 08h-18h — IMPLEMENTADA (2026-08-11)
+A loja atende de **segunda a sábado**. Sábado das **08h às 18h**, confirmado pelo negócio; dias úteis
+mantidos em 09h-18h. O horário virou tabela por dia (`horario.js: EXPEDIENTE_SEMANAL`).
 
-**Impacto:** RN-060 e RN-061 mudam. `EMPRESA_INFO.horarioSuporte` passa a ser a fonte da verdade.
+Junto foi corrigido o **D-28**: o modo plantão agora chega ao prompt da resposta, em vez de existir só
+na etiqueta do resumo interno. O bot deixa de prometer atendimento imediato de madrugada.
 
-**Pendente de confirmação para implementar** (não bloqueia a Fase 0):
-- [ ] Horário exato de segunda a sexta — o código usa 09h–18h. Confirmar.
-- [ ] Horário do **sábado** — presumido 08h–12h (padrão do comércio de rua em Campina Grande).
-      Se for diferente, corrigir antes de implementar.
-- [ ] Monteiro tem horário diferente das unidades de Campina Grande?
+Ver [resultado](0009-expediente-sabado-e-plantao/resultado.md).
 
-> ATENÇÃO: Esta correção **não entra na Fase 0**, que é explicitamente zero-mudança-de-comportamento. Os
-> testes de caracterização vão congelar o comportamento atual (sábado = fechado) com a marca
-> `// CONGELA BUG D-19`, e a spec 0009 muda deliberadamente, com teste novo. Essa é a ordem correta:
-> primeiro a rede, depois a mudança.
+O ciclo funcionou como planejado: os testes da Fase 0 congelaram os dois defeitos com a marca
+`CONGELA`, e esta spec os **inverteu** — o mesmo teste que documentava o bug agora garante a correção.
+
+Pendências declaradas, ambas de um número na tabela:
+- [ ] Horário de segunda a sexta (mantido 09h-18h, como sempre esteve).
+- [ ] Monteiro tem horário próprio? (assumido igual às unidades de Campina Grande).
 
 ---
 

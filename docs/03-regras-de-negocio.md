@@ -180,7 +180,7 @@ Origem: `SYSTEM_SDR` ("SITUAÇÕES ESPECÍFICAS") · `data.js: OBJECOES`.
 
 | ID | Criticidade | Regra |
 |---|---|---|
-| **RN-060** | Importante | Expediente do time: **segunda a sábado, horário comercial**, fuso `America/Recife`, exceto feriados. ATENÇÃO: **O código ainda implementa segunda a sexta, 09h–18h** — correção na spec 0009. |
+| **RN-060** | Importante | Expediente do time: **segunda a sexta 09h–18h e sábado 08h–18h**, fuso `America/Recife`, exceto feriados. Domingo fechado. Tabela por dia em `horario.js: EXPEDIENTE_SEMANAL`. |
 | **RN-061** | Importante | Fora do expediente ⇒ **modo plantão**: não promete atendimento imediato, etiqueta o transbordo como `FORA DE EXPEDIENTE — AGENDAR RETORNO` e informa o próximo horário útil. |
 | **RN-062** | Desejável | Feriados nacionais fixos embutidos; móveis e municipais via env `FERIADOS`. |
 

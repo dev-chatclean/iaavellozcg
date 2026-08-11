@@ -132,7 +132,15 @@ simplesmente não recebe a resposta — **sem nenhum alerta**. **Fatia:** Fase 8
 Sem `REDIS_URL`, o sistema cai para memória sem alarme. Em produção isso significa perder todo o
 estado a cada restart, e ninguém percebe até um cliente reclamar. **Fatia:** Fase 8.
 
-### D-19 (Alta) — **BUG confirmado**: sábado tratado como fim de semana
+### D-19 — RESOLVIDA (spec 0009, 2026-08-11)
+Sábado passou a ser dia de atendimento, das 08h às 18h. O horário virou uma **tabela por dia da
+semana** (`horario.js: EXPEDIENTE_SEMANAL`), então ajustar um dia é mudar um número.
+Efeito colateral corrigido junto: com o sábado alcançável, o rótulo do próximo expediente dizia
+"na sábado" — a preposição agora varia por gênero do dia.
+
+<details><summary>Descrição original</summary>
+
+### D-19 (Alta) — BUG confirmado: sábado tratado como fim de semana
 `horario.js` implementa segunda a sexta, 09h–18h (comentário herdado: "expediente do time ChatClean …
 Natal-RN"). Já `data.js: EMPRESA_INFO.horarioSuporte` diz "Segunda a sábado, em horário comercial" —
 e esse texto vai ao cliente pelo prompt.
@@ -141,6 +149,7 @@ e esse texto vai ao cliente pelo prompt.
 equipe etiquetado `FORA DE EXPEDIENTE — AGENDAR RETORNO`, com a loja aberta e vendedor disponível.
 É perda de venda, não só inconsistência de código.
 **Fatia:** spec 0009, logo após a Fase 0.
+</details>
 
 ### D-20 (Alta) — Sem observabilidade
 `console.log` com emojis, sem níveis, sem correlação, sem métricas, sem alerta. Não é possível
@@ -176,6 +185,14 @@ na spec 0003, quando o parse vira ACL com validação de schema.
 processamento. Uma resposta de 4 linhas segura o lock por vários segundos, atrasando as próximas
 mensagens do mesmo cliente.
 
+### D-28 — RESOLVIDA (spec 0009, 2026-08-11)
+`promptResposta` passou a usar o `expediente` que já recebia: fora do horário, o turno leva a
+instrução de não prometer atendimento imediato e de informar quando o consultor retorna, preservando
+RN-021 e RN-023 (a conversa não é encerrada). Dentro do expediente, nada muda no prompt.
+O ESLint deixou de acusar o parâmetro não usado — de 7 avisos para 6.
+
+<details><summary>Descrição original</summary>
+
 ### D-28 (Crítica) — BUG: o modo plantão nunca chega à resposta do bot
 `promptResposta({ ..., expediente })` recebe o expediente e **nunca o usa** — o parâmetro é
 desestruturado e descartado (revelado pelo ESLint, `prompts.js:148`).
@@ -191,6 +208,7 @@ atendimento aqui rapidinho" — e ninguém assume. RN-061 está implementada pel
 Combinado com D-19 (sábado tratado como fechado), o expediente está errado nas duas direções.
 
 **Fatia:** correção junto da spec 0009, que já mexe em expediente. Congelar em teste antes.
+</details>
 
 ### D-26 (Média) — Transcrição fora do SDK
 Whisper é chamado com `axios` + `form-data` na mão, com `Authorization` montado manualmente, enquanto

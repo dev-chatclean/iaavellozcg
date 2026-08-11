@@ -57,23 +57,54 @@ describe('horario: dia util dentro e fora do expediente (RN-060)', () => {
     });
 });
 
-describe('horario: fim de semana (RN-060, CA-009)', () => {
-    // CONGELA BUG D-19 — o negocio confirmou (2026-08-11) que a loja ATENDE
-    // sabado, em horario comercial. O codigo atual trata sabado como fim de
-    // semana. Este teste registra o comportamento ATUAL e deve ser INVERTIDO
-    // pela spec 0009.
-    it('CONGELA BUG D-19: sabado as 10h e tratado como fim de semana', () => {
-        const r = estaEmExpediente(emRecife('2026-08-15T10:00:00'));
+describe('horario: sabado e domingo (RN-060, SPEC 0009)', () => {
+    // D-19 CORRIGIDO pela spec 0009: a loja atende sabado, das 08h as 18h.
+    // Este teste era o congelamento do bug e foi invertido.
+    it('CA-001: sabado as 10h esta ABERTO', () => {
+        expect(estaEmExpediente(emRecife('2026-08-15T10:00:00'))).toEqual({
+            aberto: true,
+            motivo: null,
+            proximoExpediente: null
+        });
+    });
+
+    it('sabado abre as 8h (uma hora antes dos dias uteis)', () => {
+        expect(estaEmExpediente(emRecife('2026-08-15T08:00:00')).aberto).toBe(true);
+    });
+
+    it('CA-002: sabado as 7h59 ainda esta fechado e aponta para hoje as 8h', () => {
+        const r = estaEmExpediente(emRecife('2026-08-15T07:59:00'));
         expect(r.aberto).toBe(false);
-        expect(r.motivo).toBe('fim de semana');
+        expect(r.motivo).toBe('antes do horário');
+        expect(r.proximoExpediente).toBe('hoje às 8h');
+    });
+
+    it('CA-003: sabado as 18h fecha e pula o domingo', () => {
+        const r = estaEmExpediente(emRecife('2026-08-15T18:00:00'));
+        expect(r.aberto).toBe(false);
+        expect(r.motivo).toBe('fora do horário (noite)');
         expect(r.proximoExpediente).toBe('na segunda-feira às 9h');
     });
 
-    it('domingo as 10h esta fechado e aponta para segunda', () => {
+    it('CA-004: sexta a noite aponta para o sabado as 8h', () => {
+        const r = estaEmExpediente(emRecife('2026-08-14T19:00:00'));
+        expect(r.aberto).toBe(false);
+        expect(r.proximoExpediente).toBe('amanhã às 8h');
+    });
+
+    it('CA-005: domingo as 10h esta fechado e aponta para segunda', () => {
         const r = estaEmExpediente(emRecife('2026-08-16T10:00:00'));
         expect(r.aberto).toBe(false);
         expect(r.motivo).toBe('fim de semana');
         expect(r.proximoExpediente).toBe('amanhã às 9h');
+    });
+
+    it('CA-006: sabado que e feriado continua fechado', () => {
+        // 21/11/2026 e sabado; 20/11 (Consciencia Negra) cai na sexta. Usamos
+        // um feriado fixo que caia no sabado: 01/05/2027 (Dia do Trabalho).
+        const r = estaEmExpediente(new Date('2027-05-01T10:00:00-03:00'));
+        expect(r.aberto).toBe(false);
+        expect(r.motivo).toBe('feriado');
     });
 });
 
@@ -104,19 +135,30 @@ describe('horario: feriados nacionais fixos (RN-062)', () => {
     });
 });
 
-describe('horario: virada de ano pulando feriado e fim de semana', () => {
-    it('quinta 31/12 as 19h aponta para segunda 04/01 (pula 01/01, sabado e domingo)', () => {
+describe('horario: virada de ano pulando feriado', () => {
+    it('quinta 31/12 as 19h aponta para o sabado 02/01 (pula o feriado de 01/01)', () => {
+        // 01/01/2027 e sexta e feriado; 02/01 e sabado, que agora e dia de
+        // atendimento. Antes da SPEC 0009 este caso ia parar na segunda.
         const r = estaEmExpediente(emRecife('2026-12-31T19:00:00'));
         expect(r.aberto).toBe(false);
         expect(r.motivo).toBe('fora do horário (noite)');
-        expect(r.proximoExpediente).toBe('na segunda-feira às 9h');
+        expect(r.proximoExpediente).toBe('no sábado às 8h');
     });
 
-    it('sexta 25/12 (Natal) aponta para a segunda seguinte', () => {
+    it('sexta 25/12 (Natal) aponta para o sabado seguinte', () => {
         const r = estaEmExpediente(emRecife('2026-12-25T10:00:00'));
         expect(r.aberto).toBe(false);
         expect(r.motivo).toBe('feriado');
-        expect(r.proximoExpediente).toBe('na segunda-feira às 9h');
+        expect(r.proximoExpediente).toBe('amanhã às 8h');
+    });
+
+    it('usa a preposicao correta por genero do dia', () => {
+        // Domingo 27/12/2026 -> proximo e segunda 28: "amanha". Para pegar o
+        // rotulo com preposicao, usamos um caso a dois dias de distancia.
+        const sabadoNoite = estaEmExpediente(emRecife('2026-08-15T19:00:00'));
+        expect(sabadoNoite.proximoExpediente).toBe('na segunda-feira às 9h');
+        const quintaFeriadoLongo = estaEmExpediente(emRecife('2026-12-31T19:00:00'));
+        expect(quintaFeriadoLongo.proximoExpediente).toMatch(/^no sábado/);
     });
 });
 

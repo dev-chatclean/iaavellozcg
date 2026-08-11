@@ -1,9 +1,8 @@
 // =============================================================
-//  HORÁRIO — expediente do time ChatClean
-//  Atendimento humano: segunda a sexta, 09h–18h (horário de Natal-RN),
-//  exceto feriados. Fora disso (noite + fim de semana + feriado) o bot
-//  entra em MODO PLANTÃO (secretária): não promete atendimento imediato
-//  e agenda retorno para o próximo dia útil.
+//  HORÁRIO — expediente da Avelloz Campina
+//  Atendimento humano: segunda a sábado, exceto feriados.
+//  Fora disso (noite, domingo e feriado) o bot entra em MODO PLANTÃO:
+//  não promete atendimento imediato e informa o próximo dia útil.
 //
 //  estaEmExpediente(date?) → { aberto, motivo, proximoExpediente }
 //  Aceita uma data (para testes); por padrão usa a hora atual.
@@ -14,9 +13,21 @@
 //  ano — coloque-os no FERIADOS do ano corrente.
 // =============================================================
 
-const TZ = 'America/Recife'; // Natal-RN — UTC-3, sem horário de verão
-const ABRE = 9;   // 09h
-const FECHA = 18; // 18h (atende enquanto hora < 18)
+const TZ = 'America/Recife'; // Campina Grande e Monteiro/PB — UTC-3, sem horário de verão
+
+// Expediente por dia da semana (0 = domingo). null = fechado o dia inteiro.
+// Atende enquanto hora >= abre e hora < fecha.
+// SPEC 0009: o sábado passou a ser dia de atendimento (08h-18h). Ajustar um dia
+// é mudar um número aqui — não há mais constante global de abertura.
+const EXPEDIENTE_SEMANAL = {
+    0: null,                    // domingo — fechado
+    1: { abre: 9, fecha: 18 },  // segunda
+    2: { abre: 9, fecha: 18 },  // terça
+    3: { abre: 9, fecha: 18 },  // quarta
+    4: { abre: 9, fecha: 18 },  // quinta
+    5: { abre: 9, fecha: 18 },  // sexta
+    6: { abre: 8, fecha: 18 }   // sábado
+};
 
 // Feriados nacionais de data fixa (MM-DD). Consciência Negra (11-20) é
 // feriado nacional desde 2024.
@@ -37,8 +48,11 @@ const FERIADOS_EXTRA = new Set(
 );
 
 const DIAS_SEMANA = ['domingo', 'segunda-feira', 'terça-feira', 'quarta-feira', 'quinta-feira', 'sexta-feira', 'sábado'];
+// "na segunda-feira" (feminino) mas "no sábado" / "no domingo" (masculino).
+// Antes da SPEC 0009 o sábado nunca era alcançável, então o "na" fixo passava.
+const PREPOSICAO_DIA = ['no', 'na', 'na', 'na', 'na', 'na', 'no'];
 
-// Instante → objeto Date na hora LOCAL de Natal-RN.
+// Instante → objeto Date na hora LOCAL de Campina Grande/PB.
 function paraLocal(date) {
     return new Date(date.toLocaleString('en-US', { timeZone: TZ }));
 }
@@ -53,48 +67,54 @@ function ehFeriado(local) {
     const md = iso.slice(5);
     return FERIADOS_FIXOS.has(md) || FERIADOS_EXTRA.has(iso) || FERIADOS_EXTRA.has(md);
 }
-function ehDiaUtil(local) {
-    const dia = local.getDay();
-    return dia >= 1 && dia <= 5 && !ehFeriado(local);
+
+// Horário de atendimento daquele dia, ou null se a loja não abre (domingo/feriado).
+function horarioDoDia(local) {
+    if (ehFeriado(local)) return null;
+    return EXPEDIENTE_SEMANAL[local.getDay()] || null;
+}
+function ehDiaDeExpediente(local) {
+    return horarioDoDia(local) !== null;
 }
 
-// Rótulo amigável do próximo momento em que o time abre (09h de um dia útil,
-// pulando fins de semana E feriados).
+// Rótulo amigável do próximo momento em que o time abre, pulando domingos e
+// feriados e respeitando o horário de abertura de cada dia.
 function rotuloProximoExpediente(local) {
     const alvo = new Date(local);
-    // Se hoje é dia útil e ainda não abriu, o próximo é hoje às 9h.
-    if (!(ehDiaUtil(local) && local.getHours() < ABRE)) {
-        // Caso contrário, avança para o próximo dia útil.
-        do { alvo.setDate(alvo.getDate() + 1); } while (!ehDiaUtil(alvo));
+    const hojeAbre = horarioDoDia(local);
+    // Se hoje é dia de expediente e ainda não abriu, o próximo é hoje.
+    if (!(hojeAbre && local.getHours() < hojeAbre.abre)) {
+        do { alvo.setDate(alvo.getDate() + 1); } while (!ehDiaDeExpediente(alvo));
     }
-    alvo.setHours(ABRE, 0, 0, 0);
+    const abre = horarioDoDia(alvo).abre;
+    alvo.setHours(abre, 0, 0, 0);
 
     // Diferença em dias de calendário (comparando só a data).
     const d0 = new Date(local); d0.setHours(0, 0, 0, 0);
     const d1 = new Date(alvo);  d1.setHours(0, 0, 0, 0);
     const difDias = Math.round((d1 - d0) / 86400000);
 
-    if (difDias === 0) return 'hoje às 9h';
-    if (difDias === 1) return 'amanhã às 9h';
-    return `na ${DIAS_SEMANA[alvo.getDay()]} às 9h`;
+    if (difDias === 0) return `hoje às ${abre}h`;
+    if (difDias === 1) return `amanhã às ${abre}h`;
+    return `${PREPOSICAO_DIA[alvo.getDay()]} ${DIAS_SEMANA[alvo.getDay()]} às ${abre}h`;
 }
 
 function estaEmExpediente(date = new Date()) {
     const local = paraLocal(date);
-    const dia = local.getDay();
     const hora = local.getHours();
     const feriado = ehFeriado(local);
-    const fimDeSemana = (dia === 0 || dia === 6);
-    const comercial = hora >= ABRE && hora < FECHA;
-    const aberto = !fimDeSemana && !feriado && comercial;
+    const horario = EXPEDIENTE_SEMANAL[local.getDay()] || null;
+    const diaFechado = horario === null;
+    const comercial = !!horario && hora >= horario.abre && hora < horario.fecha;
+    const aberto = !feriado && !diaFechado && comercial;
 
     let motivo = null;
     if (feriado) motivo = 'feriado';
-    else if (fimDeSemana) motivo = 'fim de semana';
-    else if (hora < ABRE) motivo = 'antes do horário';
-    else if (hora >= FECHA) motivo = 'fora do horário (noite)';
+    else if (diaFechado) motivo = 'fim de semana';
+    else if (hora < horario.abre) motivo = 'antes do horário';
+    else if (hora >= horario.fecha) motivo = 'fora do horário (noite)';
 
     return { aberto, motivo, proximoExpediente: aberto ? null : rotuloProximoExpediente(local) };
 }
 
-module.exports = { estaEmExpediente, ehFeriado, TZ };
+module.exports = { estaEmExpediente, ehFeriado, horarioDoDia, EXPEDIENTE_SEMANAL, TZ };
