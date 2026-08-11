@@ -180,13 +180,14 @@ Origem: `SYSTEM_SDR` ("SITUAÇÕES ESPECÍFICAS") · `data.js: OBJECOES`.
 
 | ID | Criticidade | Regra |
 |---|---|---|
-| **RN-060** | 🟡 | Expediente do time: **segunda a sexta, 09h–18h**, fuso `America/Recife`, exceto feriados. |
+| **RN-060** | 🟡 | Expediente do time: **segunda a sábado, horário comercial**, fuso `America/Recife`, exceto feriados. ⚠️ **O código ainda implementa segunda a sexta, 09h–18h** — correção na spec 0009. |
 | **RN-061** | 🟡 | Fora do expediente ⇒ **modo plantão**: não promete atendimento imediato, etiqueta o transbordo como `FORA DE EXPEDIENTE — AGENDAR RETORNO` e informa o próximo horário útil. |
 | **RN-062** | 🟢 | Feriados nacionais fixos embutidos; móveis e municipais via env `FERIADOS`. |
 
-> ⚠️ **Conflito aberto (D-19)**: `data.js: EMPRESA_INFO.horarioSuporte` diz "Segunda a **sábado**, em
-> horário comercial", enquanto `horario.js` implementa segunda a sexta. O texto do `data.js` chega ao
-> cliente pelo prompt. **Precisa de decisão do negócio.**
+> ✅ **Conflito D-19 resolvido (2026-08-11):** a loja **atende sábado**, em horário comercial —
+> `data.js` estava certo, `horario.js` está errado. Consequência do bug: lead que chega no sábado
+> recebe modo plantão e o transbordo é etiquetado "FORA DE EXPEDIENTE" com a loja aberta.
+> Correção na **spec 0009**, depois da Fase 0 (que congela o comportamento atual de propósito).
 
 ---
 

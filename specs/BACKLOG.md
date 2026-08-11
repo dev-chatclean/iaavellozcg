@@ -11,9 +11,9 @@ Ver [docs/11-plano-refatoracao-strangler.md](../docs/11-plano-refatoracao-strang
 | **0004** | Portas e adapters: canal, repositório, LLM | 2 | 🕓 Rascunho | D-02, D-18, D-26, S7 | 0001, 0002 |
 | **0005** | Manipuladores de mídia e política de envio | 5 | 🕓 Rascunho | D-08, D-25 | 0004 |
 | **0006** | Domínio: `Atendimento`, VOs e políticas | 3 | 🕓 Rascunho | D-03, D-06, D-07, D-09 | 0004 |
-| **0007** | Decisão: pipeline de oportunidades no CRM | — | ⛔ Bloqueada (negócio) | D-05 | decisão do cliente |
+| **0007** | Remoção do pipeline de oportunidades (código morto) | 10 | 📝 Decidida — remover | D-05 | 0001 |
 | **0008** | Casos de uso e morte do `processarMensagem` | 4 | 🕓 Rascunho | D-01, D-10 | 0006 |
-| **0009** | Decisão: horário de atendimento e fuso | — | ⛔ Bloqueada (negócio) | D-19 | decisão do cliente |
+| **0009** | Expediente incluindo sábado (correção de RN-060) | 0+ | 📝 Decidida — implementar | D-19 | 0001 |
 | **0010** | Unificação dos testers locais | 6 | 🕓 Rascunho | **D-04** | 0008 |
 | **0011** | Prompts versionados e suíte de evals | 7 | 🕓 Rascunho | D-03 | 0010 |
 | **0012** | Estado compartilhado no Redis (multi-instância) | 8 | 🕓 Rascunho | D-15 | 0004 |
@@ -28,21 +28,33 @@ Ver [docs/11-plano-refatoracao-strangler.md](../docs/11-plano-refatoracao-strang
 
 ---
 
-## Decisões pendentes do negócio (bloqueiam specs)
+## Decisões de negócio tomadas
 
-Estas duas não são técnicas — precisam de resposta do cliente e travam a modelagem.
+### 0007 — Pipeline de oportunidades: **REMOVER** *(decidido em 2026-08-11)*
+Os vendedores **não usam** o funil de Oportunidades do ChatClean. O `pipeline.js` (111 linhas, nunca
+chamado, com comentários herdados do projeto `iachatclean`) será **deletado**, junto com a referência
+em `/diag` e as 6 variáveis `PIPELINE_*` do `.env.example`.
+Executado na spec 0007, após a Fase 0. Não é urgente — código morto não causa incidente — mas envenena
+a leitura de quem chega ao projeto.
 
-### 0007 — Ligar ou remover o pipeline de oportunidades?
-`pipeline.js` cria um card no funil comercial do CRM quando o lead é qualificado. O código existe,
-está testado por engenharia reversa, e **nunca é chamado**. Ligar dá visibilidade do funil ao gerente
-da loja; não ligar significa deletar 111 linhas de código morto com comentários de outro projeto.
-**Pergunta ao cliente:** os vendedores usam o funil de oportunidades do ChatClean hoje?
+### 0009 — Expediente: **inclui sábado, horário comercial** *(decidido em 2026-08-11)*
+A loja atende de **segunda a sábado, em horário comercial**. O `horario.js` está errado ao tratar
+sábado como fim de semana — hoje um lead que chega no sábado recebe modo plantão e o transbordo é
+etiquetado "FORA DE EXPEDIENTE", quando a loja está aberta. O texto do `data.js` (que chega ao cliente
+pelo prompt) já está correto.
 
-### 0009 — Qual é o horário de atendimento real?
-`horario.js` implementa **segunda a sexta, 09h–18h** (fuso `America/Recife`, comentário citando
-"Natal-RN"), mas `data.js` informa ao cliente **"segunda a sábado, em horário comercial"**. As duas
-coisas chegam ao lead. **Perguntas ao cliente:** a loja atende sábado? Qual o horário exato de cada
-unidade? Monteiro tem horário diferente de Campina Grande?
+**Impacto:** RN-060 e RN-061 mudam. `EMPRESA_INFO.horarioSuporte` passa a ser a fonte da verdade.
+
+**Pendente de confirmação para implementar** (não bloqueia a Fase 0):
+- [ ] Horário exato de segunda a sexta — o código usa 09h–18h. Confirmar.
+- [ ] Horário do **sábado** — presumido 08h–12h (padrão do comércio de rua em Campina Grande).
+      Se for diferente, corrigir antes de implementar.
+- [ ] Monteiro tem horário diferente das unidades de Campina Grande?
+
+> ⚠️ Esta correção **não entra na Fase 0**, que é explicitamente zero-mudança-de-comportamento. Os
+> testes de caracterização vão congelar o comportamento atual (sábado = fechado) com a marca
+> `// CONGELA BUG D-19`, e a spec 0009 muda deliberadamente, com teste novo. Essa é a ordem correta:
+> primeiro a rede, depois a mudança.
 
 ---
 

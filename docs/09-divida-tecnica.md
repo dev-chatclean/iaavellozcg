@@ -49,7 +49,9 @@ testador. **Fatia:** Fase 6.
 ### D-05 🟡 — `pipeline.js` é código morto com comentários de outro projeto
 `criarOportunidade()` nunca é chamado. Os comentários descrevem a etapa "REUNIÃO MARCADA" e o
 responsável "Roni" — herança do `iachatclean`. Só `diag()` é usado.
-**Impacto:** confunde quem lê; sugere uma integração que não existe. **Fatia:** spec 0007.
+**Impacto:** confunde quem lê; sugere uma integração que não existe.
+**Decisão do negócio (2026-08-11): os vendedores não usam o funil de Oportunidades — remover.**
+Deletar `pipeline.js`, a referência em `/diag` e as 6 variáveis `PIPELINE_*`. **Fatia:** spec 0007.
 
 ### D-06 🟡 — Query com efeito colateral (viola CQS)
 `flow.js: determinarProximoCampo(leadData)` **muta** `leadData.qualificacaoCompleta` ao retornar
@@ -119,12 +121,15 @@ simplesmente não recebe a resposta — **sem nenhum alerta**. **Fatia:** Fase 8
 Sem `REDIS_URL`, o sistema cai para memória sem alarme. Em produção isso significa perder todo o
 estado a cada restart, e ninguém percebe até um cliente reclamar. **Fatia:** Fase 8.
 
-### D-19 🟡 — Conflito de regra: horário de atendimento
-`horario.js` implementa **segunda a sexta, 09h–18h**, fuso `America/Recife`, com o comentário
-"expediente do time ChatClean … horário de Natal-RN". Já `data.js: EMPRESA_INFO.horarioSuporte` diz
-**"Segunda a sábado, em horário comercial"** — e esse texto vai para o cliente pelo prompt.
-**Impacto:** o bot pode informar um horário e o plantão operar por outro.
-**Ação:** decisão do negócio (spec 0009). Também revisar se o fuso correto é Campina Grande/PB.
+### D-19 🟡 — **BUG confirmado**: sábado tratado como fim de semana
+`horario.js` implementa segunda a sexta, 09h–18h (comentário herdado: "expediente do time ChatClean …
+Natal-RN"). Já `data.js: EMPRESA_INFO.horarioSuporte` diz "Segunda a sábado, em horário comercial" —
+e esse texto vai ao cliente pelo prompt.
+**Decisão do negócio (2026-08-11): a loja atende sábado.** Logo, `horario.js` está errado.
+**Impacto real:** todo lead que chega no sábado é atendido em modo plantão e o transbordo vai para a
+equipe etiquetado `FORA DE EXPEDIENTE — AGENDAR RETORNO`, com a loja aberta e vendedor disponível.
+É perda de venda, não só inconsistência de código.
+**Fatia:** spec 0009, logo após a Fase 0.
 
 ### D-20 🟡 — Sem observabilidade
 `console.log` com emojis, sem níveis, sem correlação, sem métricas, sem alerta. Não é possível
