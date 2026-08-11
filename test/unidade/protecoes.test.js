@@ -18,7 +18,7 @@ function recarregarIndex() {
 
 const requisicao = ({ headers = {}, query = {}, params = {} } = {}) => ({ headers, query, params });
 
-describe('webhookAutorizado: sem WEBHOOK_SECRET (padrao atual)', () => {
+describe('webhookAutorizado: sem WEBHOOK_SECRET (fora de producao)', () => {
     let webhookAutorizado;
 
     beforeEach(() => {
@@ -26,11 +26,24 @@ describe('webhookAutorizado: sem WEBHOOK_SECRET (padrao atual)', () => {
         ({ webhookAutorizado } = recarregarIndex());
     });
 
-    // CONGELA RISCO S4 — com o segredo vazio o webhook fica ABERTO: qualquer
-    // requisicao passa. A spec 0002 torna isso fail-closed em producao.
-    it('CONGELA RISCO S4: aceita qualquer requisicao quando o segredo esta vazio', () => {
+    // S4 ENDURECIDO pela spec 0002: fora de producao o webhook aberto continua
+    // aceito (desenvolvimento simples, CA-005), mas em PRODUCAO o boot passou a
+    // exigir o segredo — ver test/unidade/config.test.js, CA-004. O teste que
+    // congelava o risco virou a documentacao do compromisso.
+    it('CA-005: fora de producao, aceita requisicao sem token', () => {
         expect(webhookAutorizado(requisicao())).toBe(true);
         expect(webhookAutorizado(requisicao({ headers: { 'x-webhook-token': 'qualquer-coisa' } }))).toBe(true);
+    });
+
+    it('em producao esta combinacao nem chega a rodar: o boot falha antes', () => {
+        const { validar } = require('../../src/main/config');
+        const r = validar({
+            NODE_ENV: 'production',
+            OPENAI_API_KEY: 'sk-teste',
+            CC_PUSH_URL: 'https://x/y',
+            WEBHOOK_SECRET: ''
+        });
+        expect(r.ok).toBe(false);
     });
 });
 
@@ -85,6 +98,46 @@ describe('webhookAutorizado: com WEBHOOK_SECRET definido', () => {
         expect(
             webhookAutorizado(requisicao({ headers: { 'x-webhook-token': 'errado-mesmo' }, query: { token: SEGREDO } }))
         ).toBe(false);
+    });
+});
+
+// S5 CORRIGIDO pela spec 0002: a comparacao usava padEnd(128), truncando
+// segredos longos. Dois segredos diferentes que compartilhassem os primeiros
+// 128 caracteres eram considerados iguais.
+describe('webhookAutorizado: segredo longo (CA-006, CA-007)', () => {
+    const PREFIXO = 'a'.repeat(128);
+    const SEGREDO = PREFIXO + 'FINAL-VERDADEIRO';
+    let webhookAutorizado;
+    let original;
+
+    beforeEach(() => {
+        original = process.env.WEBHOOK_SECRET;
+        process.env.WEBHOOK_SECRET = SEGREDO;
+        ({ webhookAutorizado } = recarregarIndex());
+    });
+
+    afterEach(() => {
+        if (original === undefined) delete process.env.WEBHOOK_SECRET;
+        else process.env.WEBHOOK_SECRET = original;
+        recarregarIndex();
+    });
+
+    it('CA-006: token que compartilha os primeiros 128 caracteres e REJEITADO', () => {
+        const impostor = PREFIXO + 'FINAL-FALSIFICADO';
+        expect(webhookAutorizado(requisicao({ headers: { 'x-webhook-token': impostor } }))).toBe(false);
+    });
+
+    it('o segredo longo correto continua sendo aceito', () => {
+        expect(webhookAutorizado(requisicao({ headers: { 'x-webhook-token': SEGREDO } }))).toBe(true);
+    });
+
+    it('CA-007: token vazio e rejeitado sem comparar comprimentos em texto claro', () => {
+        expect(webhookAutorizado(requisicao({ headers: { 'x-webhook-token': '' } }))).toBe(false);
+        expect(webhookAutorizado(requisicao())).toBe(false);
+    });
+
+    it('apenas o prefixo (sem o final) e rejeitado', () => {
+        expect(webhookAutorizado(requisicao({ headers: { 'x-webhook-token': PREFIXO } }))).toBe(false);
     });
 });
 

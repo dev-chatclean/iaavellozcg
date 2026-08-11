@@ -6,203 +6,49 @@
 ❤️  Health:  https://SEU_DOMINIO/health
 🚀 ================================
 
-⚠️  CC_PUSH_URL não configurado — a IA não conseguirá responder.
-ℹ️  EQUIPE_NUMERO não configurado — resumo de lead só irá como nota interna.
-🔓 WEBHOOK_SECRET vazio — /webhook está ABERTO. Antes do go-live, defina-o e aponte a URL do ChatClean para /webhook/<secret>.
+⚠️  EQUIPE_NUMERO vazio — o resumo do lead irá só como nota interna no ticket.
+⚠️  REDIS_URL vazia — o estado das conversas fica em memória e SE PERDE no restart.
+⚠️  CC_PUSH_URL vazia — a IA não conseguirá responder.
+⚠️  WEBHOOK_SECRET vazio — /webhook está ABERTO (aceito fora de produção).
 🗄️  Estado das conversas: memória (defina REDIS_URL para persistir entre restarts)
-🔍 PAYLOAD RAW: {
-  "contact": {
-    "id": 501,
-    "name": "Joao Baseline"
-  },
-  "ticket": {
-    "status": "pending",
-    "userId": null
-  },
-  "message": {
-    "id": "MSG-A1",
-    "body": "quanto custa a AZ1?",
-    "type": "chat",
-    "fromMe": false,
-    "raw": {
-      "Info": {
-        "SenderAlt": "558491756446:24@s.whatsapp.net",
-        "PushName": "Joao Baseline"
-      }
-    }
-  }
-}
-📩 Webhook de 558491756446 [text]: "quanto custa a AZ1?"
-🔍 PAYLOAD RAW: {
-  "contact": {
-    "id": 502,
-    "name": "Maria",
-    "number": "5583988887777"
-  },
-  "ticket": {
-    "status": "pending"
-  },
-  "message": {
-    "id": "MSG-A2",
-    "body": "oi",
-    "type": "chat",
-    "fromMe": false
-  }
-}
-📩 Webhook de 5583988887777 [text]: "oi"
-🔍 PAYLOAD RAW: {
-  "contact": {
-    "id": 503,
-    "name": "Pedro"
-  },
-  "ticket": {
-    "status": "open"
-  },
-  "message": {
-    "id": "MSG-A3",
-    "body": "bom dia",
-    "type": "text",
-    "fromMe": false,
-    "raw": {
-      "from": "5583977776666"
-    }
-  }
-}
-📩 Webhook de 5583977776666 [text]: "bom dia"
-🔍 PAYLOAD RAW: {
-  "number": "5583966665555",
-  "body": "tenho interesse",
-  "type": "text",
-  "contactName": "Ana",
-  "id": "MSG-B1"
-}
-📩 Webhook de 5583966665555 [text]: "tenho interesse"
+🔍 Webhook recebido: contact, ticket, message
+📩 Webhook de 5584****6446 [text] (19 caracteres)
+🔍 Webhook recebido: contact, ticket, message
+📩 Webhook de 5583*****7777 [text] (2 caracteres)
+🔍 Webhook recebido: contact, ticket, message
+📩 Webhook de 5583*****6666 [text] (7 caracteres)
 Erro ao extrair informações: 401 Incorrect API key provided: sk-basel*****alsa. You can find your API key at https://platform.openai.com/account/api-keys.
-🔍 PAYLOAD RAW: {
-  "contact": {
-    "id": 504,
-    "number": "5583955554444"
-  },
-  "message": {
-    "id": "MSG-C1",
-    "body": "eco",
-    "type": "chat",
-    "fromMe": true
-  }
-}
 Erro ao extrair informações: 401 Incorrect API key provided: sk-basel*****alsa. You can find your API key at https://platform.openai.com/account/api-keys.
-🔍 PAYLOAD RAW: {
-  "contact": {
-    "id": 505,
-    "number": "5583944443333"
-  },
-  "ticket": {
-    "status": "pending",
-    "isGroup": true
-  },
-  "message": {
-    "id": "MSG-C2",
-    "body": "mensagem de grupo",
-    "type": "chat",
-    "fromMe": false
-  }
-}
-👥 Mensagem de grupo ignorada
-❌ Erro ao gerar resposta IA para 5583988887777: 401 Incorrect API key provided: sk-basel*****alsa. You can find your API key at https://platform.openai.com/account/api-keys.
+❌ Erro ao gerar resposta IA para 5584****6446: 401 Incorrect API key provided: sk-basel*****alsa. You can find your API key at https://platform.openai.com/account/api-keys.
 ⚠️ CC_PUSH_URL não configurado no .env — envio ignorado
-🔍 PAYLOAD RAW: {
-  "contact": {
-    "id": 506,
-    "number": "5583933332222"
-  },
-  "message": {
-    "id": "MSG-C3",
-    "body": "grupo jid",
-    "type": "chat",
-    "fromMe": false,
-    "raw": {
-      "Info": {
-        "Chat": "120363000000000000@g.us"
-      }
-    }
-  }
-}
-👥 Mensagem de grupo ignorada
-Erro ao extrair informações: 401 Incorrect API key provided: sk-basel*****alsa. You can find your API key at https://platform.openai.com/account/api-keys.
-❌ Erro ao gerar resposta IA para 558491756446: 401 Incorrect API key provided: sk-basel*****alsa. You can find your API key at https://platform.openai.com/account/api-keys.
+❌ Erro ao gerar resposta IA para 5583*****7777: 401 Incorrect API key provided: sk-basel*****alsa. You can find your API key at https://platform.openai.com/account/api-keys.
 ⚠️ CC_PUSH_URL não configurado no .env — envio ignorado
-🔍 PAYLOAD RAW: {
-  "contact": {
-    "id": 507,
-    "number": "5583922221111"
-  },
-  "ticket": {
-    "status": "open",
-    "userId": 77
-  },
-  "message": {
-    "id": "MSG-C4",
-    "body": "ja tem vendedor",
-    "type": "chat",
-    "fromMe": false
-  }
-}
+🔍 Webhook recebido: number, body, type, contactName, id
+📩 Webhook de 5583*****5555 [text] (15 caracteres)
+Erro ao extrair informações: 401 Incorrect API key provided: sk-basel*****alsa. You can find your API key at https://platform.openai.com/account/api-keys.
+❌ Erro ao gerar resposta IA para 5583*****6666: 401 Incorrect API key provided: sk-basel*****alsa. You can find your API key at https://platform.openai.com/account/api-keys.
+⚠️ CC_PUSH_URL não configurado no .env — envio ignorado
+Erro ao extrair informações: 401 Incorrect API key provided: sk-basel*****alsa. You can find your API key at https://platform.openai.com/account/api-keys.
+🔍 Webhook recebido: contact, message
+❌ Erro ao gerar resposta IA para 5583*****5555: 401 Incorrect API key provided: sk-basel*****alsa. You can find your API key at https://platform.openai.com/account/api-keys.
+⚠️ CC_PUSH_URL não configurado no .env — envio ignorado
+🔍 Webhook recebido: contact, ticket, message
+👥 Mensagem de grupo ignorada
+🔍 Webhook recebido: contact, message
+👥 Mensagem de grupo ignorada
+🔍 Webhook recebido: contact, ticket, message
 ⏭️ Ticket "open" (aceito/atendido por humano) — IA não responde
-❌ Erro ao gerar resposta IA para 5583966665555: 401 Incorrect API key provided: sk-basel*****alsa. You can find your API key at https://platform.openai.com/account/api-keys.
-⚠️ CC_PUSH_URL não configurado no .env — envio ignorado
-🔍 PAYLOAD RAW: {
-  "contact": {
-    "id": 508,
-    "number": "5583911110000"
-  },
-  "ticket": {
-    "status": "closed"
-  },
-  "message": {
-    "id": "MSG-C5",
-    "body": "encerrado",
-    "type": "chat",
-    "fromMe": false
-  }
-}
+🔍 Webhook recebido: contact, ticket, message
 ⏭️ Ticket "closed" (aceito/atendido por humano) — IA não responde
-🔍 PAYLOAD RAW: {
-  "numero_cliente": "5583900001111",
-  "mensagem_cliente": "oi"
-}
+🔍 Webhook recebido: numero_cliente, mensagem_cliente
 ↩️ Ignorando disparo duplicado (formato numero_cliente)
-🔍 PAYLOAD RAW: {
-  "foo": "bar"
-}
+🔍 Webhook recebido: foo
 ⚠️ Payload não reconhecido: {
   "foo": "bar"
 }
-🔍 PAYLOAD RAW: {
-  "contact": {
-    "id": 502,
-    "name": "Maria",
-    "number": "5583988887777"
-  },
-  "ticket": {
-    "status": "pending"
-  },
-  "message": {
-    "id": "MSG-A2",
-    "body": "oi de novo",
-    "type": "chat",
-    "fromMe": false
-  }
-}
-📩 Webhook de 5583988887777 [text]: "oi de novo"
+🔍 Webhook recebido: contact, ticket, message
+📩 Webhook de 5583*****7777 [text] (10 caracteres)
 ↩️ Mensagem duplicada (MSG-A2) ignorada
-🔍 PAYLOAD RAW: {
-  "number": "5583899998888",
-  "body": "",
-  "type": "sticker",
-  "id": "MSG-D1"
-}
-📩 Webhook de 5583899998888 [sticker]: "[mídia]"
-⚠️ CC_PUSH_URL não configurado no .env — envio ignorado
-Erro ao extrair informações: 401 Incorrect API key provided: sk-basel*****alsa. You can find your API key at https://platform.openai.com/account/api-keys.
-❌ Erro ao gerar resposta IA para 5583977776666: 401 Incorrect API key provided: sk-basel*****alsa. You can find your API key at https://platform.openai.com/account/api-keys.
+🔍 Webhook recebido: number, body, type, id
+📩 Webhook de 5583*****8888 [sticker] (vazio)
 ⚠️ CC_PUSH_URL não configurado no .env — envio ignorado

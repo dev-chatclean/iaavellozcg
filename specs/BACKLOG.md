@@ -6,7 +6,7 @@ Ver [docs/11-plano-refatoracao-strangler.md](../docs/11-plano-refatoracao-strang
 | # | Spec | Fase | Status | Dívida | Depende de |
 |---|---|---|---|---|---|
 | **0001** | [Rede de segurança: testes, lint e CI](0001-rede-de-seguranca/spec.md) | 0 | **Implementada** | D-12, D-13 | — |
-| **0002** | Configuração validada e endurecimento mínimo | 0 | Aprovada (liberada) | D-23, S1, S4, S5, S8 | — |
+| **0002** | [Configuração validada e endurecimento mínimo](0002-configuracao-e-endurecimento/spec.md) | 0 | **Implementada** | D-23, S1, S4, S5, S8 | — |
 | **0003** | ACL do payload de entrada | 1 | Aprovada (liberada) | D-01(parcial) | 0001 |
 | **0004** | Portas e adapters: canal, repositório, LLM | 2 | Rascunho | D-02, D-18, D-26, S7 | 0001, 0002 |
 | **0005** | Manipuladores de mídia e política de envio | 5 | Rascunho | D-08, D-25 | 0004 |

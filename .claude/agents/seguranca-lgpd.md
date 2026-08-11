@@ -44,9 +44,9 @@ pessoais sob a LGPD (Lei 13.709/2018), com a Avelloz como controladora.
 - [ ] `ADMIN_KEY` definida (senão `/leads` e `/diag` ficam 503 — comportamento correto)
 - [ ] `REDIS_URL` definido (sem ele, estado se perde no restart)
 - [ ] `IA_ALLOWED_CONTACTS` esvaziado só após o teste de homologação
-- [ ] Log de payload bruto desligado em produção (`LOG_LEVEL`/`LOG_PAYLOAD=false`)
+- [x] Log de payload bruto desligado por padrao (`LOG_PAYLOAD`, spec 0002)
 - [ ] PII mascarada em log e em notificação interna
-- [ ] `.dockerignore` cobrindo `.env`, `node_modules`, `.git`
+- [x] `.dockerignore` cobrindo `.env`, `node_modules`, `.git` (spec 0002, verificado com build real)
 - [ ] Rota de expurgo/anonimização de um contato a pedido do titular (direito de eliminação)
 - [ ] TTL definido para a lista `avellozcg:leads`
 

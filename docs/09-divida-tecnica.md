@@ -162,6 +162,14 @@ Cresce indefinidamente e nenhum endpoint o lê (`/leads` lista atendimentos ativ
 ### D-22 (Média) — Campo fantasma no `/leads`
 Expõe `l.empresa`, que não existe no domínio Avelloz — resquício do `iachatclean`. Sempre `undefined`.
 
+### D-23 — RESOLVIDA (spec 0002, 2026-08-11)
+As 21 variáveis passaram a ser lidas e validadas em `src/main/config.js`, uma vez, **antes** do
+`app.listen`. Configuração inválida derruba o processo listando todos os problemas com o valor
+recebido. Em `NODE_ENV=production` o esquema exige `WEBHOOK_SECRET` e `CC_PUSH_URL`.
+Ver [resultado](../specs/0002-configuracao-e-endurecimento/resultado.md).
+
+<details><summary>Descrição original</summary>
+
 ### D-23 (Média) — Configuração não validada no boot
 21 variáveis de ambiente lidas por `process.env` espalhado em 4 arquivos, sem validação. O processo
 sobe com configuração inválida e falha em runtime. Único caso tratado (`OPENAI_API_KEY`) é verificado
@@ -226,14 +234,14 @@ Detalhamento em `.claude/agents/seguranca-lgpd.md`. Resumo:
 
 | ID | Sev. | Problema |
 |---|---|---|
-| **S1** | Crítica | Payload bruto (com PII e conteúdo da conversa) logado inteiro em `console.log` |
+| ~~S1~~ | RESOLVIDO | ~~Payload bruto logado inteiro~~ — spec 0002: payload atrás de `LOG_PAYLOAD`, telefone mascarado em todo log |
 | **S2** | Crítica | Resumo com CPF, nascimento e CNH enviado por WhatsApp para `EQUIPE_NUMERO` |
 | **S3** | Crítica | CPF e demais dados pessoais persistidos em claro no Redis por 30 dias |
-| **S4** | Crítica | `WEBHOOK_SECRET` vazio deixa `/webhook` **aberto** — qualquer um injeta mensagens e queima crédito da OpenAI |
-| **S5** | Alta | `webhookAutorizado` faz `padEnd(128)` (colisão para segredos > 128 chars) e compara comprimento antes do `timingSafeEqual` |
+| ~~S4~~ | RESOLVIDO | ~~Webhook aberto por omissão~~ — spec 0002: `WEBHOOK_SECRET` obrigatório em `NODE_ENV=production` (o boot falha sem ele) |
+| ~~S5~~ | RESOLVIDO | ~~Comparação com `padEnd(128)`~~ — spec 0002: comparação por digest SHA-256 |
 | **S6** | Alta | Sanitização anti-injeção é só `replace(/[<>]/g,'')` |
 | **S7** | Alta | `mediaUrl` do webhook é baixada e repassada à OpenAI sem validação de host (SSRF) |
-| **S8** | Alta | Sem `.dockerignore` — `docker build` pode copiar `.env` para a imagem |
+| ~~S8~~ | RESOLVIDO | ~~Sem `.dockerignore`~~ — spec 0002: criado e verificado com `docker build` real |
 | **S9** | Alta | Sem política de retenção/expurgo; lista de leads sem TTL |
 | **S10** | Média | Sem aviso de tratamento de dados / base legal declarada na conversa |
 
@@ -244,7 +252,7 @@ Detalhamento em `.claude/agents/seguranca-lgpd.md`. Resumo:
 ```
 RESOLVIDO ──── D-12 (sem testes), D-13 (sem lint/CI)  ─> spec 0001, concluída
 
-BLOQUEADOR ─── D-23, S1, S4, S8  ─────────────────────> spec 0002
+RESOLVIDO ──── D-23, S1, S4, S5, S8  ─────────────────> spec 0002, concluída
 
 BUG ────────── D-28 (plantão não chega à resposta)  ──> spec 0009
                D-19 (sábado tratado como fechado)
@@ -254,7 +262,7 @@ CRÍTICO ────── D-01, D-02, D-03, D-04 (estrutura)  ───> Fases
                D-09
 
 ALTO ───────── D-15, D-16, D-17, D-18, D-20  ────────> Fase 8
-               S2, S3, S5, S6, S7, S9
+               S2, S3, S6, S7, S9
 
 MÉDIO ──────── D-05, D-07, D-08, D-19, D-21..D-27  ──> ao longo das fases
 ```

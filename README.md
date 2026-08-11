@@ -102,7 +102,14 @@ trabalho em [specs/README.md](specs/README.md).
 
 1. Subir o projeto para o servidor (git ou upload) e `npm install --omit=dev` (ou `npm ci`).
 2. Definir as variáveis de ambiente do `.env.example` (OpenAI, `CC_PUSH_URL`, `EQUIPE_NUMERO`, `REDIS_URL`, `REDIS_PREFIX=avellozcg`).
-3. Manter o processo vivo (PM2 recomendado): `pm2 start index.js --name iaavellozcg`.
+3. Manter o processo vivo (PM2 recomendado): `NODE_ENV=production pm2 start index.js --name iaavellozcg`.
+
+   > **`NODE_ENV=production` é obrigatório.** Com ele, o servidor se recusa a subir sem
+   > `WEBHOOK_SECRET` e sem `CC_PUSH_URL` — é o que impede o webhook de ficar aberto por esquecimento.
+   > Sem `NODE_ENV=production`, essa proteção não dispara.
+   >
+   > A configuração é validada no boot: se faltar alguma variável ou algum valor for inválido, o
+   > processo encerra listando **todos** os problemas, antes de abrir a porta.
 4. Expor a porta `3000` atrás do proxy/HTTPS do domínio.
 5. No painel ChatClean da conta da Avelloz (Configurações → API/Webhook):
    - **URL Webhook** = `https://SEU_DOMINIO/webhook` e **marcar o evento de mensagem recebida** (sem evento, nada dispara).

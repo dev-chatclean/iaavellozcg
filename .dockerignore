@@ -1,0 +1,32 @@
+# SPEC 0002 (risco S8) — o Dockerfile faz "COPY . .".
+# Sem este arquivo, um .env presente na máquina de build entra na imagem.
+
+# Segredos
+.env
+.env.*
+!.env.example
+
+# Dependências e artefatos (a imagem roda npm ci)
+node_modules/
+coverage/
+*.log
+
+# Controle de versão e ferramentas
+.git/
+.github/
+.gitignore
+.dockerignore
+.claude/
+.vscode/
+.idea/
+
+# Não vão para a imagem de produção
+test/
+docs/
+specs/
+prints/
+eslint.config.js
+vitest.config.js
+.prettierrc
+CLAUDE.md
+README.md

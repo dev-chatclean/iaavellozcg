@@ -11,51 +11,32 @@ const app = express();
 app.use(express.json({ limit: '10mb' }));
 
 // =============================================================
-//  CONFIGURAÇÃO — ChatClean (Webhook de entrada + Push API de saída)
-//  Variáveis no .env (ver .env.example):
-//
-//  CC_PUSH_URL     = URL autenticada gerada em Configurações → API/Webhook → Adicionar
-//                    (o token JWT já vem embutido como ?token=...; sem header)
-//  WEBHOOK_SECRET  = Token opcional para validar o webhook de entrada
-//                    (o ChatClean hoje NÃO envia token no header → deixe vazio)
-//  EQUIPE_NUMERO   = WhatsApp interno que recebe o resumo dos leads qualificados
-//  IA_ALLOWED_CONTACTS = Números liberados na fase de teste (vazio = responde a todos)
-//  PORT            = Porta do servidor (padrão: 3000)
+//  CONFIGURAÇÃO — validada em src/main/config.js (SPEC 0002)
+//  As 21 variáveis são lidas e validadas UMA VEZ, no carregamento do módulo,
+//  antes de qualquer efeito colateral. Configuração inválida derruba o processo
+//  com uma mensagem que lista todos os problemas. Ver .env.example.
 // =============================================================
-const CC_PUSH_URL    = process.env.CC_PUSH_URL    || '';
-const WEBHOOK_SECRET  = process.env.WEBHOOK_SECRET || '';
-const EQUIPE_NUMERO  = process.env.EQUIPE_NUMERO  || '';
-const IA_ALLOWED_CONTACTS = (process.env.IA_ALLOWED_CONTACTS || '').split(',').map(s => s.trim()).filter(Boolean);
-const PORT           = process.env.PORT           || 3000;
-// Chave para proteger os endpoints administrativos (/leads, /diag), que expõem
-// dados de leads e config. Sem ela, esses endpoints ficam BLOQUEADOS (não abertos).
-const ADMIN_KEY      = process.env.ADMIN_KEY      || '';
-// A IA NÃO responde em grupos por padrão (só conversa individual). Para permitir
-// grupos no futuro, defina IGNORAR_GRUPOS=false.
-const IGNORAR_GRUPOS = (process.env.IGNORAR_GRUPOS || 'true') !== 'false';
-// A IA só responde tickets PENDENTES (na fila). Quando um humano aceita a
-// conversa (ticket sai de "pending"), a IA para de responder. Para desativar
-// esse filtro, defina IA_SO_PENDENTES=false.
-const IA_SO_PENDENTES = (process.env.IA_SO_PENDENTES || 'true') !== 'false';
-// Rate-limit por número: no máximo RATE_LIMIT_MSGS mensagens por janela de
-// RATE_LIMIT_JANELA_S segundos (proteção contra loop/spam e custo OpenAI).
-// 0 desativa. Padrão: 20 msgs / 60s.
-const RATE_LIMIT_MSGS   = parseInt(process.env.RATE_LIMIT_MSGS   || '20', 10);
-const RATE_LIMIT_JANELA = parseInt(process.env.RATE_LIMIT_JANELA_S || '60', 10) * 1000;
-// Blindagem anti-loop (contra outras IAs / auto-respondedores): se um mesmo
-// contato trocar mais de LOOP_MAX_TURNOS mensagens em LOOP_JANELA_MIN minutos,
-// ou repetir a mesma mensagem, a IA PAUSA as respostas para não entrar em
-// ping-pong infinito com outro bot.
-const LOOP_MAX_TURNOS = parseInt(process.env.LOOP_MAX_TURNOS || '15', 10);
-const LOOP_JANELA_MS  = parseInt(process.env.LOOP_JANELA_MIN || '3', 10) * 60 * 1000;
-// Janela (ms) para AGRUPAR mensagens rápidas do mesmo cliente antes de responder.
-// No WhatsApp o cliente costuma mandar várias mensagens seguidas; juntamos tudo
-// num único turno em vez de responder só a primeira e ignorar o resto.
-const AGRUPAR_MS     = parseInt(process.env.AGRUPAR_MENSAGENS_MS || '2000', 10);
-// Reinicia o atendimento após N horas sem interação do cliente (padrão: 24h).
-const RESET_INATIVIDADE = parseInt(process.env.RESET_INATIVIDADE_HORAS || '24', 10) * 3600 * 1000;
+const { carregar: carregarConfig, avisos: avisosConfig } = require('./src/main/config');
+const config = carregarConfig();
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const CC_PUSH_URL     = config.CC_PUSH_URL;
+const WEBHOOK_SECRET  = config.WEBHOOK_SECRET;
+const EQUIPE_NUMERO   = config.EQUIPE_NUMERO;
+const IA_ALLOWED_CONTACTS = config.IA_ALLOWED_CONTACTS;
+const PORT            = config.PORT;
+const ADMIN_KEY       = config.ADMIN_KEY;
+const IGNORAR_GRUPOS  = config.IGNORAR_GRUPOS;
+const IA_SO_PENDENTES = config.IA_SO_PENDENTES;
+const RATE_LIMIT_MSGS   = config.RATE_LIMIT_MSGS;
+const RATE_LIMIT_JANELA = config.RATE_LIMIT_JANELA_MS;
+const LOOP_MAX_TURNOS = config.LOOP_MAX_TURNOS;
+const LOOP_JANELA_MS  = config.LOOP_JANELA_MS;
+const AGRUPAR_MS      = config.AGRUPAR_MENSAGENS_MS;
+const RESET_INATIVIDADE = config.RESET_INATIVIDADE_MS;
+
+const mascarar = require('./src/shared/mascarar');
+
+const openai = new OpenAI({ apiKey: config.OPENAI_API_KEY });
 
 const { EMPRESA_INFO, PERFIS, DEPARTAMENTOS, lojaParaDepartamento } = require('./data');
 const { SYSTEM_SDR, promptExtracao, promptResposta } = require('./prompts');
@@ -175,7 +156,7 @@ async function notificarEquipe(leadData, chatId, opcoes = {}) {
         });
     } catch (e) { console.error('❌ appendLeadFinalizado:', e.message); }
 
-    console.log(`✅ Equipe notificada — lead ${leadData.nome || ''} (${chatId}) → ${departamento}`);
+    console.log(`✅ Equipe notificada — lead ${leadData.nome || ''} (${mascarar.telefone(chatId)}) → ${departamento}`);
     return true;
 }
 
@@ -217,7 +198,7 @@ async function dispararFollowUpReativacao(chatId, leadData) {
     leadData.followUpUltimo = msg;
     try { await store.saveLead(chatId, leadData); } catch (_) {}
     await enviarMensagem(chatId, msg);
-    console.log(`📩 Follow-up de reativação enviado para ${chatId}`);
+    console.log(`📩 Follow-up de reativação enviado para ${mascarar.telefone(chatId)}`);
 }
 
 async function varrerFollowUps() {
@@ -361,13 +342,13 @@ async function encaminhar(chatId, leadData, departamento, mensagemCliente, histo
 // =============================================================
 async function processarMensagem({ chatId, contactId, texto, tipo, mediaBase64, mediaUrl, mediaMimetype, quotedText, nomeContato }) {
     if (processandoMensagem.get(chatId)) {
-        console.log(`⚠️ Já processando mensagem de ${chatId}. Ignorando.`);
+        console.log(`⚠️ Já processando mensagem de ${mascarar.telefone(chatId)}. Ignorando.`);
         return;
     }
     processandoMensagem.set(chatId, true);
     const timeoutId = setTimeout(() => {
         if (processandoMensagem.get(chatId)) {
-            console.log(`⏱️ Timeout: liberando processamento para ${chatId}`);
+            console.log(`⏱️ Timeout: liberando processamento para ${mascarar.telefone(chatId)}`);
             processandoMensagem.delete(chatId);
         }
     }, 60000);
@@ -376,7 +357,7 @@ async function processarMensagem({ chatId, contactId, texto, tipo, mediaBase64, 
     // lead ao mesmo tempo. Sem Redis, é no-op (o lock em memória acima já basta).
     const lockRedis = await store.acquireLock(chatId, 60000);
     if (!lockRedis) {
-        console.log(`🔒 ${chatId} já está sendo processado por outra instância — pulando.`);
+        console.log(`🔒 ${mascarar.telefone(chatId)} já está sendo processado por outra instância — pulando.`);
         clearTimeout(timeoutId);
         processandoMensagem.delete(chatId);
         return;
@@ -388,7 +369,7 @@ async function processarMensagem({ chatId, contactId, texto, tipo, mediaBase64, 
         // Reset automático por inatividade: se passou do limite (padrão 24h) sem
         // interação, descarta o atendimento antigo e começa um novo do zero.
         if (leadData && leadData.ultimaInteracao && (Date.now() - leadData.ultimaInteracao) > RESET_INATIVIDADE) {
-            console.log(`🕛 ${chatId}: inativo há mais de ${(RESET_INATIVIDADE / 3600000).toFixed(0)}h — reiniciando atendimento.`);
+            console.log(`🕛 ${mascarar.telefone(chatId)}: inativo há mais de ${(RESET_INATIVIDADE / 3600000).toFixed(0)}h — reiniciando atendimento.`);
             await store.deleteLead(chatId);
             leadData = null;
         }
@@ -428,7 +409,7 @@ async function processarMensagem({ chatId, contactId, texto, tipo, mediaBase64, 
 
             if (leadData.turnosTs.length > LOOP_MAX_TURNOS || repetida) {
                 if (!leadData.loopAvisado) {
-                    console.warn(`🔁 Possível loop/bot em ${chatId} (${leadData.turnosTs.length} msgs/${LOOP_JANELA_MS / 60000}min${repetida ? ', msg repetida' : ''}) — pausando respostas.`);
+                    console.warn(`🔁 Possível loop/bot em ${mascarar.telefone(chatId)} (${leadData.turnosTs.length} msgs/${LOOP_JANELA_MS / 60000}min${repetida ? ', msg repetida' : ''}) — pausando respostas.`);
                     if (EQUIPE_NUMERO) { try { await ccPush(EQUIPE_NUMERO, { body: `⚠️ Possível loop com outro bot/IA no contato ${chatId}. A IA pausou as respostas para não entrar em ping-pong. Verificar manualmente.` }); } catch (_) {} }
                     leadData.loopAvisado = true;
                 }
@@ -608,7 +589,7 @@ async function processarMensagem({ chatId, contactId, texto, tipo, mediaBase64, 
             // Instabilidade na OpenAI: NÃO deixar o cliente sem resposta. Manda um
             // fallback caloroso e encerra o turno (o que já foi extraído fica salvo;
             // a próxima mensagem retoma a qualificação de onde parou).
-            console.error(`❌ Erro ao gerar resposta IA para ${chatId}:`, e.message);
+            console.error(`❌ Erro ao gerar resposta IA para ${mascarar.telefone(chatId)}:`, e.message);
             await enviarMensagem(chatId, 'Opa, tive uma instabilidade rapidinha por aqui 😅 Pode me mandar de novo o que você disse?');
             if (!usuarioNoHistorico) leadData.conversationHistory.push({ role: 'user', content: texto });
             return;
@@ -638,7 +619,7 @@ async function processarMensagem({ chatId, contactId, texto, tipo, mediaBase64, 
         }
 
     } catch (e) {
-        console.error(`❌ Erro ao processar mensagem de ${chatId}:`, e);
+        console.error(`❌ Erro ao processar mensagem de ${mascarar.telefone(chatId)}:`, e);
     } finally {
         clearTimeout(timeoutId);
         processandoMensagem.delete(chatId);
@@ -717,7 +698,7 @@ async function drenarFila(chatId) {
     try {
         await processarMensagem(unidade);
     } catch (e) {
-        console.error(`❌ Erro ao drenar fila de ${chatId}:`, e.message);
+        console.error(`❌ Erro ao drenar fila de ${mascarar.telefone(chatId)}:`, e.message);
     }
 
     // Limpa a fila vazia; se algo chegou durante o processamento, drena de novo.
@@ -856,13 +837,17 @@ const TIPOS_SUPORTADOS = ['text', 'image', 'document', 'audio', 'ptt', 'video'];
 // (/webhook/<token>). Se WEBHOOK_SECRET estiver vazio, o webhook fica aberto
 // (compat) — CONFIGURE-O antes do go-live e aponte a URL do ChatClean para
 // https://.../webhook/<secret> (ou .../webhook?token=<secret>).
+// SPEC 0002 (S5): a comparação era feita com padEnd(128), o que truncava
+// segredos longos (dois segredos diferentes com os mesmos 128 primeiros
+// caracteres colidiam) e comparava o comprimento em texto claro antes do
+// timingSafeEqual. Agora comparamos os digests SHA-256: tamanho fixo de 32
+// bytes, sem truncar nada e sem depender do comprimento do segredo.
 function webhookAutorizado(req) {
-    if (!WEBHOOK_SECRET) return true;
+    if (!WEBHOOK_SECRET) return true; // fora de produção; em produção o boot exige o segredo
     const raw = req.headers['x-webhook-token'] || req.headers['authorization'] || req.query.token || req.params.token || '';
     const token = String(raw).replace(/^Bearer\s+/i, '');
-    if (token.length !== WEBHOOK_SECRET.length) return false;
-    const a = Buffer.from(token.padEnd(128).slice(0, 128));
-    const b = Buffer.from(WEBHOOK_SECRET.padEnd(128).slice(0, 128));
+    const a = crypto.createHash('sha256').update(token, 'utf8').digest();
+    const b = crypto.createHash('sha256').update(WEBHOOK_SECRET, 'utf8').digest();
     return crypto.timingSafeEqual(a, b);
 }
 
@@ -890,21 +875,29 @@ async function handleWebhook(req, res) {
             return;
         }
 
-        console.log('🔍 PAYLOAD RAW:', JSON.stringify(req.body, null, 2).slice(0, 4000));
+        // SPEC 0002 (S1): o payload bruto contém dados pessoais — nome, telefone,
+        // conteúdo da mensagem e, no bloco de simulação, CPF, nascimento e CNH.
+        // Por padrão registramos só a forma do payload; o conteúdo completo exige
+        // LOG_PAYLOAD=true, uma decisão explícita de depuração.
+        if (config.LOG_PAYLOAD) {
+            console.log('🔍 PAYLOAD RAW:', JSON.stringify(req.body, null, 2).slice(0, 4000));
+        } else {
+            console.log(`🔍 Webhook recebido: ${Object.keys(req.body || {}).join(', ') || '(corpo vazio)'}`);
+        }
 
         const parsed = parsePayload(req.body);
         if (!parsed) return;
 
-        console.log(`📩 Webhook de ${parsed.chatId} [${parsed.tipo}]: "${parsed.texto || '[mídia]'}"`);
+        console.log(`📩 Webhook de ${mascarar.telefone(parsed.chatId)} [${parsed.tipo}] ${mascarar.conteudo(parsed.texto)}`);
 
         if (!contatoPermitido(parsed.chatId)) {
-            console.log(`🚫 Contato ${parsed.chatId} fora da lista de teste — ignorado`);
+            console.log(`🚫 Contato ${mascarar.telefone(parsed.chatId)} fora da lista de teste — ignorado`);
             return;
         }
 
         // Rate-limit por número (anti-spam / loop / proteção de custo OpenAI).
         if (!dentroDoLimite(parsed.chatId)) {
-            console.warn(`🚦 Rate-limit: ${parsed.chatId} passou de ${RATE_LIMIT_MSGS}/${RATE_LIMIT_JANELA / 1000}s — ignorando.`);
+            console.warn(`🚦 Rate-limit: ${mascarar.telefone(parsed.chatId)} passou de ${RATE_LIMIT_MSGS}/${RATE_LIMIT_JANELA / 1000}s — ignorando.`);
             return;
         }
 
@@ -969,11 +962,15 @@ app.get('/diag', async (req, res) => {
     if (!checarAdmin(req, res)) return;
     res.json({
         ok: true,
+        ambiente: config.NODE_ENV,
         expediente: estaEmExpediente(),
         resetInatividadeHoras: RESET_INATIVIDADE / 3600000,
         redis: store.isRedis(),
         pushConfigurado: !!CC_PUSH_URL,
         equipeNumero: !!EQUIPE_NUMERO,
+        webhookProtegido: !!WEBHOOK_SECRET,
+        logDePayload: config.LOG_PAYLOAD,
+        avisosDeConfiguracao: avisosConfig(config),
         pipeline: pipeline.diag()
     });
 });
@@ -1013,11 +1010,10 @@ app.listen(PORT, () => {
     console.log(`❤️  Health:  https://SEU_DOMINIO/health`);
     console.log('🚀 ================================');
     console.log('');
-    if (!CC_PUSH_URL)   console.warn('⚠️  CC_PUSH_URL não configurado — a IA não conseguirá responder.');
-    if (!EQUIPE_NUMERO) console.warn('ℹ️  EQUIPE_NUMERO não configurado — resumo de lead só irá como nota interna.');
-    if (!ADMIN_KEY)     console.warn('🔒 ADMIN_KEY não configurada — /leads e /diag ficarão BLOQUEADOS (503). Defina para liberar o acesso administrativo.');
-    if (!WEBHOOK_SECRET) console.warn('🔓 WEBHOOK_SECRET vazio — /webhook está ABERTO. Antes do go-live, defina-o e aponte a URL do ChatClean para /webhook/<secret>.');
-    if (!process.env.OPENAI_API_KEY) { console.error('❌ OPENAI_API_KEY não configurada no .env!'); process.exit(1); }
+    // A configuração já foi VALIDADA no carregamento do módulo (SPEC 0002):
+    // o que chega aqui é válido. Restam os avisos — o que é legal, mas merece
+    // atenção de quem opera.
+    for (const aviso of avisosConfig(config)) console.warn(`⚠️  ${aviso}`);
     console.log(store.isRedis()
         ? '🗄️  Estado das conversas: Redis (persistente)'
         : '🗄️  Estado das conversas: memória (defina REDIS_URL para persistir entre restarts)');
