@@ -995,7 +995,15 @@ app.get('/leads', async (req, res) => {
 
 // =============================================================
 //  INICIALIZAÇÃO
+//  SPEC 0001 (PR4): o bootstrap (listen + varredor de follow-up + sinais)
+//  passou a ficar dentro de iniciar(), chamada apenas quando o arquivo é
+//  executado direto (`node index.js`). Assim a suíte consegue importar o
+//  módulo para testar parsePayload e as proteções SEM subir servidor nem
+//  disparar timers. Comportamento em produção é idêntico.
 // =============================================================
+function iniciar() {
+setInterval(varrerFollowUps, FOLLOWUP_SWEEP).unref?.();
+
 app.listen(PORT, () => {
     console.log('');
     console.log('🚀 ================================');
@@ -1015,10 +1023,35 @@ app.listen(PORT, () => {
         : '🗄️  Estado das conversas: memória (defina REDIS_URL para persistir entre restarts)');
 });
 
+process.on('SIGINT',  () => shutdown('SIGINT'));
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGUSR2', () => shutdown('SIGUSR2'));
+}
+
 async function shutdown(signal) {
     console.log(`\n⚠️  Recebido sinal ${signal}. Encerrando servidor...`);
     process.exit(0);
 }
-process.on('SIGINT',  () => shutdown('SIGINT'));
-process.on('SIGTERM', () => shutdown('SIGTERM'));
-process.on('SIGUSR2', () => shutdown('SIGUSR2'));
+
+if (require.main === module) iniciar();
+
+// Exportado para a suíte de testes (SPEC 0001). Em produção nada consome
+// este objeto — o servidor sobe pelo iniciar() acima.
+module.exports = {
+    app,
+    iniciar,
+    parsePayload,
+    ehGrupo,
+    deveResponderTicket,
+    ticketStatus,
+    webhookAutorizado,
+    dentroDoLimite,
+    montarResumo,
+    departamentoLead,
+    processarMensagem,
+    montarMsgReativacao,
+    agendarFollowUpReativacao,
+    varrerFollowUps,
+    enviarMensagensQuebradas,
+    handleWebhook
+};

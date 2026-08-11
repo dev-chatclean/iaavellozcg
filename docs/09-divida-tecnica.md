@@ -150,6 +150,16 @@ sobe com configuração inválida e falha em runtime. Único caso tratado (`OPEN
 ### D-24 (Média) — Erros engolidos
 Vários `catch (_) {}` e `catch { return null }` sem log. Falhas somem.
 
+### D-29 (Média) — O log de payload desconhecido quebra com corpo `undefined`
+Revelado pela caracterização (PR4). `parsePayload(undefined)` cai no ramo "payload não reconhecido",
+que faz `JSON.stringify(body, null, 2).slice(0, 800)`. Com `body` indefinido, `JSON.stringify`
+devolve `undefined` e o `.slice` lança — o erro é engolido pelo `try/catch` e vira
+`Erro ao fazer parse do payload: Cannot read properties of undefined`.
+
+O resultado final (`null`) está correto, mas **a mensagem de erro aponta para o lugar errado**: quem
+investigar vai procurar um bug no parse quando o problema é a própria linha de log. Sai naturalmente
+na spec 0003, quando o parse vira ACL com validação de schema.
+
 ### D-25 (Média) — Envio bloqueia o lock do atendimento
 `enviarMensagensQuebradas` faz `sleep(900 + tamanho×18)` **por parte**, dentro do lock de
 processamento. Uma resposta de 4 linhas segura o lock por vários segundos, atrasando as próximas
