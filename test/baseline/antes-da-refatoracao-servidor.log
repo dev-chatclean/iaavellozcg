@@ -37,15 +37,13 @@ Erro ao extrair informações: 401 Incorrect API key provided: sk-basel*****alsa
 🔍 Webhook recebido: contact, message
 👥 Mensagem de grupo ignorada
 🔍 Webhook recebido: contact, ticket, message
-⏭️ Ticket "open" (aceito/atendido por humano) — IA não responde
+⏭️ Ticket "open" — ticket aceito/atendido por humano — IA não responde [ticket-assumido]
 🔍 Webhook recebido: contact, ticket, message
-⏭️ Ticket "closed" (aceito/atendido por humano) — IA não responde
+⏭️ Ticket "closed" — ticket encerrado — IA não responde [ticket-encerrado]
 🔍 Webhook recebido: numero_cliente, mensagem_cliente
 ↩️ Ignorando disparo duplicado (formato numero_cliente)
 🔍 Webhook recebido: foo
-⚠️ Payload não reconhecido: {
-  "foo": "bar"
-}
+⚠️ Payload não reconhecido [formato-desconhecido] — não casa com nenhum formato conhecido
 🔍 Webhook recebido: contact, ticket, message
 📩 Webhook de 5583*****7777 [text] (10 caracteres)
 ↩️ Mensagem duplicada (MSG-A2) ignorada

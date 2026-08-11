@@ -1,6 +1,16 @@
 # 01 — Arquitetura Atual (as-is)
 
-Retrato fiel do código como ele está hoje. Serve de base para a estrangulação — não é modelo a seguir.
+Retrato fiel do código como ele estava no commit `255c13b`, antes da refatoração. Serve de base para
+a estrangulação — não é modelo a seguir.
+
+> **Já estrangulado desde este levantamento:**
+> - Utilitários de telefone → `src/shared/telefone.js` (spec 0001)
+> - Configuração das 21 variáveis → `src/main/config.js` (spec 0002)
+> - Mascaramento de PII em log → `src/shared/mascarar.js` (spec 0002)
+> - Parse do payload → `src/infrastructure/chatclean/acl/` + `src/domain/mensageria/` (spec 0003)
+>
+> `index.js` saiu de 1040 para 990 linhas. O destino está em
+> [10-arquitetura-alvo.md](10-arquitetura-alvo.md).
 
 ## Inventário de arquivos
 
