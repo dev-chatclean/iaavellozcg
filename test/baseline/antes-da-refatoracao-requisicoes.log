@@ -2,7 +2,7 @@
 
 ### GET /health
 -> http://localhost:3999/health
-<- {"status":"ok","uptime":0.2928494,"timestamp":"2026-08-11T18:21:09.412Z"} [HTTP 200]
+<- {"status":"ok","uptime":0.3115491,"timestamp":"2026-08-11T18:55:58.312Z"} [HTTP 200]
 
 ### GET /diag sem chave
 -> http://localhost:3999/diag
@@ -120,6 +120,6 @@
 
 ### GET /leads apos o trafego
 -> http://localhost:3999/leads?key=chave-baseline
-<- {"total":4,"ativos":[{"chatId":"558491756446","nome":"Joao Baseline","finalizado":false},{"chatId":"5583988887777","nome":"Maria","finalizado":false},{"chatId":"5583977776666","nome":"Pedro","finalizado":false},{"chatId":"5583966665555","nome":"Ana","finalizado":false}]} [HTTP 200]
+<- {"total":4,"ativos":[{"chatId":"5583966665555","nome":"Ana","finalizado":false},{"chatId":"5583977776666","nome":"Pedro","finalizado":false},{"chatId":"5583988887777","nome":"Maria","finalizado":false},{"chatId":"558491756446","nome":"Joao Baseline","finalizado":false}]} [HTTP 200]
 
 == servidor encerrado ==

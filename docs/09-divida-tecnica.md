@@ -110,7 +110,16 @@ e follow-up enviado N vezes. Só o lock de processamento é distribuído. **Fati
 ### D-16 (Crítica) — Shutdown não é graceful
 `process.exit(0)` imediato em SIGINT/SIGTERM/SIGUSR2. Mensagens na fila e turnos em voo são perdidos;
 o lock Redis fica pendurado até o TTL de 60s. Todo deploy perde atendimentos em andamento.
-**Fatia:** Fase 8.
+
+**Agravante medido na Fase 0:** o estado do atendimento é gravado **uma única vez, no `finally`, ao
+fim do turno** — depois das duas chamadas à OpenAI. Enquanto o turno roda (facilmente 1 a 3 segundos,
+mais em instabilidade), **nada do que o cliente disse existe fora da memória do processo**. Um
+restart nessa janela apaga o turno inteiro, não só a resposta.
+
+Isso foi observado empiricamente: nas coletas de baseline, atendimentos apareciam ou não em `/leads`
+conforme a latência da rede naquele instante — o mesmo código, o mesmo tráfego, resultados diferentes.
+Confirmado tanto no código atual quanto no commit original `255c13b`, então **não é regressão da
+refatoração**; é uma característica do desenho. **Fatia:** Fase 8.
 
 ### D-17 (Alta) — Sem retry, backoff ou circuit breaker
 Nenhuma chamada externa (OpenAI, Push, download de mídia) tem retry. Uma instabilidade de 2s da

@@ -69,12 +69,6 @@
   }
 }
 📩 Webhook de 5583977776666 [text]: "bom dia"
-Erro ao extrair informações: 401 Incorrect API key provided: sk-basel*****alsa. You can find your API key at https://platform.openai.com/account/api-keys.
-Erro ao extrair informações: 401 Incorrect API key provided: sk-basel*****alsa. You can find your API key at https://platform.openai.com/account/api-keys.
-❌ Erro ao gerar resposta IA para 558491756446: 401 Incorrect API key provided: sk-basel*****alsa. You can find your API key at https://platform.openai.com/account/api-keys.
-⚠️ CC_PUSH_URL não configurado no .env — envio ignorado
-❌ Erro ao gerar resposta IA para 5583988887777: 401 Incorrect API key provided: sk-basel*****alsa. You can find your API key at https://platform.openai.com/account/api-keys.
-⚠️ CC_PUSH_URL não configurado no .env — envio ignorado
 🔍 PAYLOAD RAW: {
   "number": "5583966665555",
   "body": "tenho interesse",
@@ -83,9 +77,6 @@ Erro ao extrair informações: 401 Incorrect API key provided: sk-basel*****alsa
   "id": "MSG-B1"
 }
 📩 Webhook de 5583966665555 [text]: "tenho interesse"
-Erro ao extrair informações: 401 Incorrect API key provided: sk-basel*****alsa. You can find your API key at https://platform.openai.com/account/api-keys.
-❌ Erro ao gerar resposta IA para 5583977776666: 401 Incorrect API key provided: sk-basel*****alsa. You can find your API key at https://platform.openai.com/account/api-keys.
-⚠️ CC_PUSH_URL não configurado no .env — envio ignorado
 Erro ao extrair informações: 401 Incorrect API key provided: sk-basel*****alsa. You can find your API key at https://platform.openai.com/account/api-keys.
 🔍 PAYLOAD RAW: {
   "contact": {
@@ -99,8 +90,7 @@ Erro ao extrair informações: 401 Incorrect API key provided: sk-basel*****alsa
     "fromMe": true
   }
 }
-❌ Erro ao gerar resposta IA para 5583966665555: 401 Incorrect API key provided: sk-basel*****alsa. You can find your API key at https://platform.openai.com/account/api-keys.
-⚠️ CC_PUSH_URL não configurado no .env — envio ignorado
+Erro ao extrair informações: 401 Incorrect API key provided: sk-basel*****alsa. You can find your API key at https://platform.openai.com/account/api-keys.
 🔍 PAYLOAD RAW: {
   "contact": {
     "id": 505,
@@ -118,6 +108,8 @@ Erro ao extrair informações: 401 Incorrect API key provided: sk-basel*****alsa
   }
 }
 👥 Mensagem de grupo ignorada
+❌ Erro ao gerar resposta IA para 5583988887777: 401 Incorrect API key provided: sk-basel*****alsa. You can find your API key at https://platform.openai.com/account/api-keys.
+⚠️ CC_PUSH_URL não configurado no .env — envio ignorado
 🔍 PAYLOAD RAW: {
   "contact": {
     "id": 506,
@@ -136,6 +128,9 @@ Erro ao extrair informações: 401 Incorrect API key provided: sk-basel*****alsa
   }
 }
 👥 Mensagem de grupo ignorada
+Erro ao extrair informações: 401 Incorrect API key provided: sk-basel*****alsa. You can find your API key at https://platform.openai.com/account/api-keys.
+❌ Erro ao gerar resposta IA para 558491756446: 401 Incorrect API key provided: sk-basel*****alsa. You can find your API key at https://platform.openai.com/account/api-keys.
+⚠️ CC_PUSH_URL não configurado no .env — envio ignorado
 🔍 PAYLOAD RAW: {
   "contact": {
     "id": 507,
@@ -153,6 +148,8 @@ Erro ao extrair informações: 401 Incorrect API key provided: sk-basel*****alsa
   }
 }
 ⏭️ Ticket "open" (aceito/atendido por humano) — IA não responde
+❌ Erro ao gerar resposta IA para 5583966665555: 401 Incorrect API key provided: sk-basel*****alsa. You can find your API key at https://platform.openai.com/account/api-keys.
+⚠️ CC_PUSH_URL não configurado no .env — envio ignorado
 🔍 PAYLOAD RAW: {
   "contact": {
     "id": 508,
@@ -205,4 +202,7 @@ Erro ao extrair informações: 401 Incorrect API key provided: sk-basel*****alsa
   "id": "MSG-D1"
 }
 📩 Webhook de 5583899998888 [sticker]: "[mídia]"
+⚠️ CC_PUSH_URL não configurado no .env — envio ignorado
+Erro ao extrair informações: 401 Incorrect API key provided: sk-basel*****alsa. You can find your API key at https://platform.openai.com/account/api-keys.
+❌ Erro ao gerar resposta IA para 5583977776666: 401 Incorrect API key provided: sk-basel*****alsa. You can find your API key at https://platform.openai.com/account/api-keys.
 ⚠️ CC_PUSH_URL não configurado no .env — envio ignorado

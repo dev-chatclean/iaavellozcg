@@ -131,11 +131,28 @@ post "duplicidade de msgId (MSG-A2 de novo)" '{
 
 post "tipo nao suportado (sticker)" '{"number": "5583899998888", "body": "", "type": "sticker", "id": "MSG-D1"}'
 
+# O estado do atendimento so e persistido no FIM do turno, depois das chamadas
+# a OpenAI. Como aqui elas vao de verdade a rede (e voltam 401), a duracao do
+# turno varia. Sem espera suficiente, /leads devolve menos atendimentos e o diff
+# acusa uma regressao que nao existe. Ver docs/12-linha-de-base.md.
 echo "" >> "$SAIDA"
 echo "### aguardando drenagem da fila e follow-ups" >> "$SAIDA"
-sleep 3
+sleep 10
 
 req "GET /leads apos o trafego" "http://localhost:$PORT/leads?key=chave-baseline"
+
+# A ordem dos atendimentos depende de qual turno terminou primeiro. Ordenamos
+# por chatId para que o diff compare conteudo, nao corrida.
+node -e '
+const fs = require("fs");
+const arquivo = process.argv[1];
+const texto = fs.readFileSync(arquivo, "utf8");
+fs.writeFileSync(arquivo, texto.replace(/\{"total":\d+,"ativos":\[.*?\]\}/g, (json) => {
+    const dados = JSON.parse(json);
+    dados.ativos.sort((a, b) => String(a.chatId).localeCompare(String(b.chatId)));
+    return JSON.stringify(dados);
+}));
+' "$SAIDA"
 
 sleep 1
 kill $SERVIDOR 2>/dev/null

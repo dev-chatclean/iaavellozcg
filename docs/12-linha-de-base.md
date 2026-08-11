@@ -142,6 +142,27 @@ adapters falsos e pelos evals da spec 0011:
 - Reativação (30 min) e reset (24h)
 - Blindagem anti-loop e rate-limit sob carga
 
+## Determinismo da coleta (aprendizado da Fase 0)
+
+A primeira versão deste roteiro era **instável**: `GET /leads` às vezes devolvia 3 atendimentos, às
+vezes 4, e o lead ausente mudava a cada execução. Investigação (6 execuções no código atual e 6 no
+commit original `255c13b`) mostrou que **o comportamento já era assim antes de qualquer alteração** —
+não era regressão.
+
+Causa: o estado do atendimento só é persistido no `finally`, ao fim do turno, **depois** das chamadas
+à OpenAI. Como nesta coleta essas chamadas vão de verdade à rede (e voltam 401), a duração do turno
+varia com a latência. Se `/leads` for consultado antes de o turno terminar, o atendimento ainda não
+existe. Ver D-16.
+
+Duas correções foram aplicadas ao roteiro:
+
+1. A espera de drenagem passou de 3s para **10s**.
+2. A listagem de `/leads` é **ordenada por `chatId`** antes de gravar, porque a ordem natural depende
+   de qual turno terminou primeiro.
+
+Com isso, três execuções seguidas produzem arquivos byte a byte idênticos. **Se o diff acusar
+diferença, é regressão de verdade** — foi esse o ponto de todo o exercício.
+
 ## Critério de regressão
 
 Ao final de cada fatia:
