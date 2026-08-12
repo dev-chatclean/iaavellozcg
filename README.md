@@ -68,7 +68,7 @@ npm start                 # sobe o servidor (webhook/Push)
 ## Testes
 
 ```bash
-npm test          # suíte completa: 245 testes, ~2s, sem rede e sem custo de OpenAI
+npm test          # suíte completa: 430 testes, ~3s, sem rede e sem custo de OpenAI
 npm run test:watch
 npm run coverage
 npm run lint
