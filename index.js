@@ -1,10 +1,5 @@
 require('dotenv').config();
 const express = require('express');
-const OpenAI = require('openai');
-const fs = require('fs');
-const path = require('path');
-const axios = require('axios');
-const FormData = require('form-data');
 const crypto = require('crypto');
 
 const app = express();
@@ -36,57 +31,50 @@ const RESET_INATIVIDADE = config.RESET_INATIVIDADE_MS;
 
 const mascarar = require('./src/shared/mascarar');
 
-const openai = new OpenAI({ apiKey: config.OPENAI_API_KEY });
+// =============================================================
+//  DEPENDÊNCIAS (SPEC 0004)
+//  Todo acesso ao mundo externo passa pelas portas de
+//  src/application/portas. Os adapters concretos são montados no
+//  composition root e injetados aqui.
+//
+//  `usarDependencias` é uma COSTURA TEMPORÁRIA para os testes injetarem
+//  fakes enquanto `processarMensagem` ainda vive neste arquivo. Ela morre na
+//  Fase 4 (spec 0008), quando o turno virar caso de uso com injeção por
+//  construtor. É melhor que a alternativa anterior — manipular o
+//  require.cache do Node — mas não é o destino.
+// =============================================================
+const container = require('./src/main/container');
+let deps = container.criar(config);
+function usarDependencias(novas) {
+    deps = novas;
+}
 
+// Conteúdo de negócio e fluxo. Prompts, OpenAI, ChatClean e Redis não são mais
+// importados aqui: chegam pelas portas (SPEC 0004).
 const { EMPRESA_INFO, PERFIS, DEPARTAMENTOS, lojaParaDepartamento } = require('./data');
-const { SYSTEM_SDR, promptExtracao, promptResposta } = require('./prompts');
 const { determinarProximoCampo, aplicarCampos, detectarPerfil } = require('./flow');
+const pipeline = require('./pipeline'); // Oportunidades no CRM (inerte se não configurado)
 
 // Departamento de transbordo do lead = a loja que ele escolheu (obrigatória
 // no fluxo). Sem loja identificada, cai no Comercial geral.
 function departamentoLead(leadData) {
     return lojaParaDepartamento(leadData.loja) || DEPARTAMENTOS.geral;
 }
-const { estaEmExpediente } = require('./horario');
-const pipeline = require('./pipeline'); // Oportunidades no CRM (inerte se não configurado)
-const store = require('./store'); // estado das conversas (Redis + fallback em memória)
 
 const processandoMensagem = new Map(); // lock de processamento (por instância)
 
-// =============================================================
-//  UTILITÁRIOS
-//  normalizarPhone / nucleoNumero / contatoPermitido vivem em
-//  src/shared/telefone.js desde a SPEC 0001 (PR3) — mesma lógica, agora
-//  testável em unidade. A allow-list é passada por parâmetro (o módulo
-//  compartilhado não lê process.env).
-// =============================================================
+// Allow-list de homologação (RN-058). A lógica vive em src/shared/telefone.js
+// desde a SPEC 0001; o módulo compartilhado não lê process.env, então a lista
+// é passada por parâmetro.
 const telefone = require('./src/shared/telefone');
-const normalizarPhone = telefone.normalizarPhone;
 const contatoPermitido = (numero) => telefone.contatoPermitido(numero, IA_ALLOWED_CONTACTS);
 
 // =============================================================
-//  CHATCLEAN — ENVIO VIA PUSH API
-//  Um único endpoint autenticado (CC_PUSH_URL) entrega as mensagens.
-//  O token JWT já vem embutido na URL como ?token=... (sem header).
+//  ENVIO AO CLIENTE — via porta CanalDeMensagem (SPEC 0004)
+//  O adapter ChatClean vive em src/infrastructure/chatclean/.
 // =============================================================
-async function ccPush(number, payloadExtra = {}) {
-    if (!CC_PUSH_URL) { console.warn('⚠️ CC_PUSH_URL não configurado no .env — envio ignorado'); return false; }
-    try {
-        await axios.post(CC_PUSH_URL, {
-            number: normalizarPhone(number),
-            externalKey: crypto.randomUUID(),
-            ...payloadExtra
-        }, { headers: { 'Content-Type': 'application/json' }, timeout: 30000 });
-        return true;
-    } catch (e) {
-        console.error('❌ Erro no Push ChatClean:', e.response?.data || e.message);
-        return false;
-    }
-}
-
 async function enviarMensagem(chatId, texto) {
-    if (!texto || !String(texto).trim()) return false;
-    return ccPush(chatId, { body: texto });
+    return deps.canal.enviarTexto(chatId, texto);
 }
 
 // Quebra a resposta em mensagens curtas (registro de WhatsApp), a menos que
@@ -141,13 +129,13 @@ async function notificarEquipe(leadData, chatId, opcoes = {}) {
     const resumo = montarResumo(leadData, chatId, opcoes);
 
     // Nota interna no ticket do próprio cliente (fica no CRM p/ o atendente)
-    await ccPush(chatId, { body: resumo, onlyNote: true, note: { body: resumo } });
+    await deps.notificador.publicarNoTicket(chatId, resumo);
     // Resumo também por WhatsApp interno, se houver número da equipe
-    if (EQUIPE_NUMERO) await ccPush(EQUIPE_NUMERO, { body: resumo });
+    await deps.notificador.enviarParaEquipe(resumo);
 
     // Histórico append-only de leads qualificados
     try {
-        await store.appendLeadFinalizado({
+        await deps.repositorio.registrarLeadFinalizado({
             chatId, nome: leadData.nome || null, perfil: perfilNome,
             finalidade: leadData.finalidade || null, transporteAtual: leadData.transporteAtual || null,
             gastoMensal: leadData.gastoMensal || null, modeloInteresse: leadData.modeloInteresse || null,
@@ -192,23 +180,23 @@ async function dispararFollowUpReativacao(chatId, leadData) {
     const msg = montarMsgReativacao(leadData);
     leadData.followUpDueAt = null;
     if (!msg || leadData.followUpUltimo === msg) {
-        try { await store.saveLead(chatId, leadData); } catch (_) {}
+        try { await deps.repositorio.salvar(chatId, leadData); } catch (_) {}
         return;
     }
     leadData.followUpUltimo = msg;
-    try { await store.saveLead(chatId, leadData); } catch (_) {}
+    try { await deps.repositorio.salvar(chatId, leadData); } catch (_) {}
     await enviarMensagem(chatId, msg);
     console.log(`📩 Follow-up de reativação enviado para ${mascarar.telefone(chatId)}`);
 }
 
 async function varrerFollowUps() {
     try {
-        const ids = await store.scanLeadIds();
+        const ids = await deps.repositorio.listarIds();
         const agora = Date.now();
         for (const chatId of ids) {
             if (processandoMensagem.has(chatId)) continue;
             let leadData;
-            try { leadData = await store.getLead(chatId); } catch (_) { continue; }
+            try { leadData = await deps.repositorio.buscar(chatId); } catch (_) { continue; }
             if (!leadData || leadData.finalizado) continue;
             if (!leadData.followUpDueAt || leadData.followUpDueAt > agora) continue;
             await dispararFollowUpReativacao(chatId, leadData);
@@ -220,106 +208,42 @@ async function varrerFollowUps() {
 setInterval(varrerFollowUps, FOLLOWUP_SWEEP).unref?.();
 
 // =============================================================
-//  IA — EXTRAÇÃO DE INFORMAÇÕES (gpt-4o-mini, temperatura 0)
+//  IA — via portas ExtratorDeInformacoes, RedatorDeResposta e
+//  LeitorDeImagem (SPEC 0004). Os adapters OpenAI vivem em
+//  src/infrastructure/openai/; aqui ficaram so as chamadas.
 // =============================================================
 async function extrairInformacoesComIA(mensagem, campoAtual, historicoRecente = []) {
-    try {
-        const mensagemSanitizada = mensagem.replace(/[<>]/g, '').substring(0, 1000);
-        const prompt = promptExtracao({ mensagemSanitizada, campoAtual });
-        const completion = await openai.chat.completions.create({
-            model: 'gpt-4o-mini',
-            messages: [...historicoRecente, { role: 'user', content: prompt }],
-            temperature: 0,
-            response_format: { type: 'json_object' } // garante JSON válido (o prompt já pede JSON)
-        });
-        let res = completion.choices[0].message.content.trim();
-        if (res.includes('```')) res = res.replace(/```json?/g, '').replace(/```/g, '').trim();
-        return JSON.parse(res);
-    } catch (e) {
-        console.error('Erro ao extrair informações:', e.message);
-        return null;
-    }
+    return deps.extrator.extrair(mensagem, campoAtual, historicoRecente);
 }
 
-// =============================================================
-//  IA — GERAÇÃO DE RESPOSTA (gpt-4o-mini, temperatura 0.7)
-// =============================================================
+// Propaga a excecao de proposito: quem chama envia a mensagem de instabilidade.
 async function gerarRespostaIA(leadData, mensagemCliente, proximoCampo, historicoRecente = [], expediente = null) {
-    const mensagemSanitizada = mensagemCliente.replace(/[<>]/g, '').substring(0, 1000);
-    const isInicioConversa = leadData.conversationHistory.length === 0;
-    const prompt = promptResposta({ isInicioConversa, mensagemSanitizada, proximoCampo, leadData, expediente });
-    const completion = await openai.chat.completions.create({
-        model: 'gpt-4o-mini',
-        messages: [
-            { role: 'system', content: SYSTEM_SDR },
-            ...historicoRecente,
-            { role: 'user', content: prompt }
-        ],
-        temperature: 0.7
+    return deps.redator.redigir({
+        leadData,
+        mensagemCliente,
+        proximoCampo,
+        historico: historicoRecente,
+        expediente
     });
-    return completion.choices[0].message.content.trim();
 }
 
-// A IA "enxerga" a imagem enviada pelo cliente (gpt-4o com visão) e descreve
-// o conteúdo para usar no atendimento. Retorna null se falhar.
+// A IA "enxerga" a imagem enviada pelo cliente e descreve o conteudo para usar
+// no atendimento. Retorna null se falhar.
 async function analisarImagem(mediaUrl) {
-    if (!mediaUrl) return null;
-    try {
-        const instrucao = `Você é atendente da Avelloz Campina (concessionária de motos). O cliente enviou esta imagem no WhatsApp durante o atendimento. Descreva de forma curta e útil (1 a 3 frases, tom natural, SEM markdown) o que é e o que há de relevante para entender a necessidade dele:
-- Se for uma foto de moto (dele ou de um modelo), diga o que dá pra entender (modelo/estado/cor, se dá pra saber).
-- Se for um PRINT de conversa, anúncio ou simulação, resuma do que se trata.
-- Se for um documento (CNH, comprovante, print de dados), diga o que é sem transcrever dados sensíveis.
-Não invente o que não dá pra ver.`;
-        const completion = await openai.chat.completions.create({
-            model: 'gpt-4o',
-            messages: [{
-                role: 'user',
-                content: [
-                    { type: 'text', text: instrucao },
-                    { type: 'image_url', image_url: { url: mediaUrl } }
-                ]
-            }],
-            max_tokens: 300,
-            temperature: 0.3
-        });
-        return completion.choices[0].message.content.trim();
-    } catch (e) {
-        console.error('❌ Erro ao analisar imagem (visão):', e.message);
-        return null;
-    }
+    return deps.leitorDeImagem.descrever(mediaUrl);
 }
 
-// Resposta quando o lead JÁ foi encaminhado ao especialista: tira dúvidas
-// pontuais de forma natural, sem refazer a qualificação nem repetir o resumo.
+// Resposta quando o lead JA foi encaminhado ao especialista: tira duvidas
+// pontuais de forma natural, sem refazer a qualificacao nem repetir o resumo.
 async function gerarRespostaPosEncaminhamento(leadData, mensagemCliente, historicoRecente = []) {
-    const fallback = 'Já repassei tudo pro nosso consultor, ele continua seu atendimento aqui rapidinho 😊 Se quiser adiantar algo, pode me contar que eu anoto pro time. Ficou alguma dúvida sobre a moto?';
-    try {
-        const prompt = `Este lead já foi ENCAMINHADO a um consultor humano da Avelloz Campina. Ele acabou de dizer: "${String(mensagemCliente).replace(/[<>]/g, '').substring(0, 600)}".
-Responda de forma breve, calorosa e útil (registro de WhatsApp, sem markdown, no máximo 1 emoji), SEMPRE terminando com uma pergunta:
-- Se for uma dúvida simples sobre as motos/condições, responda com o que você sabe.
-- Se depender do consultor (valor de parcela, aprovação de crédito, prazo de entrega, negociação), diga que ele já vai continuar o atendimento pra resolver.
-Nunca informe valor de parcela nem prometa prazo. Não refaça a qualificação e não repita o resumo.`;
-        const completion = await openai.chat.completions.create({
-            model: 'gpt-4o-mini',
-            messages: [
-                { role: 'system', content: 'Você é um consultor do time da Avelloz Campina. Escrita natural, curta, registro de WhatsApp.' },
-                ...historicoRecente,
-                { role: 'user', content: prompt }
-            ],
-            temperature: 0.6
-        });
-        return completion.choices[0].message.content.trim() || fallback;
-    } catch (e) {
-        console.error('❌ Erro na resposta pós-encaminhamento:', e.message);
-        return fallback;
-    }
+    return deps.redator.redigirAposTransbordo({ mensagemCliente, historico: historicoRecente });
 }
 
 // =============================================================
 //  ENCAMINHAMENTO PARA HUMANO
 // =============================================================
 async function encaminhar(chatId, leadData, departamento, mensagemCliente, historico, expediente = null) {
-    const exp = expediente || estaEmExpediente();
+    const exp = expediente || deps.expediente.consultar();
     // Deixa a IA escrever o handoff de forma calorosa (usa o branch de qualificação completa)
     leadData.qualificacaoCompleta = true;
     let msg;
@@ -355,7 +279,7 @@ async function processarMensagem({ chatId, contactId, texto, tipo, mediaBase64, 
 
     // Lock cross-instância (Redis): impede que outro container processe o mesmo
     // lead ao mesmo tempo. Sem Redis, é no-op (o lock em memória acima já basta).
-    const lockRedis = await store.acquireLock(chatId, 60000);
+    const lockRedis = await deps.repositorio.adquirirLock(chatId, 60000);
     if (!lockRedis) {
         console.log(`🔒 ${mascarar.telefone(chatId)} já está sendo processado por outra instância — pulando.`);
         clearTimeout(timeoutId);
@@ -365,12 +289,12 @@ async function processarMensagem({ chatId, contactId, texto, tipo, mediaBase64, 
 
     let leadData = null;
     try {
-        leadData = await store.getLead(chatId);
+        leadData = await deps.repositorio.buscar(chatId);
         // Reset automático por inatividade: se passou do limite (padrão 24h) sem
         // interação, descarta o atendimento antigo e começa um novo do zero.
         if (leadData && leadData.ultimaInteracao && (Date.now() - leadData.ultimaInteracao) > RESET_INATIVIDADE) {
             console.log(`🕛 ${mascarar.telefone(chatId)}: inativo há mais de ${(RESET_INATIVIDADE / 3600000).toFixed(0)}h — reiniciando atendimento.`);
-            await store.deleteLead(chatId);
+            await deps.repositorio.remover(chatId);
             leadData = null;
         }
         if (!leadData) leadData = { conversationHistory: [] };
@@ -386,7 +310,7 @@ async function processarMensagem({ chatId, contactId, texto, tipo, mediaBase64, 
 
         // Reset
         if (String(texto).toLowerCase() === '/reset') {
-            await store.deleteLead(chatId);
+            await deps.repositorio.remover(chatId);
             leadData = null;
             await enviarMensagem(chatId, '🔄 Conversa resetada! Vamos começar de novo 😊');
             return;
@@ -410,7 +334,7 @@ async function processarMensagem({ chatId, contactId, texto, tipo, mediaBase64, 
             if (leadData.turnosTs.length > LOOP_MAX_TURNOS || repetida) {
                 if (!leadData.loopAvisado) {
                     console.warn(`🔁 Possível loop/bot em ${mascarar.telefone(chatId)} (${leadData.turnosTs.length} msgs/${LOOP_JANELA_MS / 60000}min${repetida ? ', msg repetida' : ''}) — pausando respostas.`);
-                    if (EQUIPE_NUMERO) { try { await ccPush(EQUIPE_NUMERO, { body: `⚠️ Possível loop com outro bot/IA no contato ${chatId}. A IA pausou as respostas para não entrar em ping-pong. Verificar manualmente.` }); } catch (_) {} }
+                    try { await deps.notificador.enviarParaEquipe(`⚠️ Possível loop com outro bot/IA no contato ${chatId}. A IA pausou as respostas para não entrar em ping-pong. Verificar manualmente.`); } catch (_) {}
                     leadData.loopAvisado = true;
                 }
                 return; // não responde — corta o loop
@@ -459,22 +383,17 @@ async function processarMensagem({ chatId, contactId, texto, tipo, mediaBase64, 
             let videoBuffer = null;
             try {
                 if (mediaBase64) videoBuffer = Buffer.from(mediaBase64, 'base64');
-                else if (mediaUrl) {
-                    const resp = await axios.get(mediaUrl, { responseType: 'arraybuffer', timeout: 60000 });
-                    videoBuffer = Buffer.from(resp.data);
-                }
+                else if (mediaUrl) videoBuffer = await deps.baixadorDeMidia.baixar(mediaUrl, 60000);
             } catch (e) { console.error('❌ Erro ao baixar vídeo:', e.message); }
 
             let fala = '';
             if (videoBuffer) {
                 try {
-                    const formData = new FormData();
-                    formData.append('file', videoBuffer, { filename: 'video.mp4', contentType: mediaMimetype || 'video/mp4' });
-                    formData.append('model', 'whisper-1');
-                    const tr = await axios.post('https://api.openai.com/v1/audio/transcriptions', formData, {
-                        headers: { ...formData.getHeaders(), Authorization: `Bearer ${process.env.OPENAI_API_KEY}` }
+                    fala = await deps.transcritor.transcrever({
+                        buffer: videoBuffer,
+                        nome: 'video.mp4',
+                        mimetype: mediaMimetype || 'video/mp4'
                     });
-                    fala = (tr.data.text || '').trim();
                 } catch (e) { console.error('❌ Erro ao transcrever vídeo:', e.message); }
             }
             if (fala) {
@@ -495,20 +414,17 @@ async function processarMensagem({ chatId, contactId, texto, tipo, mediaBase64, 
                 if (mediaBase64) {
                     audioBuffer = Buffer.from(mediaBase64, 'base64');
                 } else if (mediaUrl) {
-                    const resp = await axios.get(mediaUrl, { responseType: 'arraybuffer', timeout: 30000 });
-                    audioBuffer = Buffer.from(resp.data);
+                    audioBuffer = await deps.baixadorDeMidia.baixar(mediaUrl, 30000);
                 }
             } catch (e) { console.error('❌ Erro ao baixar áudio:', e.message); }
 
             if (audioBuffer) {
                 try {
-                    const formData = new FormData();
-                    formData.append('file', audioBuffer, { filename: 'audio.ogg', contentType: mediaMimetype || 'audio/ogg' });
-                    formData.append('model', 'whisper-1');
-                    const transcription = await axios.post('https://api.openai.com/v1/audio/transcriptions', formData, {
-                        headers: { ...formData.getHeaders(), Authorization: `Bearer ${process.env.OPENAI_API_KEY}` }
+                    texto = await deps.transcritor.transcrever({
+                        buffer: audioBuffer,
+                        nome: 'audio.ogg',
+                        mimetype: mediaMimetype || 'audio/ogg'
                     });
-                    texto = transcription.data.text;
                     console.log(`📝 Transcrição: "${texto}"`);
                 } catch (e) {
                     console.error('❌ Erro ao transcrever áudio:', e.message);
@@ -526,7 +442,7 @@ async function processarMensagem({ chatId, contactId, texto, tipo, mediaBase64, 
         }
 
         // Expediente do time: define modo normal (transfere ao vivo) x plantão (agenda retorno)
-        const exp = estaEmExpediente();
+        const exp = deps.expediente.consultar();
 
         // --- Extração ---
         const proximoCampoAntes = determinarProximoCampo(leadData);
@@ -624,10 +540,10 @@ async function processarMensagem({ chatId, contactId, texto, tipo, mediaBase64, 
         clearTimeout(timeoutId);
         processandoMensagem.delete(chatId);
         if (leadData) {
-            try { await store.saveLead(chatId, leadData); }
+            try { await deps.repositorio.salvar(chatId, leadData); }
             catch (e) { console.error('❌ Erro ao salvar estado da conversa:', e.message); }
         }
-        await store.releaseLock(chatId);
+        await deps.repositorio.liberarLock(chatId);
     }
 }
 
@@ -901,9 +817,9 @@ app.get('/diag', async (req, res) => {
     res.json({
         ok: true,
         ambiente: config.NODE_ENV,
-        expediente: estaEmExpediente(),
+        expediente: deps.expediente.consultar(),
         resetInatividadeHoras: RESET_INATIVIDADE / 3600000,
-        redis: store.isRedis(),
+        redis: deps.repositorio.ehDuravel(),
         pushConfigurado: !!CC_PUSH_URL,
         equipeNumero: !!EQUIPE_NUMERO,
         webhookProtegido: !!WEBHOOK_SECRET,
@@ -917,10 +833,10 @@ app.get('/diag', async (req, res) => {
 app.get('/leads', async (req, res) => {
     if (!checarAdmin(req, res)) return;
     try {
-        const ids = await store.scanLeadIds();
+        const ids = await deps.repositorio.listarIds();
         const ativos = [];
         for (const id of ids) {
-            try { const l = await store.getLead(id); if (l) ativos.push({ chatId: id, nome: l.nome, empresa: l.empresa, finalizado: !!l.finalizado }); } catch (_) {}
+            try { const l = await deps.repositorio.buscar(id); if (l) ativos.push({ chatId: id, nome: l.nome, empresa: l.empresa, finalizado: !!l.finalizado }); } catch (_) {}
         }
         res.json({ total: ativos.length, ativos });
     } catch (e) {
@@ -952,7 +868,7 @@ app.listen(PORT, () => {
     // o que chega aqui é válido. Restam os avisos — o que é legal, mas merece
     // atenção de quem opera.
     for (const aviso of avisosConfig(config)) console.warn(`⚠️  ${aviso}`);
-    console.log(store.isRedis()
+    console.log(deps.repositorio.ehDuravel()
         ? '🗄️  Estado das conversas: Redis (persistente)'
         : '🗄️  Estado das conversas: memória (defina REDIS_URL para persistir entre restarts)');
 });
@@ -974,6 +890,7 @@ if (require.main === module) iniciar();
 module.exports = {
     app,
     iniciar,
+    usarDependencias,
     parsePayload,
     ehGrupo,
     deveResponderTicket,

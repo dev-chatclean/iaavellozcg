@@ -18,11 +18,21 @@ endpoints administrativos e bootstrap.
 unidade; impossível ter dois desenvolvedores mexendo em paralelo.
 **Progresso:** spec 0003 tirou o parse do payload (1040 -> 990 linhas). **Fatia:** Fases 1–6.
 
+### D-02 — RESOLVIDA (spec 0004, 2026-08-12)
+Todo acesso ao mundo externo passa por portas (`src/application/portas`), com adapters em
+`src/infrastructure` e montagem em `src/main/container.js`. O `index.js` não importa mais
+`openai`, `axios`, `ioredis` nem `form-data`. As fronteiras são verificadas por lint — e a
+verificação foi testada com violação proposital, porque a regra anterior não funcionava em CommonJS.
+Ver [resultado](../specs/0004-portas-e-adapters/resultado.md).
+
+<details><summary>Descrição original</summary>
+
 ### D-02 (Crítica) — Sem camadas nem inversão de dependência
 Regra de negócio, I/O de rede, persistência e HTTP no mesmo arquivo e frequentemente na mesma função.
 `openai`, `axios`, `ioredis` e `express` são acoplados diretamente.
 **Impacto:** trocar OpenAI por outro provedor, ou ChatClean por outro canal, exige reescrever o core.
 Nenhum teste roda sem rede. **Fatia:** Fase 2.
+</details>
 
 ### D-03 (Crítica) — Regras de negócio espalhadas em quatro lugares
 Código (`index.js`, `flow.js`), dados (`data.js`), **texto de prompt** (`prompts.js`) e strings
@@ -226,9 +236,16 @@ Combinado com D-19 (sábado tratado como fechado), o expediente está errado nas
 **Fatia:** correção junto da spec 0009, que já mexe em expediente. Congelar em teste antes.
 </details>
 
+### D-26 — RESOLVIDA (spec 0004, 2026-08-12)
+`TranscritorWhisper` usa `cliente.audio.transcriptions.create` do SDK, enviando a mesma
+requisição para o mesmo endpoint. Um caminho de autenticação só.
+
+<details><summary>Descrição original</summary>
+
 ### D-26 (Média) — Transcrição fora do SDK
 Whisper é chamado com `axios` + `form-data` na mão, com `Authorization` montado manualmente, enquanto
 o resto usa o SDK oficial. Dois caminhos de autenticação e de erro.
+</details>
 
 ### D-27 (Média) — Webhook responde 200 antes de processar
 Correto para evitar retry do provedor, mas hoje não há nenhuma compensação: se o processamento falhar,

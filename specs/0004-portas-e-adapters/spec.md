@@ -2,12 +2,17 @@
 
 | | |
 |---|---|
-| **Status** | Rascunho — revisar antes de implementar |
+| **Status** | Aprovada |
 | **Autor** | analista-specs |
-| **Criada em** | 2026-08-11 |
+| **Criada em** | 2026-08-11 · revisada em 2026-08-12 |
 | **Fase do plano** | Fase 2 — Portas e adapters |
-| **Dívida endereçada** | D-02, D-18, D-26, S7 |
+| **Dívida endereçada** | D-02, D-26 |
 | **Depende de** | SPEC 0001, SPEC 0002, SPEC 0003 |
+
+> **Revisão de escopo (2026-08-12).** Dois critérios saíram por mudarem comportamento: o alarme de
+> Redis ausente (D-18) e a recusa de mídia de endereço desconhecido (S7). Esta fatia é **estritamente
+> estrutural**: as mesmas chamadas, para os mesmos destinos, com as mesmas respostas — só que atrás
+> de interfaces. Os dois itens viram spec própria, para quando o negócio quiser.
 
 ## 1. Contexto de negócio
 
@@ -54,6 +59,11 @@ composition root em `src/main/container.js`:
 | `Relogio` / `RelogioDeExpediente` | `Date.now()`, `estaEmExpediente` | real, controlável |
 
 **Fora de escopo**
+- **Qualquer mudança de comportamento.** Mesmas chamadas, mesmos destinos, mesmas respostas.
+- Alarme quando o Redis está ausente (D-18) — muda o boot; spec 0019.
+- Recusar mídia de endereço fora de uma lista (S7) — muda o atendimento; spec 0019.
+- Corrigir o `mediaMimetype` vazio e o `nomeContato` vazio no formato WABA — dívida documentada,
+  não corrigida nesta fatia.
 - Modelar o domínio (`Atendimento`, VOs, políticas) — spec 0006.
 - Substituir `processarMensagem` por caso de uso — spec 0008.
 - Retry, backoff e circuit breaker — spec 0013 (as portas preparam o terreno).
@@ -69,28 +79,29 @@ Nenhuma muda. A fatia é estrutural: mesma lógica, outro caminho de dependênci
   Verificado por lint, com a regra elevada de aviso para **erro**.
 - **CA-002** — O teste dourado (41 cenários) roda **sem `vi.mock` e sem manipular `require.cache`**,
   injetando fakes pelo container, e continua passando.
-- **CA-003** — `test/apoio/fakes.js` é **deletado**.
+- **CA-003** — `test/apoio/fakes.js` deixa de manipular `require.cache`: passa a construir **adapters
+  fake das portas**, injetados pelo container.
 - **CA-004** — A mesma suíte de contrato passa no `RepositorioRedis` e no `RepositorioMemoria`.
-- **CA-005** — Sem `REDIS_URL`, o repositório de memória é escolhido **explicitamente** pelo container
-  e o boot emite alarme claro; não há mais fallback silencioso dentro do adapter (D-18).
-- **CA-006** — A transcrição usa o SDK da OpenAI (D-26).
-- **CA-007** — `mediaUrl` de host fora da allow-list é recusada antes de qualquer download (S7).
-- **CA-008** — Saída de extração inválida vira extração vazia, sem lançar e sem objeto malformado.
-- **CA-009** — Suíte completa continua verde, e a linha de base HTTP permanece idêntica.
-- **CA-010** — A suíte continua rodando em menos de 10 segundos.
+- **CA-005** — A escolha entre Redis e memória passa a ser feita **no container**, não dentro do
+  adapter. O comportamento observável é o mesmo de hoje: sem `REDIS_URL`, usa memória.
+- **CA-006** — A transcrição usa o SDK da OpenAI em vez de `axios` + `form-data` montado à mão (D-26),
+  enviando a mesma requisição para o mesmo endpoint.
+- **CA-007** — Todos os 320 testes existentes continuam verdes **sem alteração**.
+- **CA-008** — A linha de base HTTP permanece idêntica, e o log do servidor também.
+- **CA-009** — A suíte continua rodando em menos de 10 segundos.
 
 ## 7. Comportamento observável
 
-**Nada muda** para o lead, para o vendedor ou para as rotas — exceto o alarme de Redis ausente
-(CA-005) e a recusa de mídia de host desconhecido (CA-007), ambos desejados.
+**Nada muda.** Nem para o lead, nem para o vendedor, nem para as rotas, nem para o log. Se algum
+teste precisar ser ajustado, a fatia está errada.
 
 ## 8. Riscos
 
 | Risco | Prob. | Impacto | Mitigação |
 |---|---|---|---|
-| Fatia grande demais para um passo | **Alta** | Alto | Dividir em PRs por porta, na ordem do §4; cada PR entrega porta + adapter real + fake + contrato |
+| Fatia grande demais para um passo | **Alta** | Alto | Executar na ordem do §9, rodando a suíte a cada porta |
 | Perder um detalhe de tratamento de erro do legado | Média | Alto | Teste dourado e caracterização como contrato; o comportamento de fallback está coberto |
-| Allow-list de host bloquear mídia legítima | Média | Alto | Levantar os hosts reais no log de produção **antes**; começar permissivo com alarme |
+| Mudar comportamento sem perceber ao mover código | Média | Alto | CA-007 e CA-008: nenhum teste alterado, linha de base idêntica |
 
 ## 9. Ordem de execução sugerida
 
@@ -105,10 +116,5 @@ Nenhuma muda. A fatia é estrutural: mesma lógica, outro caminho de dependênci
 
 ## 10. Questões em aberto
 
-- [ ] **De quais sites vêm as fotos e áudios que os clientes enviam?** Quando alguém manda uma foto no
-      WhatsApp, o ChatClean nos passa um link e o bot baixa o arquivo de lá. Para o CA-007 precisamos
-      da lista de endereços confiáveis — qualquer outro será recusado. Essa lista tem que sair do log
-      do servidor de produção **antes** de a regra ser ligada; ligar às cegas bloquearia mídia
-      legítima e o cliente ficaria sem resposta.
-- [ ] **O `RelogioDeExpediente` deve ser uma porta separada, ou o `horario.js` já vira serviço de
-      domínio nesta fatia?** Sugestão: porta agora, domínio na Fase 3.
+- [ ] O `RelogioDeExpediente` deve ser uma porta separada, ou o `horario.js` já vira serviço de
+      domínio nesta fatia? Sugestão: porta agora, domínio na Fase 3.

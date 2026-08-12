@@ -2,9 +2,22 @@ const js = require('@eslint/js');
 const globals = require('globals');
 
 // Fronteiras da arquitetura alvo (docs/10-arquitetura-alvo.md).
-// Hoje em 'warn' porque src/ ainda quase nao existe; viram 'error' na Fase 2,
-// quando os adapters passarem a ser o unico lugar com I/O.
+// ERRO desde a SPEC 0004: os adapters em src/infrastructure sao o unico lugar
+// com I/O. Esta regra e o que impede a arquitetura de apodrecer — sem ela, em
+// alguns meses o dominio volta a importar axios.
+//
+// ATENCAO: `no-restricted-imports` so enxerga `import` de ESM. Este projeto e
+// CommonJS, entao a barreira precisa olhar a CHAMADA require() — verificado
+// com um arquivo de violacao proposital antes de confiar nela.
 const INFRA_PROIBIDA = ['openai', 'axios', 'ioredis', 'express', 'form-data', 'dotenv', 'fs', 'path'];
+
+const proibirRequire = (modulos, motivo) => [
+    'error',
+    {
+        selector: `CallExpression[callee.name='require'][arguments.0.value=/^(${modulos.join('|')})$/]`,
+        message: motivo
+    }
+];
 
 module.exports = [
     js.configs.recommended,
@@ -24,11 +37,29 @@ module.exports = [
         }
     },
     {
-        // O dominio nao pode conhecer infraestrutura (DIP).
-        files: ['src/domain/**/*.js', 'src/application/**/*.js'],
+        // O dominio, a aplicacao e o compartilhado sao puros: nada de I/O,
+        // nada de process.env. As dependencias entram por parametro.
+        files: ['src/domain/**/*.js', 'src/application/**/*.js', 'src/shared/**/*.js'],
         rules: {
-            'no-restricted-imports': ['warn', { paths: INFRA_PROIBIDA }],
-            'no-restricted-globals': ['warn', 'process']
+            'no-restricted-syntax': proibirRequire(
+                INFRA_PROIBIDA,
+                'Camada pura nao pode depender de infraestrutura (DIP). Receba a dependencia por parametro; o adapter concreto vive em src/infrastructure e e montado em src/main/container.js.'
+            ),
+            'no-restricted-globals': ['error', 'process']
+        }
+    },
+    {
+        // Adapters podem falar com o mundo, mas nao conhecem o composition root.
+        files: ['src/infrastructure/**/*.js'],
+        rules: {
+            'no-restricted-syntax': [
+                'error',
+                {
+                    selector: "CallExpression[callee.name='require'][arguments.0.value=/\\/main\\//]",
+                    message:
+                        'Adapter nao conhece o composition root: a dependencia flui de main/ para infrastructure, nunca o contrario.'
+                }
+            ]
         }
     },
     {
@@ -42,7 +73,6 @@ module.exports = [
             'prompts.js',
             'data.js',
             'flow.js',
-            'store.js',
             'horario.js',
             'pipeline.js',
             'test-chat.js',
