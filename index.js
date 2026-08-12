@@ -178,7 +178,8 @@ async function varrerFollowUps() {
         console.error('Erro no varredor de follow-up:', e.message);
     }
 }
-setInterval(varrerFollowUps, FOLLOWUP_SWEEP).unref?.();
+// O agendamento do varredor fica em iniciar(), junto com o resto do bootstrap.
+// Já esteve duplicado aqui — ver test/unidade/agendamento.test.js.
 
 // =============================================================
 //  IA — via portas ExtratorDeInformacoes, RedatorDeResposta e
