@@ -45,27 +45,32 @@ function montarRepositorio(config) {
 
 /**
  * @param {object} config Configuração validada (src/main/config.js).
+ * @param {object} [sobrescritas] Trocas pontuais de dependência. Usado pelos
+ *   testers locais (spec 0010) para pôr o canal de terminal e o repositório em
+ *   memória no lugar dos de produção, sem duplicar a montagem.
  * @returns {object} Dependências, todas conformes às portas de src/application/portas.
  */
-function criar(config) {
-    const cliente = new OpenAI({ apiKey: config.OPENAI_API_KEY });
+function criar(config, sobrescritas = {}) {
+    const cliente = sobrescritas.cliente || new OpenAI({ apiKey: config.OPENAI_API_KEY });
 
-    const canal = CanalChatClean.criar({
-        urlDePush: config.CC_PUSH_URL,
-        numeroDaEquipe: config.EQUIPE_NUMERO
-    });
+    const canal =
+        sobrescritas.canal ||
+        CanalChatClean.criar({
+            urlDePush: config.CC_PUSH_URL,
+            numeroDaEquipe: config.EQUIPE_NUMERO
+        });
 
     return {
         canal,
-        notificador: canal, // mesma origem, capacidades distintas (ISP)
-        repositorio: montarRepositorio(config),
+        notificador: sobrescritas.notificador || canal, // mesma origem, capacidades distintas (ISP)
+        repositorio: sobrescritas.repositorio || montarRepositorio(config),
         extrator: ExtratorOpenAI.criar({ cliente }),
         redator: RedatorOpenAI.criar({ cliente }),
         transcritor: TranscritorWhisper.criar({ cliente }),
         leitorDeImagem: LeitorDeImagemOpenAI.criar({ cliente }),
         baixadorDeMidia: BaixadorHttp.criar(),
-        relogio: RelogioDoSistema.criar(),
-        expediente: RelogioDeExpedienteLocal.criar()
+        relogio: sobrescritas.relogio || RelogioDoSistema.criar(),
+        expediente: sobrescritas.expediente || RelogioDeExpedienteLocal.criar()
     };
 }
 

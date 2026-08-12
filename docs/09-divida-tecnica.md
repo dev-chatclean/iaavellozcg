@@ -53,6 +53,16 @@ código; regras duplicadas divergem (o bloqueio de diagnóstico está no `SYSTEM
 `promptResposta`). **Fatia:** Fases 3–4.
 </details>
 
+### D-04 — RESOLVIDA (spec 0010, 2026-08-12)
+Passou a existir **uma** implementação do turno. `test-chat.js` e `sim-lead.js` montam o container
+com canal de terminal e repositório em memória e chamam o mesmo caso de uso da produção; juntos
+caíram de 256 para 158 linhas, sem lógica de conversa.
+`test/unidade/testers-sem-drift.test.js` guarda a propriedade: os testers não podem chamar a OpenAI,
+montar prompts nem reimplementar a máquina de estados.
+Ver [resultado](../specs/0010-unificacao-dos-testers/resultado.md).
+
+<details><summary>Descrição original</summary>
+
 ### D-04 (Crítica) — Três implementações divergentes do mesmo turno de conversa
 `index.js: processarMensagem`, `test-chat.js: turno` e `sim-lead.js: turno`.
 Divergências **já existentes**:

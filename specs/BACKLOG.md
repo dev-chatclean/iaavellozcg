@@ -14,7 +14,7 @@ Ver [docs/11-plano-refatoracao-strangler.md](../docs/11-plano-refatoracao-strang
 | **0007** | [Remoção do pipeline de oportunidades](0007-remover-pipeline-oportunidades/resultado.md) | 10 | **Implementada** | D-05 | 0001 |
 | **0008** | [Caso de uso do turno](0008-caso-de-uso-do-turno/resultado.md) | 4 | **Implementada** | D-01, D-24(parcial) | 0006 |
 | **0009** | [Expediente: sábado e plantão na resposta](0009-expediente-sabado-e-plantao/spec.md) | 0+ | **Implementada** | D-19, D-28 | 0001 |
-| **0010** | Unificação dos testers locais | 6 | Rascunho | **D-04** | 0008 |
+| **0010** | [Unificação dos testers locais](0010-unificacao-dos-testers/resultado.md) | 6 | **Implementada** | D-04 | 0008 |
 | **0011** | Prompts versionados e suíte de evals | 7 | Rascunho | D-03 | 0010 |
 | **0012** | Estado compartilhado no Redis (multi-instância) | 8 | Rascunho | D-15 | 0004 |
 | **0013** | Resiliência: retry, backoff, circuit breaker | 8 | Rascunho | D-17, D-27 | 0004 |
