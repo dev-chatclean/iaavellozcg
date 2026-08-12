@@ -105,6 +105,10 @@ Nenhuma muda. A fatia é estrutural: mesma lógica, outro caminho de dependênci
 
 ## 10. Questões em aberto
 
-- [ ] Quais hosts aparecem em `mediaUrl` na produção real? Precisa sair do log antes do CA-007.
-- [ ] O `RelogioDeExpediente` deve ser porta separada ou o `horario.js` vira serviço de domínio já
-      nesta fatia? (Sugestão: porta agora, domínio na Fase 3.)
+- [ ] **De quais sites vêm as fotos e áudios que os clientes enviam?** Quando alguém manda uma foto no
+      WhatsApp, o ChatClean nos passa um link e o bot baixa o arquivo de lá. Para o CA-007 precisamos
+      da lista de endereços confiáveis — qualquer outro será recusado. Essa lista tem que sair do log
+      do servidor de produção **antes** de a regra ser ligada; ligar às cegas bloquearia mídia
+      legítima e o cliente ficaria sem resposta.
+- [ ] **O `RelogioDeExpediente` deve ser uma porta separada, ou o `horario.js` já vira serviço de
+      domínio nesta fatia?** Sugestão: porta agora, domínio na Fase 3.
