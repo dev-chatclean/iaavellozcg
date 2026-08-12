@@ -49,7 +49,7 @@ const EXTRACAO_VAZIA = {
 //  "o que a IA respondeu".
 // -------------------------------------------------------------
 function criarIaFake() {
-    const { SYSTEM_SDR, promptExtracao, promptResposta } = requireDaRaiz('./prompts');
+    const { SYSTEM_SDR, promptExtracao, promptResposta } = requireDaRaiz('./src/infrastructure/openai/prompts');
 
     const estado = {
         chamadas: [],

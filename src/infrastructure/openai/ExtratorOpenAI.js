@@ -7,7 +7,7 @@
 //  crases e o mesmo `null` em caso de falha.
 // =============================================================
 
-const { promptExtracao } = require('../../../prompts');
+const { promptExtracao } = require('./prompts');
 
 const MODELO = 'gpt-4o-mini';
 

@@ -10,7 +10,7 @@
 //  texto padrão, como o legado fazia.
 // =============================================================
 
-const { SYSTEM_SDR, promptResposta } = require('../../../prompts');
+const { SYSTEM_SDR, promptResposta } = require('./prompts');
 
 const MODELO = 'gpt-4o-mini';
 
