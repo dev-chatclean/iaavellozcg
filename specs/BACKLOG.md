@@ -11,7 +11,7 @@ Ver [docs/11-plano-refatoracao-strangler.md](../docs/11-plano-refatoracao-strang
 | **0004** | [Portas e adapters: canal, repositório, LLM](0004-portas-e-adapters/spec.md) | 2 | **Implementada** | D-02, D-26 | 0003 |
 | **0005** | Manipuladores de mídia e política de envio | 5 | Rascunho | D-08, D-25 | 0004 |
 | **0006** | Domínio: `Atendimento`, VOs e políticas | 3 | Rascunho | D-03, D-06, D-07, D-09 | 0004 |
-| **0007** | Remoção do pipeline de oportunidades (código morto) | 10 | Decidida — remover | D-05 | 0001 |
+| **0007** | [Remoção do pipeline de oportunidades](0007-remover-pipeline-oportunidades/resultado.md) | 10 | **Implementada** | D-05 | 0001 |
 | **0008** | Casos de uso e morte do `processarMensagem` | 4 | Rascunho | D-01, D-10 | 0006 |
 | **0009** | [Expediente: sábado e plantão na resposta](0009-expediente-sabado-e-plantao/spec.md) | 0+ | **Implementada** | D-19, D-28 | 0001 |
 | **0010** | Unificação dos testers locais | 6 | Rascunho | **D-04** | 0008 |

@@ -53,7 +53,6 @@ function usarDependencias(novas) {
 // importados aqui: chegam pelas portas (SPEC 0004).
 const { EMPRESA_INFO, PERFIS, DEPARTAMENTOS, lojaParaDepartamento } = require('./data');
 const { determinarProximoCampo, aplicarCampos, detectarPerfil } = require('./flow');
-const pipeline = require('./pipeline'); // Oportunidades no CRM (inerte se não configurado)
 
 // Departamento de transbordo do lead = a loja que ele escolheu (obrigatória
 // no fluxo). Sem loja identificada, cai no Comercial geral.
@@ -810,7 +809,7 @@ function checarAdmin(req, res) {
     return true;
 }
 
-// Diagnóstico de produção: confere expediente, Redis e config de Push/pipeline.
+// Diagnóstico de produção: confere expediente, Redis e configuração de Push.
 // Não expõe segredos.
 app.get('/diag', async (req, res) => {
     if (!checarAdmin(req, res)) return;
@@ -824,8 +823,7 @@ app.get('/diag', async (req, res) => {
         equipeNumero: !!EQUIPE_NUMERO,
         webhookProtegido: !!WEBHOOK_SECRET,
         logDePayload: config.LOG_PAYLOAD,
-        avisosDeConfiguracao: avisosConfig(config),
-        pipeline: pipeline.diag()
+        avisosDeConfiguracao: avisosConfig(config)
     });
 });
 

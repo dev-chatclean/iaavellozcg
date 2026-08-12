@@ -74,7 +74,6 @@ module.exports = [
             'data.js',
             'flow.js',
             'horario.js',
-            'pipeline.js',
             'test-chat.js',
             'sim-lead.js'
         ],

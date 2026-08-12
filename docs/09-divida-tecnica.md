@@ -56,12 +56,19 @@ Divergências **já existentes**:
 **Impacto:** os testadores validam um comportamento que não é o de produção — pior que não ter
 testador. **Fatia:** Fase 6.
 
+### D-05 — RESOLVIDA (spec 0007, 2026-08-12)
+`pipeline.js` deletado, junto com a referência no `/diag` e as 6 variáveis `PIPELINE_*`.
+O `/diag` da Avelloz deixou de expor "REUNIÃO MARCADA", nomenclatura do projeto `iachatclean`.
+
+<details><summary>Descrição original</summary>
+
 ### D-05 (Alta) — `pipeline.js` é código morto com comentários de outro projeto
 `criarOportunidade()` nunca é chamado. Os comentários descrevem a etapa "REUNIÃO MARCADA" e o
 responsável "Roni" — herança do `iachatclean`. Só `diag()` é usado.
 **Impacto:** confunde quem lê; sugere uma integração que não existe.
 **Decisão do negócio (2026-08-11): os vendedores não usam o funil de Oportunidades — remover.**
 Deletar `pipeline.js`, a referência em `/diag` e as 6 variáveis `PIPELINE_*`. **Fatia:** spec 0007.
+</details>
 
 ### D-06 (Alta) — Query com efeito colateral (viola CQS)
 `flow.js: determinarProximoCampo(leadData)` **muta** `leadData.qualificacaoCompleta` ao retornar

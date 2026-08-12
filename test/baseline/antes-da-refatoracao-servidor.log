@@ -15,18 +15,18 @@
 📩 Webhook de 5584****6446 [text] (19 caracteres)
 🔍 Webhook recebido: contact, ticket, message
 📩 Webhook de 5583*****7777 [text] (2 caracteres)
-🔍 Webhook recebido: contact, ticket, message
-📩 Webhook de 5583*****6666 [text] (7 caracteres)
-Erro ao extrair informações: 401 Incorrect API key provided: sk-basel*****alsa. You can find your API key at https://platform.openai.com/account/api-keys.
 Erro ao extrair informações: 401 Incorrect API key provided: sk-basel*****alsa. You can find your API key at https://platform.openai.com/account/api-keys.
 ❌ Erro ao gerar resposta IA para 5584****6446: 401 Incorrect API key provided: sk-basel*****alsa. You can find your API key at https://platform.openai.com/account/api-keys.
 ⚠️ CC_PUSH_URL não configurado no .env — envio ignorado
-❌ Erro ao gerar resposta IA para 5583*****7777: 401 Incorrect API key provided: sk-basel*****alsa. You can find your API key at https://platform.openai.com/account/api-keys.
-⚠️ CC_PUSH_URL não configurado no .env — envio ignorado
+Erro ao extrair informações: 401 Incorrect API key provided: sk-basel*****alsa. You can find your API key at https://platform.openai.com/account/api-keys.
+🔍 Webhook recebido: contact, ticket, message
+📩 Webhook de 5583*****6666 [text] (7 caracteres)
+Erro ao extrair informações: 401 Incorrect API key provided: sk-basel*****alsa. You can find your API key at https://platform.openai.com/account/api-keys.
 🔍 Webhook recebido: number, body, type, contactName, id
 📩 Webhook de 5583*****5555 [text] (15 caracteres)
-Erro ao extrair informações: 401 Incorrect API key provided: sk-basel*****alsa. You can find your API key at https://platform.openai.com/account/api-keys.
 ❌ Erro ao gerar resposta IA para 5583*****6666: 401 Incorrect API key provided: sk-basel*****alsa. You can find your API key at https://platform.openai.com/account/api-keys.
+⚠️ CC_PUSH_URL não configurado no .env — envio ignorado
+❌ Erro ao gerar resposta IA para 5583*****7777: 401 Incorrect API key provided: sk-basel*****alsa. You can find your API key at https://platform.openai.com/account/api-keys.
 ⚠️ CC_PUSH_URL não configurado no .env — envio ignorado
 Erro ao extrair informações: 401 Incorrect API key provided: sk-basel*****alsa. You can find your API key at https://platform.openai.com/account/api-keys.
 🔍 Webhook recebido: contact, message
