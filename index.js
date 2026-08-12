@@ -51,14 +51,16 @@ function usarDependencias(novas) {
 
 // Conteúdo de negócio e fluxo. Prompts, OpenAI, ChatClean e Redis não são mais
 // importados aqui: chegam pelas portas (SPEC 0004).
-const { EMPRESA_INFO, PERFIS, DEPARTAMENTOS, lojaParaDepartamento } = require('./data');
+const { EMPRESA_INFO, DEPARTAMENTOS } = require('./data');
 const { determinarProximoCampo, aplicarCampos, detectarPerfil } = require('./flow');
 const manipuladoresDeMidia = require('./src/application/midia/manipuladores');
+const MontadorDeResumo = require('./src/domain/atendimento/MontadorDeResumo');
+const PoliticaDeTransbordo = require('./src/domain/atendimento/politicas/PoliticaDeTransbordo');
 
 // Departamento de transbordo do lead = a loja que ele escolheu (obrigatória
 // no fluxo). Sem loja identificada, cai no Comercial geral.
 function departamentoLead(leadData) {
-    return lojaParaDepartamento(leadData.loja) || DEPARTAMENTOS.geral;
+    return PoliticaDeTransbordo.departamentoDaLoja(leadData.loja);
 }
 
 const processandoMensagem = new Map(); // lock de processamento (por instância)
@@ -91,41 +93,16 @@ async function enviarMensagensQuebradas(chatId, textoCompleto) {
     }
 }
 
-// Notifica a equipe (nota interna no ticket + WhatsApp interno) quando um lead
-// é qualificado, e sinaliza a transferência de departamento no CRM.
-// Monta o resumo estruturado do lead (reusado na nota da equipe e na descrição do evento).
+// O resumo entregue ao vendedor no transbordo (RN-043) vive em
+// src/domain/atendimento/MontadorDeResumo.js desde a SPEC 0006.
 function montarResumo(leadData, chatId, opcoes = {}) {
-    const departamento = opcoes.departamento || departamentoLead(leadData);
-    const perfilNome = leadData.perfilKey && PERFIS[leadData.perfilKey]
-        ? PERFIS[leadData.perfilKey].nome : 'Não informado';
-    const temDadosSim = leadData.nomeCompleto || leadData.cpf || leadData.dataNascimento || leadData.telefone || leadData.cnh || leadData.corModelo;
-    return `🏍️ LEAD QUALIFICADO — Avelloz Campina${opcoes.tagExtra ? ' [' + opcoes.tagExtra + ']' : ''}\n\n` +
-        `Contato: ${leadData.nome || 'Lead'} (${chatId})\n` +
-        `Perfil: ${perfilNome}\n` +
-        `Finalidade: ${leadData.finalidade || 'Não informado'}\n` +
-        `Transporte hoje: ${leadData.transporteAtual || 'Não informado'}\n` +
-        `Gasto atual: ${leadData.gastoMensal || 'Não informado'}\n` +
-        `Situação de moto: ${leadData.situacaoMoto || 'Não informado'}\n` +
-        `Modelo de interesse: ${leadData.modeloInteresse || 'Não informado'}\n` +
-        `Forma de pagamento: ${leadData.formaPagamento || 'Não informado'}\n` +
-        `Loja escolhida: ${leadData.loja || 'Não informada'}\n` +
-        (temDadosSim
-            ? `\nDados p/ simulação:\n` +
-              `  Nome completo: ${leadData.nomeCompleto || 'Não informado'}\n` +
-              `  CPF: ${leadData.cpf || 'Não informado'}\n` +
-              `  Nascimento: ${leadData.dataNascimento || 'Não informado'}\n` +
-              `  Telefone: ${leadData.telefone || 'Não informado'}\n` +
-              `  CNH: ${leadData.cnh || 'Não informado'}\n` +
-              `  Cor/modelo: ${leadData.corModelo || 'Não informado'}\n`
-            : '') +
-        (opcoes.proximoExpediente ? `Retorno sugerido: ${opcoes.proximoExpediente}\n` : '') +
-        `\n➡️ Transferir para o departamento ${departamento}`;
+    return MontadorDeResumo.montar(leadData, chatId, opcoes);
 }
 
+// Notifica a equipe (nota interna no ticket + WhatsApp interno) quando um lead
+// e qualificado, e sinaliza a transferencia de departamento no CRM.
 async function notificarEquipe(leadData, chatId, opcoes = {}) {
     const departamento = opcoes.departamento || departamentoLead(leadData);
-    const perfilNome = leadData.perfilKey && PERFIS[leadData.perfilKey]
-        ? PERFIS[leadData.perfilKey].nome : 'Não informado';
     const resumo = montarResumo(leadData, chatId, opcoes);
 
     // Nota interna no ticket do próprio cliente (fica no CRM p/ o atendente)
@@ -135,13 +112,9 @@ async function notificarEquipe(leadData, chatId, opcoes = {}) {
 
     // Histórico append-only de leads qualificados
     try {
-        await deps.repositorio.registrarLeadFinalizado({
-            chatId, nome: leadData.nome || null, perfil: perfilNome,
-            finalidade: leadData.finalidade || null, transporteAtual: leadData.transporteAtual || null,
-            gastoMensal: leadData.gastoMensal || null, modeloInteresse: leadData.modeloInteresse || null,
-            formaPagamento: leadData.formaPagamento || null, loja: leadData.loja || null,
-            departamento, data: new Date().toISOString()
-        });
+        await deps.repositorio.registrarLeadFinalizado(
+            MontadorDeResumo.paraRegistro(leadData, chatId, departamento, new Date().toISOString())
+        );
     } catch (e) { console.error('❌ appendLeadFinalizado:', e.message); }
 
     console.log(`✅ Equipe notificada — lead ${leadData.nome || ''} (${mascarar.telefone(chatId)}) → ${departamento}`);

@@ -10,7 +10,7 @@ Ver [docs/11-plano-refatoracao-strangler.md](../docs/11-plano-refatoracao-strang
 | **0003** | [ACL do payload de entrada](0003-acl-payload-de-entrada/spec.md) | 1 | **Implementada** | D-01(parcial), D-29 | 0001 |
 | **0004** | [Portas e adapters: canal, repositório, LLM](0004-portas-e-adapters/spec.md) | 2 | **Implementada** | D-02, D-26 | 0003 |
 | **0005** | [Manipuladores de mídia (Strategy)](0005-manipuladores-de-midia/resultado.md) | 5 | **Implementada** | (estrutural) | 0004 |
-| **0006** | Domínio: `Atendimento`, VOs e políticas | 3 | Rascunho | D-03, D-06, D-07, D-09 | 0004 |
+| **0006** | [Domínio do atendimento: políticas e regras](0006-dominio-atendimento/spec.md) | 3 | **Implementada** | D-03, D-07(parcial) | 0004 |
 | **0007** | [Remoção do pipeline de oportunidades](0007-remover-pipeline-oportunidades/resultado.md) | 10 | **Implementada** | D-05 | 0001 |
 | **0008** | Casos de uso e morte do `processarMensagem` | 4 | Rascunho | D-01, D-10 | 0006 |
 | **0009** | [Expediente: sábado e plantão na resposta](0009-expediente-sabado-e-plantao/spec.md) | 0+ | **Implementada** | D-19, D-28 | 0001 |
@@ -25,6 +25,7 @@ Ver [docs/11-plano-refatoracao-strangler.md](../docs/11-plano-refatoracao-strang
 | **0018** | Remoção final do legado | 10 | Rascunho | D-01, D-21, D-22 | 0008, 0010 |
 | **0019** | Endurecimento operacional: alarme de Redis e origem da mídia | — | Rascunho | D-18, S7 | 0004 |
 | **0020** | Política de envio: quebra de mensagem e atraso fora do lock | — | Rascunho | D-08, D-25 | 0005 |
+| **0021** | Correção do D-06: consulta do funil sem efeito colateral | — | Rascunho | D-06 | 0006 |
 
 
 ---

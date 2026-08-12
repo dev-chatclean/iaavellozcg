@@ -9,6 +9,7 @@
 // =============================================================
 
 const { MODELOS, FORMAS_PAGAMENTO, LOJAS, PERFIS, OBJECOES } = require('./data');
+const PoliticaDeDiagnostico = require('./src/domain/atendimento/politicas/PoliticaDeDiagnostico');
 
 // Blocos montados a partir do data.js (mantém números/endereços em sincronia).
 const CATALOGO_TXT = Object.values(MODELOS).map(m =>
@@ -155,9 +156,11 @@ function promptResposta({ isInicioConversa, mensagemSanitizada, proximoCampo, le
     const ultimasAssist = (leadData.conversationHistory || []).filter(h => h.role === 'assistant').slice(-2);
     const usouNomeRecente = primeiroNome.length > 1 && ultimasAssist.some(h => (h.content || '').toLowerCase().includes(primeiroNome));
 
-    // Diagnóstico mínimo: transporte + gasto + situação de moto. Enquanto isso
-    // não fecha, NÃO libere preço/modelo — redirecione com naturalidade.
-    const diagnosticoCompleto = !!(leadData.transporteAtual && leadData.gastoMensal && leadData.situacaoMoto);
+    // RN-001 — o bloqueio mais importante do produto. A regra vive em
+    // src/domain/atendimento/politicas/PoliticaDeDiagnostico.js desde a
+    // SPEC 0006; antes era uma expressão booleana solta aqui, duplicando o
+    // que o SYSTEM_SDR já dizia em texto.
+    const diagnosticoCompleto = PoliticaDeDiagnostico.podeRevelarProduto(leadData);
 
     // MODO PLANTÃO (RN-061). Até a SPEC 0009 este parâmetro chegava aqui e era
     // ignorado (D-28): o modelo escrevia sempre como se a loja estivesse aberta

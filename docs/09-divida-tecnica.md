@@ -34,12 +34,22 @@ Regra de negócio, I/O de rede, persistência e HTTP no mesmo arquivo e frequent
 Nenhum teste roda sem rede. **Fatia:** Fase 2.
 </details>
 
+### D-03 — RESOLVIDA (spec 0006, 2026-08-12)
+As regras saíram do código de infraestrutura e do texto dos prompts para `src/domain/atendimento/`:
+RN-001 (`PoliticaDeDiagnostico`), RN-002 (`EtapaDoFunil`), RN-003 (`Qualificacao`),
+RN-005 (`Perfil`), RN-040..042 (`PoliticaDeTransbordo`) e RN-043 (`MontadorDeResumo`).
+Cada uma com nome, arquivo e teste próprio — 100% de cobertura.
+Ver [resultado](../specs/0006-dominio-atendimento/resultado.md).
+
+<details><summary>Descrição original</summary>
+
 ### D-03 (Crítica) — Regras de negócio espalhadas em quatro lugares
 Código (`index.js`, `flow.js`), dados (`data.js`), **texto de prompt** (`prompts.js`) e strings
 hardcoded no meio do fluxo (ex.: a mensagem de roteamento para Pós-venda).
 **Impacto:** ninguém sabe onde está a regra; mudança no prompt altera comportamento sem revisão de
 código; regras duplicadas divergem (o bloqueio de diagnóstico está no `SYSTEM_SDR` **e** em
 `promptResposta`). **Fatia:** Fases 3–4.
+</details>
 
 ### D-04 (Crítica) — Três implementações divergentes do mesmo turno de conversa
 `index.js: processarMensagem`, `test-chat.js: turno` e `sim-lead.js: turno`.
@@ -74,7 +84,10 @@ Deletar `pipeline.js`, a referência em `/diag` e as 6 variáveis `PIPELINE_*`. 
 `flow.js: determinarProximoCampo(leadData)` **muta** `leadData.qualificacaoCompleta` ao retornar
 `null`. É chamada duas vezes por turno, e também dentro de `montarMsgReativacao` — ou seja,
 **montar uma mensagem de follow-up pode marcar o lead como qualificado**.
-**Impacto:** bug latente sério. **Fatia:** Fase 3.
+**Impacto:** bug latente sério.
+**Situação (spec 0006):** o domínio já é puro — `EtapaDoFunil.proxima()` não altera nada, com teste
+que prova. O efeito colateral continua na fachada `flow.js`, porque removê-lo muda comportamento.
+**Fatia:** spec 0021.
 
 ### D-07 (Alta) — Primitive obsession
 Telefone, CPF, dinheiro, modelo, loja e datas são strings soltas num objeto anônimo. Nenhuma
