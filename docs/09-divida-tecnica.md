@@ -16,7 +16,9 @@ chamadas à OpenAI, máquina de estados, montagem de resumo, notificação, tran
 endpoints administrativos e bootstrap.
 **Impacto:** qualquer mudança tem risco de regressão em algo não relacionado; impossível testar em
 unidade; impossível ter dois desenvolvedores mexendo em paralelo.
-**Progresso:** spec 0003 tirou o parse do payload (1040 -> 990 linhas). **Fatia:** Fases 1–6.
+**Progresso:** 1040 -> **437 linhas**. O parse saiu na spec 0003, a infraestrutura na 0004, a mídia
+na 0005, as regras na 0006 e o turno inteiro na 0008. Restam no arquivo: servidor HTTP, autenticação,
+dedup, rate-limit, fila e bootstrap. **Fatia:** spec 0018 (remoção final).
 
 ### D-02 — RESOLVIDA (spec 0004, 2026-08-12)
 Todo acesso ao mundo externo passa por portas (`src/application/portas`), com adapters em
