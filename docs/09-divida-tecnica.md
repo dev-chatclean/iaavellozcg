@@ -84,7 +84,8 @@ validação de formato em nenhum ponto. **Fatia:** Fase 3.
 `enviarMensagensQuebradas` decide enviar inteiro se o texto casar com
 `/encaminhando|consultor|especialista|resumo|repassando/i`. Palavras comuníssimas nesse domínio —
 "nosso consultor" aparece em respostas normais, que então deixam de ser quebradas.
-**Impacto:** comportamento de envio imprevisível. **Fatia:** Fase 5.
+**Impacto:** comportamento de envio imprevisível.
+**Fatia:** spec 0020 — ficou de fora da 0005 por mudar o que o cliente recebe.
 
 ### D-09 (Alta) — Sem estado explícito do atendimento
 O estado é inferido de `qualificacaoCompleta` + `finalizado` + campos vazios. Não há transição
