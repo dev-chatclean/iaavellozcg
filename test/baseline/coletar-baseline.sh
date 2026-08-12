@@ -141,17 +141,24 @@ sleep 10
 
 req "GET /leads apos o trafego" "http://localhost:$PORT/leads?key=chave-baseline"
 
-# A ordem dos atendimentos depende de qual turno terminou primeiro. Ordenamos
-# por chatId para que o diff compare conteudo, nao corrida.
+# Normalizacoes para o diff comparar CONTEUDO, nao circunstancia:
+#   1. a ordem dos atendimentos depende de qual turno terminou primeiro;
+#   2. o campo `expediente` do /diag depende da hora em que a coleta rodou —
+#      coletar as 10h da terca e as 20h da mesma terca dava diff sem regressao.
 node -e '
 const fs = require("fs");
 const arquivo = process.argv[1];
-const texto = fs.readFileSync(arquivo, "utf8");
-fs.writeFileSync(arquivo, texto.replace(/\{"total":\d+,"ativos":\[.*?\]\}/g, (json) => {
+let texto = fs.readFileSync(arquivo, "utf8");
+
+texto = texto.replace(/\{"total":\d+,"ativos":\[.*?\]\}/g, (json) => {
     const dados = JSON.parse(json);
     dados.ativos.sort((a, b) => String(a.chatId).localeCompare(String(b.chatId)));
     return JSON.stringify(dados);
-}));
+});
+
+texto = texto.replace(/"expediente":\{[^}]*\}/g, "\"expediente\":\"(normalizado: depende da hora da coleta)\"");
+
+fs.writeFileSync(arquivo, texto);
 ' "$SAIDA"
 
 sleep 1

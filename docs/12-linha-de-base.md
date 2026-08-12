@@ -159,6 +159,8 @@ Duas correções foram aplicadas ao roteiro:
 1. A espera de drenagem passou de 3s para **10s**.
 2. A listagem de `/leads` é **ordenada por `chatId`** antes de gravar, porque a ordem natural depende
    de qual turno terminou primeiro.
+3. O campo `expediente` do `/diag` é **normalizado**: ele reflete a hora em que a coleta rodou.
+   Coletar às 10h e às 20h da mesma terça produzia diff sem nenhuma regressão por trás.
 
 Com isso, três execuções seguidas produzem arquivos byte a byte idênticos. **Se o diff acusar
 diferença, é regressão de verdade** — foi esse o ponto de todo o exercício.

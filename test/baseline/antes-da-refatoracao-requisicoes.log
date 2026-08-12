@@ -2,7 +2,7 @@
 
 ### GET /health
 -> http://localhost:3999/health
-<- {"status":"ok","uptime":0.289037,"timestamp":"2026-08-12T14:11:22.407Z"} [HTTP 200]
+<- {"status":"ok","uptime":0.6042433,"timestamp":"2026-08-12T21:34:29.077Z"} [HTTP 200]
 
 ### GET /diag sem chave
 -> http://localhost:3999/diag
@@ -10,7 +10,7 @@
 
 ### GET /diag com chave
 -> http://localhost:3999/diag?key=chave-baseline
-<- {"ok":true,"ambiente":"development","expediente":{"aberto":true,"motivo":null,"proximoExpediente":null},"resetInatividadeHoras":24,"redis":false,"pushConfigurado":false,"equipeNumero":false,"webhookProtegido":false,"logDePayload":false,"avisosDeConfiguracao":["EQUIPE_NUMERO vazio — o resumo do lead irá só como nota interna no ticket.","REDIS_URL vazia — o estado das conversas fica em memória e SE PERDE no restart.","CC_PUSH_URL vazia — a IA não conseguirá responder.","WEBHOOK_SECRET vazio — /webhook está ABERTO (aceito fora de produção)."]} [HTTP 200]
+<- {"ok":true,"ambiente":"development","expediente":"(normalizado: depende da hora da coleta)","resetInatividadeHoras":24,"redis":false,"pushConfigurado":false,"equipeNumero":false,"webhookProtegido":false,"logDePayload":false,"avisosDeConfiguracao":["EQUIPE_NUMERO vazio — o resumo do lead irá só como nota interna no ticket.","REDIS_URL vazia — o estado das conversas fica em memória e SE PERDE no restart.","CC_PUSH_URL vazia — a IA não conseguirá responder.","WEBHOOK_SECRET vazio — /webhook está ABERTO (aceito fora de produção)."]} [HTTP 200]
 
 ### GET /diag chave errada
 -> http://localhost:3999/diag?key=errada
