@@ -27,15 +27,18 @@ O ChatClean cuida só do transporte. Toda a inteligência (persona, diagnóstico
 
 ## Arquivos
 
-| Arquivo | Papel |
+| Caminho | Papel |
 |---|---|
-| `index.js` | Servidor Express: webhook, Push, state machine, Whisper, visão, follow-up, transbordo por loja |
-| `data.js` | Conteúdo de negócio (empresa, modelos+preços, formas de pagamento, lojas, perfis, objeções, departamentos) |
+| `index.js` | Bootstrap: monta as peças e sobe o servidor (95 linhas) |
+| `src/main/` | Configuração validada no boot e composition root |
+| `src/application/` | Casos de uso, fila de turnos, manipuladores de mídia, portas |
+| `src/domain/` | Regras de negócio: atendimento (+políticas), catálogo, expediente, mensageria |
+| `src/infrastructure/` | Adapters: HTTP, OpenAI, ChatClean, Redis, memória, terminal, relógio |
 | `prompts.js` | `SYSTEM_SDR` (prompt-mestre Avelloz) + extração (temp 0) + resposta (temp 0.7) |
-| `flow.js` | State machine de qualificação (pura, compartilhada com os testers) |
-| `horario.js` | Expediente do time → modo plantão |
-| `store.js` | Estado das conversas em Redis + fallback em memória |
-| `pipeline.js` | Oportunidades no CRM — opcional, **desligado por padrão** (fechamento é transferir para o consultor) |
+| `flow.js` | Fachada sobre o domínio do funil (sai com a spec 0021) |
+| `test-chat.js` · `sim-lead.js` | Testers locais — usam o mesmo caso de uso da produção |
+
+A arquitetura alvo está em [docs/10-arquitetura-alvo.md](docs/10-arquitetura-alvo.md).
 
 ## Fluxo de qualificação (guia)
 
