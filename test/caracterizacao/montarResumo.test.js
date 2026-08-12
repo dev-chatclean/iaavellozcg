@@ -2,7 +2,14 @@ import { describe, it, expect } from 'vitest';
 import { createRequire } from 'module';
 
 const require = createRequire(import.meta.url);
-const { montarResumo, departamentoLead } = require('../../index');
+
+// Desde a SPEC 0006/0018 o resumo e o roteamento vivem no dominio.
+// As assercoes abaixo NAO mudaram desde a Fase 0 — so a origem.
+const MontadorDeResumo = require('../../src/domain/atendimento/MontadorDeResumo');
+const PoliticaDeTransbordo = require('../../src/domain/atendimento/politicas/PoliticaDeTransbordo');
+
+const montarResumo = (lead, chatId, opcoes) => MontadorDeResumo.montar(lead, chatId, opcoes);
+const departamentoLead = (lead) => PoliticaDeTransbordo.departamentoDaLoja(lead.loja);
 
 // =============================================================
 //  SPEC 0001 — T25 · TESTE DE CARACTERIZACAO

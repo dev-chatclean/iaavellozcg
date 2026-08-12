@@ -63,24 +63,13 @@ module.exports = [
         }
     },
     {
-        // RATCHET DO LEGADO (SPEC 0001).
-        // A Fase 0 e zero-mudanca-de-comportamento: nao corrigimos o legado agora.
-        // Estes arquivos ficam em 'warn' e SAEM desta lista conforme cada um e
-        // estrangulado. A lista so encolhe — nunca adicione arquivo novo aqui.
-        // Achados atuais estao catalogados em docs/09-divida-tecnica.md (D-11, D-24, D-28).
-        files: [
-            'index.js',
-            'prompts.js',
-            'data.js',
-            'flow.js',
-            'horario.js',
-            'test-chat.js',
-            'sim-lead.js'
-        ],
-        rules: {
-            'no-unused-vars': 'warn',
-            'no-empty': 'warn'
-        }
+        // RATCHET DO LEGADO — encerrado na SPEC 0018.
+        // Comecou com 9 arquivos em 'warn' porque a Fase 0 era
+        // zero-mudanca-de-comportamento. Cada um saiu da lista ao ser
+        // estrangulado; o ultimo saiu quando o index.js virou bootstrap.
+        // A lista so encolheu, como combinado, e agora esta vazia.
+        files: ['data.js', 'flow.js', 'horario.js', 'prompts.js'],
+        rules: {}
     },
     {
         files: ['test/**/*.js', 'vitest.config.js'],

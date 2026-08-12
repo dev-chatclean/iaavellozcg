@@ -1,14 +1,18 @@
 // =============================================================
-//  FAKES DAS PORTAS (SPEC 0004)
+//  FAKES DAS PORTAS (SPEC 0004, reescrito na SPEC 0018)
 //
 //  Adapters falsos, conformes aos contratos de src/application/portas.
-//  São injetados pelo próprio sistema (`usarDependencias`), sem manipular o
-//  require.cache do Node — que era como a SPEC 0001 fazia, na falta de
-//  portas. Aquele truque foi a evidência do acoplamento descrito em D-02;
-//  agora ele não é mais necessário.
 //
-//  Fakes, não mocks de verificação: as asserções olham o RESULTADO
-//  (mensagem enviada, estado salvo), não "esta função foi chamada".
+//  Historia da injecao de dependencias nos testes:
+//    SPEC 0001  manipulava o require.cache do Node — a unica forma possivel
+//               sem portas, e a prova viva do acoplamento (D-02).
+//    SPEC 0004  passou a injetar por `usarDependencias`, uma costura no
+//               index.js.
+//    SPEC 0018  a costura morreu: o teste monta o sistema chamando
+//               `montar(config, fakes)`, exatamente como o bootstrap faz.
+//
+//  Fakes, nao mocks de verificacao: as assercoes olham o RESULTADO (mensagem
+//  enviada, estado salvo), nao "esta funcao foi chamada".
 // =============================================================
 
 const { createRequire } = require('module');
@@ -17,11 +21,6 @@ const path = require('path');
 const raiz = path.resolve(__dirname, '..', '..');
 const requireDaRaiz = createRequire(path.join(raiz, 'index.js'));
 
-// -------------------------------------------------------------
-//  Inteligência: extrator, redator, leitor de imagem e transcritor.
-//  Compartilham um estado único porque, do ponto de vista do teste, são
-//  "o que a IA respondeu".
-// -------------------------------------------------------------
 const EXTRACAO_VAZIA = {
     nome: null,
     finalidade: null,
@@ -44,6 +43,11 @@ const EXTRACAO_VAZIA = {
     correcao: []
 };
 
+// -------------------------------------------------------------
+//  Inteligencia: extrator, redator, leitor de imagem e transcritor.
+//  Compartilham um estado unico porque, do ponto de vista do teste, sao
+//  "o que a IA respondeu".
+// -------------------------------------------------------------
 function criarIaFake() {
     const { SYSTEM_SDR, promptExtracao, promptResposta } = requireDaRaiz('./prompts');
 
@@ -63,7 +67,6 @@ function criarIaFake() {
             const mensagemSanitizada = String(mensagem).replace(/[<>]/g, '').substring(0, 1000);
             const prompt = promptExtracao({ mensagemSanitizada, campoAtual });
             estado.chamadas.push({ tipo: 'extracao', prompt, historico });
-            // O adapter real engole a falha e devolve null; o fake faz igual.
             if (estado.erroNaExtracao) {
                 console.error('Erro ao extrair informações:', estado.erroNaExtracao);
                 return null;
@@ -109,7 +112,6 @@ function criarIaFake() {
         }
     };
 
-    // Auxiliares de leitura usados nas asserções.
     estado.promptsDeResposta = () => estado.chamadas.filter((c) => c.tipo === 'resposta').map((c) => c.prompt);
     estado.ultimoPromptDeResposta = () => estado.promptsDeResposta().at(-1);
     estado.systemsDeResposta = () => estado.chamadas.filter((c) => c.tipo === 'resposta').map((c) => c.system);
@@ -118,14 +120,10 @@ function criarIaFake() {
 }
 
 // -------------------------------------------------------------
-//  Canal e notificador (o adapter real é o mesmo objeto: ChatClean)
+//  Canal e notificador (o adapter real e o mesmo objeto: ChatClean)
 // -------------------------------------------------------------
 function criarCanalFake({ numeroDaEquipe = '' } = {}) {
-    const estado = {
-        enviadas: [], // mensagens ao cliente
-        notas: [], // notas internas no ticket
-        falharPush: false
-    };
+    const estado = { enviadas: [], notas: [], falharPush: false };
 
     const registrar = (lista, number, body) => {
         if (estado.falharPush) return false;
@@ -158,13 +156,12 @@ function criarCanalFake({ numeroDaEquipe = '' } = {}) {
 }
 
 // -------------------------------------------------------------
-//  Repositório em memória, com controle do lock para teste
+//  Repositorio em memoria, com controle do lock para teste
 // -------------------------------------------------------------
 function criarRepositorioFake() {
     const leads = new Map();
     const finalizados = [];
     const locks = new Set();
-
     const estado = { leads, finalizados, locks, travarProximoLock: false };
 
     estado.repositorio = {
@@ -201,9 +198,6 @@ function criarRepositorioFake() {
     return estado;
 }
 
-// -------------------------------------------------------------
-//  Baixador de mídia
-// -------------------------------------------------------------
 function criarMidiaFake() {
     const estado = { falharDownload: false, baixados: [] };
     estado.baixador = {
@@ -217,11 +211,15 @@ function criarMidiaFake() {
 }
 
 // -------------------------------------------------------------
-//  Montagem
+//  Montagem: a MESMA funcao que o bootstrap usa, com fakes no lugar dos
+//  adapters reais. Sem require.cache, sem costura.
 // -------------------------------------------------------------
 function montarSistema({ env = {} } = {}) {
-    const envAnterior = {};
-    const padroes = {
+    const { validar } = requireDaRaiz('./src/main/config');
+    const { montar } = requireDaRaiz('./index.js');
+
+    const ambiente = {
+        OPENAI_API_KEY: 'sk-teste',
         CC_PUSH_URL: 'https://fake.chatclean/v1/api/external/uuid/?token=JWT',
         EQUIPE_NUMERO: '',
         ADMIN_KEY: 'chave-de-teste',
@@ -236,21 +234,17 @@ function montarSistema({ env = {} } = {}) {
         RESET_INATIVIDADE_HORAS: '24',
         ...env
     };
-    for (const [k, v] of Object.entries(padroes)) {
-        envAnterior[k] = process.env[k];
-        process.env[k] = v;
-    }
 
-    // Recarrega o index para que ele releia a configuração deste cenário.
-    delete requireDaRaiz.cache[requireDaRaiz.resolve('./index.js')];
-    const sistema = requireDaRaiz('./index.js');
+    const resultado = validar(ambiente);
+    if (!resultado.ok) throw new Error('configuração de teste inválida:\n' + resultado.mensagem);
+    const config = resultado.config;
 
     const ia = criarIaFake();
-    const canal = criarCanalFake({ numeroDaEquipe: padroes.EQUIPE_NUMERO });
+    const canal = criarCanalFake({ numeroDaEquipe: config.EQUIPE_NUMERO });
     const repositorio = criarRepositorioFake();
     const midia = criarMidiaFake();
 
-    sistema.usarDependencias({
+    const deps = {
         canal: canal.canal,
         notificador: canal.canal,
         repositorio: repositorio.repositorio,
@@ -261,20 +255,27 @@ function montarSistema({ env = {} } = {}) {
         baixadorDeMidia: midia.baixador,
         relogio: { agora: () => Date.now(), data: () => new Date() },
         expediente: { consultar: (data) => requireDaRaiz('./horario').estaEmExpediente(data) }
-    });
+    };
+
+    const sistema = montar(config, deps);
 
     return {
-        sistema,
+        // Interface que os testes usam. `sistema` expõe o atendimento e o
+        // handler HTTP montados exatamente como em produção.
+        sistema: {
+            processarMensagem: (m) => sistema.atendimento.processarMensagem(m),
+            varrerFollowUps: () => sistema.atendimento.varrerFollowUps(),
+            handleWebhook: (req, res) => sistema.handleWebhook(req, res),
+            app: sistema.app
+        },
+        config,
         ia,
         canal,
         repositorio,
         midia,
         desmontar() {
-            delete requireDaRaiz.cache[requireDaRaiz.resolve('./index.js')];
-            for (const [k, v] of Object.entries(envAnterior)) {
-                if (v === undefined) delete process.env[k];
-                else process.env[k] = v;
-            }
+            // Nada a desfazer: o sistema e montado por chamada de funcao, sem
+            // estado global nem cache de modulo.
         }
     };
 }

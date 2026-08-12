@@ -9,6 +9,14 @@ Catálogo de problemas encontrados na análise do código. IDs `D-NN` (estrutura
 
 ## Arquitetura e design
 
+### D-01 — RESOLVIDA (spec 0018, 2026-08-12)
+De **1040 para 95 linhas**. O arquivo agora só monta as peças e liga o servidor.
+Saíram, em ordem: parse do payload (0003), infraestrutura (0004), mídia (0005), regras (0006),
+o turno inteiro (0008) e, por fim, servidor, rotas, fila e proteções (0018).
+Ver [resultado](../specs/0018-index-como-bootstrap/resultado.md).
+
+<details><summary>Descrição original</summary>
+
 ### D-01 (Crítica) — `index.js` é um God Object
 1040 linhas com pelo menos 8 responsabilidades: configuração, servidor HTTP, autenticação,
 parse de payload, proteções (dedup/rate-limit/anti-loop), fila e agrupamento, processamento de mídia,
@@ -16,9 +24,8 @@ chamadas à OpenAI, máquina de estados, montagem de resumo, notificação, tran
 endpoints administrativos e bootstrap.
 **Impacto:** qualquer mudança tem risco de regressão em algo não relacionado; impossível testar em
 unidade; impossível ter dois desenvolvedores mexendo em paralelo.
-**Progresso:** 1040 -> **437 linhas**. O parse saiu na spec 0003, a infraestrutura na 0004, a mídia
-na 0005, as regras na 0006 e o turno inteiro na 0008. Restam no arquivo: servidor HTTP, autenticação,
-dedup, rate-limit, fila e bootstrap. **Fatia:** spec 0018 (remoção final).
+**Fatia:** spec 0018 (remoção final).
+</details>
 
 ### D-02 — RESOLVIDA (spec 0004, 2026-08-12)
 Todo acesso ao mundo externo passa por portas (`src/application/portas`), com adapters em
@@ -202,8 +209,15 @@ responder "quantos leads qualificamos ontem?" nem "por que aquele lead não rece
 ### D-21 (Média) — `avellozcg:leads` é write-only e sem TTL
 Cresce indefinidamente e nenhum endpoint o lê (`/leads` lista atendimentos ativos, não o histórico).
 
+### D-22 — RESOLVIDA (spec 0018, 2026-08-12)
+O campo `empresa` saiu do `/leads`. A saída HTTP não mudou: ele era sempre `undefined` e já
+desaparecia na serialização — confirmado pela linha de base.
+
+<details><summary>Descrição original</summary>
+
 ### D-22 (Média) — Campo fantasma no `/leads`
 Expõe `l.empresa`, que não existe no domínio Avelloz — resquício do `iachatclean`. Sempre `undefined`.
+</details>
 
 ### D-23 — RESOLVIDA (spec 0002, 2026-08-11)
 As 21 variáveis passaram a ser lidas e validadas em `src/main/config.js`, uma vez, **antes** do

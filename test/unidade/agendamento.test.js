@@ -50,7 +50,8 @@ describe('agendamento do varredor de follow-up', () => {
     it('o codigo-fonte agenda o varredor em um unico lugar', () => {
         const fs = require('fs');
         const fonte = fs.readFileSync(path.join(raiz, 'index.js'), 'utf8');
-        const ocorrencias = fonte.match(/setInterval\(varrerFollowUps/g) || [];
+        const ocorrencias = fonte.match(/setInterval\(/g) || [];
         expect(ocorrencias).toHaveLength(1);
+        expect(fonte).toContain('varrerFollowUps()');
     });
 });

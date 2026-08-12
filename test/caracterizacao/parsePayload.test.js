@@ -2,7 +2,17 @@ import { describe, it, expect } from 'vitest';
 import { createRequire } from 'module';
 
 const require = createRequire(import.meta.url);
-const { parsePayload, ehGrupo, deveResponderTicket, ticketStatus } = require('../../index');
+
+// Desde a SPEC 0018 estas funcoes vivem na borda HTTP e no ACL, nao mais no
+// index.js. As assercoes abaixo NAO mudaram desde a Fase 0 — so a origem.
+const acl = require('../../src/infrastructure/chatclean/acl/tradutor');
+const traduzirPayload = require('../../src/infrastructure/http/traduzirPayload');
+
+const POLITICAS_PADRAO = { ignorarGrupos: true, apenasPendentes: true };
+const parsePayload = traduzirPayload.criar(POLITICAS_PADRAO);
+const ehGrupo = (body, msg) => acl.ehGrupo(body, msg);
+const ticketStatus = (body, msg) => acl.statusDoTicket(body, msg);
+const deveResponderTicket = (body, msg) => acl.motivoDeSilencioDoTicket(body, msg, POLITICAS_PADRAO) === null;
 
 // =============================================================
 //  SPEC 0001 — T21/T22/T23 · TESTE DE CARACTERIZACAO

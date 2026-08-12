@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { createRequire } from 'module';
 
 const require = createRequire(import.meta.url);
@@ -7,24 +7,18 @@ const require = createRequire(import.meta.url);
 //  SPEC 0001 — T27 · Cobre RF-050 (autenticacao do webhook) e
 //  RN-053 (rate-limit por numero).
 //
-//  index.js le as variaveis de ambiente no carregamento, entao cada bloco
-//  recarrega o modulo com a configuracao que quer exercitar.
+//  Desde a SPEC 0018 as protecoes vivem em src/infrastructure/http e recebem
+//  a configuracao por PARAMETRO — nao ha mais recarregamento de modulo com
+//  process.env. As assercoes nao mudaram; a montagem ficou trivial.
 // =============================================================
 
-function recarregarIndex() {
-    delete require.cache[require.resolve('../../index')];
-    return require('../../index');
-}
+const protecoes = require('../../src/infrastructure/http/protecoes');
+const ProcessarMensagemRecebida = require('../../src/application/casos-de-uso/ProcessarMensagemRecebida');
 
 const requisicao = ({ headers = {}, query = {}, params = {} } = {}) => ({ headers, query, params });
 
 describe('webhookAutorizado: sem WEBHOOK_SECRET (fora de producao)', () => {
-    let webhookAutorizado;
-
-    beforeEach(() => {
-        delete process.env.WEBHOOK_SECRET;
-        ({ webhookAutorizado } = recarregarIndex());
-    });
+    const webhookAutorizado = protecoes.criarAutenticacao('');
 
     // S4 ENDURECIDO pela spec 0002: fora de producao o webhook aberto continua
     // aceito (desenvolvimento simples, CA-005), mas em PRODUCAO o boot passou a
@@ -49,20 +43,7 @@ describe('webhookAutorizado: sem WEBHOOK_SECRET (fora de producao)', () => {
 
 describe('webhookAutorizado: com WEBHOOK_SECRET definido', () => {
     const SEGREDO = 'segredo-de-teste-123';
-    let webhookAutorizado;
-    let original;
-
-    beforeEach(() => {
-        original = process.env.WEBHOOK_SECRET;
-        process.env.WEBHOOK_SECRET = SEGREDO;
-        ({ webhookAutorizado } = recarregarIndex());
-    });
-
-    afterEach(() => {
-        if (original === undefined) delete process.env.WEBHOOK_SECRET;
-        else process.env.WEBHOOK_SECRET = original;
-        recarregarIndex();
-    });
+    const webhookAutorizado = protecoes.criarAutenticacao(SEGREDO);
 
     it('aceita o token no header x-webhook-token', () => {
         expect(webhookAutorizado(requisicao({ headers: { 'x-webhook-token': SEGREDO } }))).toBe(true);
@@ -107,20 +88,7 @@ describe('webhookAutorizado: com WEBHOOK_SECRET definido', () => {
 describe('webhookAutorizado: segredo longo (CA-006, CA-007)', () => {
     const PREFIXO = 'a'.repeat(128);
     const SEGREDO = PREFIXO + 'FINAL-VERDADEIRO';
-    let webhookAutorizado;
-    let original;
-
-    beforeEach(() => {
-        original = process.env.WEBHOOK_SECRET;
-        process.env.WEBHOOK_SECRET = SEGREDO;
-        ({ webhookAutorizado } = recarregarIndex());
-    });
-
-    afterEach(() => {
-        if (original === undefined) delete process.env.WEBHOOK_SECRET;
-        else process.env.WEBHOOK_SECRET = original;
-        recarregarIndex();
-    });
+    const webhookAutorizado = protecoes.criarAutenticacao(SEGREDO);
 
     it('CA-006: token que compartilha os primeiros 128 caracteres e REJEITADO', () => {
         const impostor = PREFIXO + 'FINAL-FALSIFICADO';
@@ -145,15 +113,7 @@ describe('dentroDoLimite: rate-limit por numero (RN-053)', () => {
     let dentroDoLimite;
 
     beforeEach(() => {
-        process.env.RATE_LIMIT_MSGS = '5';
-        process.env.RATE_LIMIT_JANELA_S = '60';
-        ({ dentroDoLimite } = recarregarIndex());
-    });
-
-    afterEach(() => {
-        delete process.env.RATE_LIMIT_MSGS;
-        delete process.env.RATE_LIMIT_JANELA_S;
-        recarregarIndex();
+        dentroDoLimite = protecoes.criarControleDeVazao({ limite: 5, janelaMs: 60000 });
     });
 
     it('permite ate o limite configurado', () => {
@@ -181,13 +141,7 @@ describe('dentroDoLimite: desativado', () => {
     let dentroDoLimite;
 
     beforeEach(() => {
-        process.env.RATE_LIMIT_MSGS = '0';
-        ({ dentroDoLimite } = recarregarIndex());
-    });
-
-    afterEach(() => {
-        delete process.env.RATE_LIMIT_MSGS;
-        recarregarIndex();
+        dentroDoLimite = protecoes.criarControleDeVazao({ limite: 0, janelaMs: 60000 });
     });
 
     it('RATE_LIMIT_MSGS=0 libera qualquer volume', () => {
@@ -197,11 +151,11 @@ describe('dentroDoLimite: desativado', () => {
 });
 
 describe('montarMsgReativacao: follow-up contextual (RN-070)', () => {
-    let montarMsgReativacao;
-
-    beforeEach(() => {
-        ({ montarMsgReativacao } = recarregarIndex());
-    });
+    const atendimento = ProcessarMensagemRecebida.criar(
+        { canal: {}, notificador: {}, repositorio: {}, extrator: {}, redator: {}, expediente: {} },
+        { LOOP_MAX_TURNOS: 15, LOOP_JANELA_MS: 180000, RESET_INATIVIDADE_MS: 86400000 }
+    );
+    const montarMsgReativacao = (lead) => atendimento.montarMsgReativacao(lead);
 
     it.each([
         ['finalidade', {}, /pra que você quer a moto/i],
