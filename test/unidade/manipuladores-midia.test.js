@@ -23,7 +23,7 @@ function criarDeps({ descricao = 'uma moto vermelha', transcricao = 'texto falad
             }
         },
         transcritor: {
-            async transcrever(arquivo) {
+            async transcrever() {
                 if (falhas.transcricao) throw new Error('whisper fora do ar');
                 return transcricao;
             }
