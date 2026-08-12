@@ -18,7 +18,7 @@ const CanalDeTerminal = require('./src/infrastructure/terminal/CanalDeTerminal')
 const RepositorioMemoria = require('./src/infrastructure/memoria/RepositorioMemoria');
 const ClienteComContagem = require('./src/infrastructure/openai/ClienteComContagem');
 const ProcessarMensagemRecebida = require('./src/application/casos-de-uso/ProcessarMensagemRecebida');
-const { estaEmExpediente } = require('./horario');
+const Expediente = require('./src/domain/expediente/Expediente');
 const OpenAI = require('openai');
 
 const CHAT_ID = '5583999990000';
@@ -44,7 +44,10 @@ const config = carregarConfig();
 
 // Instante fixo, quando pedido, para exercitar o modo plantao.
 const instante = process.env.SIM_DATA ? new Date(process.env.SIM_DATA) : null;
-const expediente = { consultar: () => estaEmExpediente(instante || new Date()) };
+const expedienteDoDominio = Expediente.criar({
+    feriadosExtras: String(config.FERIADOS || '').split(',').map((f) => f.trim()).filter(Boolean)
+});
+const expediente = { consultar: () => expedienteDoDominio.estaEmExpediente(instante || new Date()) };
 
 const canal = CanalDeTerminal.criar({ rotuloBot: 'BOT    ' });
 const repositorio = RepositorioMemoria.criar();

@@ -68,7 +68,7 @@ module.exports = [
         // zero-mudanca-de-comportamento. Cada um saiu da lista ao ser
         // estrangulado; o ultimo saiu quando o index.js virou bootstrap.
         // A lista so encolheu, como combinado, e agora esta vazia.
-        files: ['data.js', 'flow.js', 'horario.js', 'prompts.js'],
+        files: ['flow.js', 'prompts.js'],
         rules: {}
     },
     {

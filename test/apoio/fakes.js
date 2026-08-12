@@ -254,7 +254,7 @@ function montarSistema({ env = {} } = {}) {
         leitorDeImagem: ia.leitorDeImagem,
         baixadorDeMidia: midia.baixador,
         relogio: { agora: () => Date.now(), data: () => new Date() },
-        expediente: { consultar: (data) => requireDaRaiz('./horario').estaEmExpediente(data) }
+        expediente: { consultar: (data) => requireDaRaiz('./src/domain/expediente/Expediente').estaEmExpediente(data) }
     };
 
     const sistema = montar(config, deps);

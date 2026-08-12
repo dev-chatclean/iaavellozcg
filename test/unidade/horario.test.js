@@ -1,8 +1,9 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { createRequire } from 'module';
 
 const require = createRequire(import.meta.url);
-const { estaEmExpediente, ehFeriado, TZ } = require('../../horario');
+const Expediente = require('../../src/domain/expediente/Expediente');
+const { estaEmExpediente, ehFeriado, TZ } = Expediente;
 
 // =============================================================
 //  SPEC 0001 — T13 · Cobre RN-060, RN-061, RN-062 e CA-009.
@@ -162,53 +163,45 @@ describe('horario: virada de ano pulando feriado', () => {
     });
 });
 
-describe('horario: feriados extras por variavel de ambiente (RN-062)', () => {
-    // O modulo le FERIADOS no carregamento, entao e preciso reimportar.
-    let originalFeriados;
-
-    beforeEach(() => {
-        originalFeriados = process.env.FERIADOS;
-        vi.resetModules();
-    });
-
-    afterEach(() => {
-        if (originalFeriados === undefined) delete process.env.FERIADOS;
-        else process.env.FERIADOS = originalFeriados;
-        vi.resetModules();
-    });
-
-    const recarregar = () => {
-        delete require.cache[require.resolve('../../horario')];
-        return require('../../horario');
-    };
+describe('horario: feriados extras injetados (RN-062)', () => {
+    // Antes da SPEC 0022 estes casos precisavam mexer em process.env e
+    // recarregar o modulo. Agora os feriados sao parametro: o dominio nao le
+    // ambiente, e o teste ficou direto.
 
     it('aceita data completa YYYY-MM-DD (feriado movel de um ano especifico)', () => {
-        process.env.FERIADOS = '2026-02-17';
-        const h = recarregar();
-        expect(h.ehFeriado(new Date('2026-02-17T12:00:00-03:00'))).toBe(true);
-        expect(h.ehFeriado(new Date('2027-02-17T12:00:00-03:00'))).toBe(false);
+        const e = Expediente.criar({ feriadosExtras: ['2026-02-17'] });
+        expect(e.ehFeriado(new Date('2026-02-17T12:00:00-03:00'))).toBe(true);
+        expect(e.ehFeriado(new Date('2027-02-17T12:00:00-03:00'))).toBe(false);
     });
 
     it('aceita MM-DD como feriado recorrente (ex.: municipal)', () => {
-        process.env.FERIADOS = '06-24';
-        const h = recarregar();
-        expect(h.ehFeriado(new Date('2026-06-24T12:00:00-03:00'))).toBe(true);
-        expect(h.ehFeriado(new Date('2027-06-24T12:00:00-03:00'))).toBe(true);
+        const e = Expediente.criar({ feriadosExtras: ['06-24'] });
+        expect(e.ehFeriado(new Date('2026-06-24T12:00:00-03:00'))).toBe(true);
+        expect(e.ehFeriado(new Date('2027-06-24T12:00:00-03:00'))).toBe(true);
     });
 
     it('aceita lista com espacos e entradas vazias', () => {
-        process.env.FERIADOS = ' 2026-02-17 , , 06-24 ';
-        const h = recarregar();
-        expect(h.ehFeriado(new Date('2026-02-17T12:00:00-03:00'))).toBe(true);
-        expect(h.ehFeriado(new Date('2026-06-24T12:00:00-03:00'))).toBe(true);
+        const e = Expediente.criar({ feriadosExtras: [' 2026-02-17 ', '', ' 06-24 '] });
+        expect(e.ehFeriado(new Date('2026-02-17T12:00:00-03:00'))).toBe(true);
+        expect(e.ehFeriado(new Date('2026-06-24T12:00:00-03:00'))).toBe(true);
     });
 
     it('feriado extra fecha o expediente num dia util', () => {
-        process.env.FERIADOS = '2026-08-12';
-        const h = recarregar();
-        const r = h.estaEmExpediente(new Date('2026-08-12T10:00:00-03:00'));
+        const e = Expediente.criar({ feriadosExtras: ['2026-08-12'] });
+        const r = e.estaEmExpediente(new Date('2026-08-12T10:00:00-03:00'));
         expect(r.aberto).toBe(false);
         expect(r.motivo).toBe('feriado');
+    });
+
+    it('sem feriados extras, o mesmo dia esta aberto', () => {
+        expect(estaEmExpediente(new Date('2026-08-12T10:00:00-03:00')).aberto).toBe(true);
+    });
+
+    it('instancias diferentes nao compartilham feriados', () => {
+        const a = Expediente.criar({ feriadosExtras: ['2026-08-12'] });
+        const b = Expediente.criar({ feriadosExtras: [] });
+        expect(a.ehFeriado(new Date('2026-08-12T12:00:00-03:00'))).toBe(true);
+        expect(b.ehFeriado(new Date('2026-08-12T12:00:00-03:00'))).toBe(false);
     });
 });
 

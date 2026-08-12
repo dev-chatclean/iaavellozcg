@@ -26,6 +26,7 @@ Ver [docs/11-plano-refatoracao-strangler.md](../docs/11-plano-refatoracao-strang
 | **0019** | Endurecimento operacional: alarme de Redis e origem da mídia | — | Rascunho | D-18, S7 | 0004 |
 | **0020** | Política de envio: quebra de mensagem e atraso fora do lock | — | Rascunho | D-08, D-25 | 0005 |
 | **0021** | Correção do D-06: consulta do funil sem efeito colateral | — | Rascunho | D-06 | 0006 |
+| **0022** | [Catálogo e expediente no domínio](0022-catalogo-e-expediente-no-dominio/resultado.md) | 3 | **Implementada** | (estrutural) | 0006 |
 
 
 ---

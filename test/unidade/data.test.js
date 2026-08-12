@@ -12,7 +12,7 @@ const {
     lojaParaDepartamento,
     CAMPOS_QUALIFICACAO,
     CAMPOS_SIMULACAO
-} = require('../../data');
+} = require('../../src/domain/catalogo/Catalogo');
 
 // =============================================================
 //  SPEC 0001 — T14 · Cobre RN-041 (roteamento por departamento),

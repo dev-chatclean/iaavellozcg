@@ -21,7 +21,7 @@ const ProcessarMensagemRecebida = require('./src/application/casos-de-uso/Proces
 const FilaDeTurnos = require('./src/application/fila/FilaDeTurnos');
 const servidorHttp = require('./src/infrastructure/http/servidor');
 const mascarar = require('./src/shared/mascarar');
-const { EMPRESA_INFO } = require('./data');
+const { EMPRESA_INFO } = require('./src/domain/catalogo/Catalogo');
 
 /**
  * Monta o sistema a partir da configuracao e das dependencias.

@@ -8,7 +8,7 @@
 //  - promptExtracao: extração de campos (gpt-4o-mini, temp 0).
 // =============================================================
 
-const { MODELOS, FORMAS_PAGAMENTO, LOJAS, PERFIS, OBJECOES } = require('./data');
+const { MODELOS, FORMAS_PAGAMENTO, LOJAS, PERFIS, OBJECOES } = require('./src/domain/catalogo/Catalogo');
 const PoliticaDeDiagnostico = require('./src/domain/atendimento/politicas/PoliticaDeDiagnostico');
 
 // Blocos montados a partir do data.js (mantém números/endereços em sincronia).

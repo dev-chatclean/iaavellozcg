@@ -22,7 +22,7 @@ const CanalDeTerminal = require('./src/infrastructure/terminal/CanalDeTerminal')
 const RepositorioMemoria = require('./src/infrastructure/memoria/RepositorioMemoria');
 const ProcessarMensagemRecebida = require('./src/application/casos-de-uso/ProcessarMensagemRecebida');
 const Qualificacao = require('./src/domain/atendimento/Qualificacao');
-const { PERFIS } = require('./data');
+const { PERFIS } = require('./src/domain/catalogo/Catalogo');
 
 const CHAT_ID = '5583999990000'; // numero ficticio para o atendimento local
 

@@ -16,7 +16,7 @@ const manipuladoresDeMidia = require('../midia/manipuladores');
 const MontadorDeResumo = require('../../domain/atendimento/MontadorDeResumo');
 const PoliticaDeTransbordo = require('../../domain/atendimento/politicas/PoliticaDeTransbordo');
 const { determinarProximoCampo, aplicarCampos, detectarPerfil } = require('../../../flow');
-const { DEPARTAMENTOS } = require('../../../data');
+const { DEPARTAMENTOS } = require('../../domain/catalogo/Catalogo');
 const mascarar = require('../../shared/mascarar');
 
 // 30 min sem resposta do cliente -> mensagem de reativacao (RN-070).

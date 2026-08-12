@@ -1,16 +1,25 @@
 // =============================================================
-//  RELÓGIO DE EXPEDIENTE (SPEC 0004)
+//  RELOGIO DE EXPEDIENTE (SPEC 0004, atualizado na SPEC 0022)
 //
-//  Adapter fino sobre horario.js. Na Fase 3 o cálculo de expediente vira
-//  serviço de domínio e este adapter passa a apontar para lá — quem consome
-//  não muda, porque depende da porta.
+//  Implementa a porta RelogioDeExpediente sobre o dominio
+//  src/domain/expediente. E aqui que a configuracao encontra a regra: os
+//  feriados extras vem do ambiente e sao injetados no dominio, que nao le
+//  process.env.
 // =============================================================
 
-const { estaEmExpediente } = require('../../../horario');
+const Expediente = require('../../domain/expediente/Expediente');
 
-function criar() {
+/**
+ * @param {object} [opcoes]
+ * @param {string} [opcoes.feriados] Lista separada por virgula (env FERIADOS).
+ */
+function criar({ feriados = '' } = {}) {
+    const expediente = Expediente.criar({
+        feriadosExtras: String(feriados).split(',').map((s) => s.trim()).filter(Boolean)
+    });
+
     return {
-        consultar: (data) => estaEmExpediente(data)
+        consultar: (data) => expediente.estaEmExpediente(data)
     };
 }
 

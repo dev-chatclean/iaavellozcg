@@ -12,7 +12,7 @@
 //  domain/catalogo na fatia do catálogo.
 // =============================================================
 
-const { DEPARTAMENTOS, lojaParaDepartamento } = require('../../../../data');
+const { DEPARTAMENTOS, lojaParaDepartamento } = require('../../catalogo/Catalogo');
 
 const MOTIVOS = Object.freeze({
     QUALIFICACAO_COMPLETA: 'qualificacao-completa',

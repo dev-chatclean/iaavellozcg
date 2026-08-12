@@ -12,7 +12,7 @@
 //  Depende de data.js (conteúdo de negócio, sem I/O).
 // =============================================================
 
-const { PERFIS } = require('../../../data');
+const { PERFIS } = require('../catalogo/Catalogo');
 const { departamentoDaLoja } = require('./politicas/PoliticaDeTransbordo');
 
 const NAO_INFORMADO = 'Não informado';

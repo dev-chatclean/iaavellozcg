@@ -1,16 +1,17 @@
 // =============================================================
-//  HORÁRIO — expediente da Avelloz Campina
-//  Atendimento humano: segunda a sábado, exceto feriados.
-//  Fora disso (noite, domingo e feriado) o bot entra em MODO PLANTÃO:
-//  não promete atendimento imediato e informa o próximo dia útil.
+//  EXPEDIENTE — quando existe vendedor humano disponivel
 //
-//  estaEmExpediente(date?) → { aberto, motivo, proximoExpediente }
-//  Aceita uma data (para testes); por padrão usa a hora atual.
+//  Atendimento: segunda a sabado, exceto feriados. Fora disso (noite,
+//  domingo e feriado) o bot entra em MODO PLANTAO: nao promete atendimento
+//  imediato e informa o proximo horario util (RN-060, RN-061).
 //
-//  Feriados: nacionais fixos embutidos + extras via env FERIADOS
-//  (lista separada por vírgula, "YYYY-MM-DD" ou "MM-DD"). Feriados
-//  MÓVEIS (Carnaval, Sexta-feira Santa, Corpus Christi) mudam a cada
-//  ano — coloque-os no FERIADOS do ano corrente.
+//  Era `horario.js` na raiz; virou dominio na SPEC 0022. A mudanca que isso
+//  forcou: os feriados extras NAO sao mais lidos de process.env aqui dentro —
+//  chegam por parametro em criar(). Dominio nao le ambiente.
+//
+//  Feriados: nacionais fixos embutidos + extras informados na criacao
+//  ("YYYY-MM-DD" para um ano especifico, ou "MM-DD" recorrente). Os MOVEIS
+//  (Carnaval, Sexta-feira Santa, Corpus Christi) mudam a cada ano.
 // =============================================================
 
 const TZ = 'America/Recife'; // Campina Grande e Monteiro/PB — UTC-3, sem horário de verão
@@ -42,10 +43,6 @@ const FERIADOS_FIXOS = new Set([
     '11-20', // Consciência Negra
     '12-25'  // Natal
 ]);
-// Extras/móveis por env (YYYY-MM-DD para um ano específico, ou MM-DD recorrente).
-const FERIADOS_EXTRA = new Set(
-    (process.env.FERIADOS || '').split(',').map(s => s.trim()).filter(Boolean)
-);
 
 const DIAS_SEMANA = ['domingo', 'segunda-feira', 'terça-feira', 'quarta-feira', 'quinta-feira', 'sexta-feira', 'sábado'];
 // "na segunda-feira" (feminino) mas "no sábado" / "no domingo" (masculino).
@@ -53,6 +50,14 @@ const DIAS_SEMANA = ['domingo', 'segunda-feira', 'terça-feira', 'quarta-feira',
 const PREPOSICAO_DIA = ['no', 'na', 'na', 'na', 'na', 'na', 'no'];
 
 // Instante → objeto Date na hora LOCAL de Campina Grande/PB.
+/**
+ * @param {object} opcoes
+ * @param {string[]} [opcoes.feriadosExtras] Feriados moveis e municipais,
+ *   como "2026-02-17" (ano especifico) ou "06-24" (recorrente).
+ */
+function criar({ feriadosExtras = [] } = {}) {
+    const FERIADOS_EXTRA = new Set(feriadosExtras.map((s) => String(s).trim()).filter(Boolean));
+
 function paraLocal(date) {
     return new Date(date.toLocaleString('en-US', { timeZone: TZ }));
 }
@@ -117,4 +122,18 @@ function estaEmExpediente(date = new Date()) {
     return { aberto, motivo, proximoExpediente: aberto ? null : rotuloProximoExpediente(local) };
 }
 
-module.exports = { estaEmExpediente, ehFeriado, horarioDoDia, EXPEDIENTE_SEMANAL, TZ };
+    return { estaEmExpediente, ehFeriado, horarioDoDia };
+}
+
+// Instancia sem feriados extras — usada por quem so precisa do calendario
+// nacional fixo (testes de unidade, por exemplo).
+const padrao = criar();
+
+module.exports = {
+    criar,
+    EXPEDIENTE_SEMANAL,
+    TZ,
+    estaEmExpediente: padrao.estaEmExpediente,
+    ehFeriado: padrao.ehFeriado,
+    horarioDoDia: padrao.horarioDoDia
+};

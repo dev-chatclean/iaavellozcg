@@ -70,7 +70,7 @@ function criar(config, sobrescritas = {}) {
         leitorDeImagem: LeitorDeImagemOpenAI.criar({ cliente }),
         baixadorDeMidia: BaixadorHttp.criar(),
         relogio: sobrescritas.relogio || RelogioDoSistema.criar(),
-        expediente: sobrescritas.expediente || RelogioDeExpedienteLocal.criar()
+        expediente: sobrescritas.expediente || RelogioDeExpedienteLocal.criar({ feriados: config.FERIADOS })
     };
 }
 
