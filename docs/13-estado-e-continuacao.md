@@ -1,7 +1,7 @@
 # 13 — Estado Atual e Continuação
 
 **Última atualização:** 2026-08-12, fim do dia 2 · **Branch:** `refatoracao/arquitetura-ddd`
-**Último commit:** `eb6b473` · **Árvore limpa, tudo versionado, `main` intocada.**
+**Árvore limpa, tudo versionado, `main` intocada.**
 
 Este é o documento de retomada. Quem senta na próxima sessão lê daqui.
 
@@ -9,21 +9,23 @@ Este é o documento de retomada. Quem senta na próxima sessão lê daqui.
 
 ## 1. Onde paramos, em uma frase
 
-**A refatoração estrutural está concluída.** O que resta é dívida operacional — e toda ela muda
-comportamento, então depende de decisão do negócio antes de ser tocada.
+**A refatoração estrutural está concluída, e não sobrou nenhuma pendência que não mude
+comportamento.** Tudo o que resta é operacional ou correção de defeito — e toda a lista depende de
+decisão do negócio antes de ser tocada.
 
 ## 2. Números
 
 | Indicador | Início (`255c13b`) | Agora | Meta original |
 |---|---:|---:|---:|
-| Testes automatizados | 0 | **430** (3s) | — |
+| Testes automatizados | 0 | **459** (3s) | — |
 | `index.js` | 1040 linhas | **95** | < 30 |
 | Maior arquivo de produção | 1040 | **440** (o caso de uso) | < 250 |
 | Erros de lint | (sem lint) | **0** | 0 |
+| Erros de tipo (domínio e aplicação) | (sem verificação) | **0** | — |
 | Avisos de lint | (sem lint) | **0** | — |
 | Implementações do turno | 3 | **1** | 1 |
-| Itens de dívida resolvidos | 0 | **19** | 29 |
-| Código na arquitetura alvo | 0 | **36 arquivos** | — |
+| Itens de dívida resolvidos | 0 | **21** | 29 |
+| Código na arquitetura alvo | 0 | **43 arquivos** | — |
 
 ## 3. Specs entregues
 
@@ -40,7 +42,9 @@ comportamento, então depende de decisão do negócio antes de ser tocada.
 | 0009 | Expediente: sábado e plantão na resposta | D-19, D-28 |
 | 0010 | Testers usam o caso de uso de produção | **D-04** |
 | 0018 | `index.js` como bootstrap | D-01, D-22 |
-| 0022 | Catálogo e expediente no domínio | (estrutural) |
+| 0022 | Catálogo, expediente e funil no domínio | (estrutural) |
+| 0011 | Prompts versionados e suíte de evals | (mensuração) |
+| 0017 | Verificação de tipos com JSDoc | D-14 (parcial) |
 
 Cada uma tem `resultado.md` em `specs/`.
 
@@ -50,13 +54,14 @@ Cada uma tem `resultado.md` em `specs/`.
 index.js  95 linhas — montar(config, deps) + iniciar(sistema)
 
 src/
-  main/          config (validada), container (composition root)
+  main/          config (validada e tipada), container (composition root)
   application/   casos-de-uso/, fila/, midia/, portas/
-  domain/        atendimento/ (+politicas), catalogo/, expediente/, mensageria/
-  infrastructure/ http/, openai/, chatclean/, redis/, memoria/, midia/,
-                  relogio/, terminal/
+  domain/        atendimento/ (+politicas, tipos), catalogo/, expediente/, mensageria/
+  infrastructure/ http/, openai/ (+prompts versionados), chatclean/, redis/,
+                  memoria/, midia/, relogio/, terminal/
+  eval/          analisadores, roteiros, executor
 
-raiz: flow.js (fachada, 51) · prompts.js (204) · test-chat.js (78) · sim-lead.js (80)
+raiz: index.js (bootstrap) · test-chat.js · sim-lead.js · eval.js · configuração
 ```
 
 ## 5. Como retomar
@@ -64,8 +69,9 @@ raiz: flow.js (fachada, 51) · prompts.js (204) · test-chat.js (78) · sim-lead
 ```bash
 git checkout refatoracao/arquitetura-ddd    # NUNCA fazer merge na main
 npm install
-npm test          # 430 testes, ~3s, sem rede e sem custo
+npm test          # 459 testes, ~3s, sem rede e sem custo
 npm run lint      # 0 erros, 0 avisos
+npm run typecheck # 0 erros em domínio, aplicação e compartilhado
 bash test/baseline/coletar-baseline.sh conferencia
 diff test/baseline/antes-da-refatoracao-requisicoes.log test/baseline/conferencia-requisicoes.log
 ```
@@ -105,12 +111,10 @@ só entra quando pedida explicitamente. Cada item abaixo é uma spec pronta para
 | **S7** | `mediaUrl` baixada sem validar a origem | 0019 |
 | **S9, S10** | Sem política de expurgo nem base legal declarada | 0016 |
 
-### Estrutural que ainda cabe sem mudar comportamento
+### Estrutural: nada pendente
 
-- **Spec 0011** — `prompts.js` vira `infrastructure/openai/prompts/` versionado, com suíte de evals.
-  É a última peça da raiz que não é bootstrap nem tester.
-- **Spec 0017** — tipagem incremental (JSDoc → TypeScript). Agora é viável: não há mais três
-  implementações do mesmo turno para tipar.
+Toda a fatia estrutural foi entregue. As specs 0011 (prompts versionados) e 0017 (verificação de
+tipos) fecharam o que restava.
 
 ## 7. Pendência operacional (ação no servidor)
 
@@ -141,7 +145,7 @@ Nada disso está em produção: a branch **nunca foi mesclada**.
 3. **A correção do defeito inverte o teste** que o documentava.
 4. **A linha de base roda a aplicação de verdade** e compara — pega o que o teste não vê.
 
-Foi assim que 12 specs entraram sem uma única regressão detectada em produção. Duas regressões
+Foi assim que 14 specs entraram sem uma única regressão detectada em produção. Duas regressões
 minhas foram encontradas e corrigidas no caminho (varredor duplicado, `await` faltando), ambas por
 teste — nenhuma chegou perto de um cliente.
 
