@@ -1,7 +1,10 @@
 # Documentação — IA Avelloz Campina
 
-> **Retomando o trabalho?** Comece por
-> [13 — Estado atual e continuação](13-estado-e-continuacao.md).
+> **Chegou agora no projeto?** Comece por
+> [14 — Handoff da refatoração](14-handoff-refatoracao.md): contexto, o que mudou, o que não mudou,
+> e as decisões que dependem de você.
+>
+> **Retomando o trabalho?** [13 — Estado atual e continuação](13-estado-e-continuacao.md).
 
 ## Ordem de leitura recomendada
 

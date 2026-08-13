@@ -12,7 +12,10 @@ de simulação e **transfere para o consultor humano da loja escolhida**.
 O transporte é a plataforma **ChatClean** (Webhook de entrada + Push API de saída). Toda a
 inteligência roda neste servidor Node.js.
 
-**Estado atual: código legado em refatoração.** Está em produção atendendo leads reais.
+**Estado atual: refatoração estrutural concluída** na branch `refatoracao/arquitetura-ddd`, que
+**nunca foi mesclada**. A `main` (o que está em produção atendendo leads reais) segue no código
+original. O que resta são dívidas operacionais que mudam comportamento e dependem de decisão do
+negócio — ver [docs/14-handoff-refatoracao.md](docs/14-handoff-refatoracao.md).
 
 ## Regra número 1
 
@@ -29,6 +32,12 @@ Nenhum código é escrito sem spec aprovada em `specs/`. Ver [specs/README.md](s
 
 ## Comece por aqui
 
+**[docs/14-handoff-refatoracao.md](docs/14-handoff-refatoracao.md)** — se você está chegando agora:
+o contexto do projeto, o antes e depois da refatoração, o que mudou de comportamento (pouco, e
+declarado), o que não mudou, e as dívidas que dependem de decisão do negócio.
+
+## Retomada
+
 **[docs/13-estado-e-continuacao.md](docs/13-estado-e-continuacao.md)** — onde a refatoração parou,
 o que já foi entregue, qual é o próximo passo e o que está pendente. É o documento de retomada:
 leia antes de qualquer coisa.
@@ -39,7 +48,9 @@ leia antes de qualquer coisa.
 |---|---|
 | **Retomar o trabalho** | [docs/13-estado-e-continuacao.md](docs/13-estado-e-continuacao.md) |
 | Visão geral e domínio | [docs/00-visao-geral.md](docs/00-visao-geral.md) |
-| Como o código funciona hoje | [docs/01-arquitetura-atual.md](docs/01-arquitetura-atual.md) |
+| **Assumir o projeto** | [docs/14-handoff-refatoracao.md](docs/14-handoff-refatoracao.md) |
+| Como o código funciona hoje | [docs/14-handoff-refatoracao.md](docs/14-handoff-refatoracao.md) secao 4 |
+| Como o código era ANTES (histórico) | [docs/01-arquitetura-atual.md](docs/01-arquitetura-atual.md) |
 | O que o bot faz | [docs/02-funcionalidades.md](docs/02-funcionalidades.md) |
 | Regras de negócio (RN-NNN) | [docs/03-regras-de-negocio.md](docs/03-regras-de-negocio.md) |
 | Casos de uso (UC-NNN) | [docs/04-casos-de-uso.md](docs/04-casos-de-uso.md) |
@@ -78,6 +89,8 @@ revisa → **devops-sre** libera.
 - Toda regra de negócio tem ID `RN-NNN` e é referenciada no teste que a cobre.
 - Toda variável de ambiente nova entra no `.env.example` documentada.
 - Nada de `domain/` importando infraestrutura. Nada de `process.env` fora de `main/config`.
+  **Verificado por lint** — e a verificação foi testada com violação proposital.
+- **Mudança de comportamento só quando pedida.** Achado vira dívida documentada e teste `CONGELA`.
 
 ## Invariantes de negócio que NUNCA podem ser quebradas
 
@@ -99,7 +112,7 @@ npm run sim      # roteiro completo de qualificação + resumo + custo de tokens
 
 ## Cuidados operacionais
 
-- `npm run chat` e `npm run sim` **gastam crédito real da OpenAI**.
+- `npm run chat`, `npm run sim` e `npm run eval` **gastam crédito real da OpenAI**.
 - Não commite `.env`. Não logue payload bruto em produção (contém PII).
 - CPF, CNH, data de nascimento e telefone são dados pessoais sob LGPD — ver
   `.claude/agents/seguranca-lgpd.md`.
