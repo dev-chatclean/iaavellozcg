@@ -34,11 +34,13 @@ O ChatClean cuida só do transporte. Toda a inteligência (persona, diagnóstico
 | `src/application/` | Casos de uso, fila de turnos, manipuladores de mídia, portas |
 | `src/domain/` | Regras de negócio: atendimento (+políticas), catálogo, expediente, mensageria |
 | `src/infrastructure/` | Adapters: HTTP, OpenAI, ChatClean, Redis, memória, terminal, relógio |
-| `prompts.js` | `SYSTEM_SDR` (prompt-mestre Avelloz) + extração (temp 0) + resposta (temp 0.7) |
-| `flow.js` | Fachada sobre o domínio do funil (sai com a spec 0021) |
-| `test-chat.js` · `sim-lead.js` | Testers locais — usam o mesmo caso de uso da produção |
+| `src/eval/` | Analisadores de regra e roteiros da suíte de evals |
+| `test-chat.js` · `sim-lead.js` · `eval.js` | Testers locais — usam o mesmo caso de uso da produção |
 
-A arquitetura alvo está em [docs/10-arquitetura-alvo.md](docs/10-arquitetura-alvo.md).
+Os prompts ficam em `src/infrastructure/openai/prompts/` (versionados) e o funil em
+`src/domain/atendimento/`. A arquitetura alvo está em
+[docs/10-arquitetura-alvo.md](docs/10-arquitetura-alvo.md); onde cada coisa vive hoje está na seção 4
+do [handoff](docs/14-handoff-refatoracao.md).
 
 ## Fluxo de qualificação (guia)
 
@@ -71,10 +73,11 @@ npm start                 # sobe o servidor (webhook/Push)
 ## Testes
 
 ```bash
-npm test          # suíte completa: 430 testes, ~3s, sem rede e sem custo de OpenAI
+npm test          # suíte completa: 459 testes, ~3s, sem rede e sem custo de OpenAI
 npm run test:watch
 npm run coverage
-npm run lint
+npm run lint      # inclui as fronteiras da arquitetura
+npm run typecheck # tipos em domínio, aplicação e compartilhado
 ```
 
 A suíte cobre a lógica pura (funil, expediente, catálogo, telefone), congela o comportamento do
@@ -91,13 +94,16 @@ diff test/baseline/antes-da-refatoracao-requisicoes.log test/baseline/<rotulo>-r
 
 Detalhes em [docs/12-linha-de-base.md](docs/12-linha-de-base.md).
 
-## Refatoração em andamento
+## Refatoração
 
-O projeto está sendo refatorado para DDD + arquitetura hexagonal pela técnica Strangler Fig, na
-branch `refatoracao/arquitetura-ddd`. Comece por [CLAUDE.md](CLAUDE.md) e
-[docs/README.md](docs/README.md); o plano está em
-[docs/11-plano-refatoracao-strangler.md](docs/11-plano-refatoracao-strangler.md) e o processo de
-trabalho em [specs/README.md](specs/README.md).
+O projeto foi refatorado para DDD + arquitetura hexagonal pela técnica Strangler Fig, na branch
+`refatoracao/arquitetura-ddd` — que **nunca foi mesclada na `main`**.
+
+**Se você está assumindo o projeto, comece por
+[docs/14-handoff-refatoracao.md](docs/14-handoff-refatoracao.md)**: o contexto, o antes e depois, o
+que mudou de comportamento (pouco, e declarado), o que não mudou e as dívidas que dependem de
+decisão do negócio. Depois: [CLAUDE.md](CLAUDE.md), [docs/README.md](docs/README.md) e o processo em
+[specs/README.md](specs/README.md).
 
 `GET /health` → `{ status: 'ok' }` · `GET /leads` e `GET /diag` exigem `ADMIN_KEY`.
 

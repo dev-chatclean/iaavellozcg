@@ -49,7 +49,7 @@ leia antes de qualquer coisa.
 | **Retomar o trabalho** | [docs/13-estado-e-continuacao.md](docs/13-estado-e-continuacao.md) |
 | Visão geral e domínio | [docs/00-visao-geral.md](docs/00-visao-geral.md) |
 | **Assumir o projeto** | [docs/14-handoff-refatoracao.md](docs/14-handoff-refatoracao.md) |
-| Como o código funciona hoje | [docs/14-handoff-refatoracao.md](docs/14-handoff-refatoracao.md) secao 4 |
+| Como o código funciona hoje | [docs/14-handoff-refatoracao.md](docs/14-handoff-refatoracao.md) seção 4 |
 | Como o código era ANTES (histórico) | [docs/01-arquitetura-atual.md](docs/01-arquitetura-atual.md) |
 | O que o bot faz | [docs/02-funcionalidades.md](docs/02-funcionalidades.md) |
 | Regras de negócio (RN-NNN) | [docs/03-regras-de-negocio.md](docs/03-regras-de-negocio.md) |
