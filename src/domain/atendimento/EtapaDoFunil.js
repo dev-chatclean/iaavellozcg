@@ -55,13 +55,17 @@ const CAMPOS = Object.freeze(ETAPAS.map((e) => e.campo));
 
 /**
  * Próxima etapa: a primeira cujo campo ainda está vazio.
+ * @param {import('./tipos').EstadoDoAtendimento} [campos]
  * @returns {{campo: string, instrucao: string}|null} null quando o funil fechou.
  */
 function proxima(campos = {}) {
     return ETAPAS.find((e) => !campos[e.campo]) || null;
 }
 
-/** O funil está completo? Consulta pura, sem efeito colateral. */
+/**
+ * O funil está completo? Consulta pura, sem efeito colateral.
+ * @param {import('./tipos').EstadoDoAtendimento} [campos]
+ */
 function completo(campos = {}) {
     return proxima(campos) === null;
 }

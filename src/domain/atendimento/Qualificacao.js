@@ -33,15 +33,16 @@ const MUTAVEIS = Object.freeze(['modeloInteresse', 'formaPagamento', 'loja', 'co
 
 const TODOS_OS_CAMPOS = Object.freeze([...CAMPOS, ...CAMPOS_EXTRAS]);
 
+/** @param {unknown} valor */
 function ehVazio(valor) {
     return valor === null || valor === undefined || valor === '';
 }
 
 /**
  * Aplica o que foi extraído aos campos já coletados (RN-003).
- * @param {object} atuais    Campos já coletados.
- * @param {object} extraido  Saída da extração; `correcao` lista o que o cliente corrige.
- * @returns {object} Os campos resultantes (novo objeto; `atuais` não é tocado).
+ * @param {import('./tipos').EstadoDoAtendimento} [atuais] Campos já coletados.
+ * @param {import('../../application/portas').Extracao|null} [extraido]
+ * @returns {import('./tipos').EstadoDoAtendimento} Novo objeto; `atuais` não é tocado.
  */
 function aplicar(atuais = {}, extraido) {
     const resultado = { ...atuais };
@@ -64,7 +65,10 @@ function aplicar(atuais = {}, extraido) {
     return resultado;
 }
 
-/** Só os campos que a qualificação conhece — descarta sinais transitórios. */
+/**
+ * Só os campos que a qualificação conhece — descarta sinais transitórios.
+ * @param {import('./tipos').EstadoDoAtendimento} [objeto]
+ */
 function apenasCamposConhecidos(objeto = {}) {
     const saida = {};
     for (const campo of TODOS_OS_CAMPOS) {

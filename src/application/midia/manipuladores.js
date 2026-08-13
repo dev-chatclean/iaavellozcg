@@ -153,8 +153,13 @@ const MANIPULADORES = Object.freeze({
 
 /**
  * Trata a mídia da mensagem e descreve o que o turno deve fazer.
- * @param {object} mensagem { tipo, texto, mediaBase64, mediaUrl, mediaMimetype }
- * @param {object} deps     portas: leitorDeImagem, transcritor, baixadorDeMidia
+ *
+ * Recebe só a parte da mensagem que interessa ao tratamento de mídia — nem
+ * chatId, nem contactId, nem msgId. Um manipulador não precisa saber de quem
+ * é a mensagem para transcrever um áudio.
+ *
+ * @param {{tipo?: string, texto?: string, mediaBase64?: string|null, mediaUrl?: string|null, mediaMimetype?: string|null}} mensagem
+ * @param {import('../portas').Dependencias} deps
  */
 async function tratar(mensagem, deps) {
     const manipulador = MANIPULADORES[mensagem.tipo] || texto;

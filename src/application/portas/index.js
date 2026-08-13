@@ -34,9 +34,35 @@
  */
 
 /**
+ * O que a extracao devolve sobre a mensagem do cliente. Todos os campos sao
+ * opcionais: o modelo preenche o que conseguiu identificar.
+ *
+ * @typedef {object} Extracao
+ * @property {string|null} [nome]
+ * @property {string|null} [finalidade]
+ * @property {string|null} [transporteAtual]
+ * @property {string|null} [gastoMensal]
+ * @property {string|null} [situacaoMoto]
+ * @property {string|null} [modeloInteresse]
+ * @property {string|null} [formaPagamento]
+ * @property {string|null} [loja]
+ * @property {string|null} [nomeCompleto]
+ * @property {string|null} [cpf]
+ * @property {string|null} [dataNascimento]
+ * @property {string|null} [telefone]
+ * @property {string|null} [cnh]
+ * @property {string|null} [corModelo]
+ * @property {boolean} [querFalarComHumano]
+ * @property {boolean} [perguntou]
+ * @property {string|null} [tipoContato]  lead | cliente | outros
+ * @property {string|null} [objecao]      uma das nove objecoes mapeadas
+ * @property {string[]} [correcao]        campos que o cliente esta corrigindo
+ */
+
+/**
  * Converte a mensagem do cliente em campos estruturados.
  * @typedef {object} ExtratorDeInformacoes
- * @property {(mensagem: string, campoAtual: string|null, historico: Array) => Promise<object|null>} extrair
+ * @property {(mensagem: string, campoAtual: string|null, historico: Array) => Promise<Extracao|null>} extrair
  *   Devolve null quando não foi possível extrair — o turno segue sem novos campos.
  */
 
@@ -88,6 +114,38 @@
  * Baixa mídia a partir de uma URL informada pelo canal.
  * @typedef {object} BaixadorDeMidia
  * @property {(url: string, timeoutMs?: number) => Promise<Buffer>} baixar
+ */
+
+/**
+ * O conjunto completo de dependencias que a aplicacao recebe do composition
+ * root. Usado como tipo em toda parte: `@param {import('../portas').Dependencias} deps`.
+ *
+ * @typedef {object} Dependencias
+ * @property {CanalDeMensagem} canal
+ * @property {NotificadorDeEquipe} notificador
+ * @property {RepositorioDeAtendimento} repositorio
+ * @property {ExtratorDeInformacoes} extrator
+ * @property {RedatorDeResposta} redator
+ * @property {TranscritorDeAudio} transcritor
+ * @property {LeitorDeImagem} leitorDeImagem
+ * @property {BaixadorDeMidia} baixadorDeMidia
+ * @property {Relogio} relogio
+ * @property {RelogioDeExpediente} expediente
+ */
+
+/**
+ * Uma mensagem pronta para o turno. Os campos sao os de MensagemRecebida.
+ * @typedef {object} TurnoDoCliente
+ * @property {string} chatId
+ * @property {number|null} [contactId]
+ * @property {string} [texto]
+ * @property {string} [tipo]
+ * @property {string|null} [mediaBase64]
+ * @property {string|null} [mediaUrl]
+ * @property {string|null} [mediaMimetype]
+ * @property {string|null} [quotedText]
+ * @property {string} [nomeContato]
+ * @property {string|null} [msgId]
  */
 
 module.exports = {};

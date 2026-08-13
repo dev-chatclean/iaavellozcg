@@ -14,6 +14,38 @@
 
 const { z } = require('zod');
 
+/**
+ * A configuracao validada. Tipar isto vale por dois motivos: o editor
+ * autocompleta os nomes, e um erro de digitacao em `config.RATE_LIMIT_MGS`
+ * vira erro de verificacao em vez de `undefined` silencioso em producao.
+ *
+ * @typedef {object} Configuracao
+ * @property {string} NODE_ENV
+ * @property {string} OPENAI_API_KEY
+ * @property {string} CC_PUSH_URL
+ * @property {string} WEBHOOK_SECRET
+ * @property {string} ADMIN_KEY
+ * @property {string} EQUIPE_NUMERO
+ * @property {string} REDIS_URL
+ * @property {string} REDIS_PREFIX
+ * @property {string} FERIADOS
+ * @property {string[]} IA_ALLOWED_CONTACTS
+ * @property {number} PORT
+ * @property {number} RATE_LIMIT_MSGS
+ * @property {number} RATE_LIMIT_JANELA_S
+ * @property {number} LOOP_MAX_TURNOS
+ * @property {number} LOOP_JANELA_MIN
+ * @property {number} AGRUPAR_MENSAGENS_MS
+ * @property {number} RESET_INATIVIDADE_HORAS
+ * @property {boolean} IGNORAR_GRUPOS
+ * @property {boolean} IA_SO_PENDENTES
+ * @property {boolean} LOG_PAYLOAD
+ * @property {boolean} ehProducao
+ * @property {number} RATE_LIMIT_JANELA_MS
+ * @property {number} LOOP_JANELA_MS
+ * @property {number} RESET_INATIVIDADE_MS
+ */
+
 // --- Auxiliares de coerção -----------------------------------------------
 // As variáveis chegam como string (ou ausentes). Cada helper documenta o
 // padrão aplicado quando a variável está vazia.
@@ -130,7 +162,7 @@ function formatarErros(erro, env) {
 
 /**
  * Lê e valida as variáveis de ambiente.
- * @returns {{ ok: true, config: object } | { ok: false, mensagem: string }}
+ * @returns {{ ok: true, config: Configuracao } | { ok: false, mensagem: string }}
  */
 function validar(env = process.env) {
     const ambiente = (env.NODE_ENV || 'development').trim();
@@ -140,14 +172,14 @@ function validar(env = process.env) {
     const dados = resultado.data;
     return {
         ok: true,
-        config: Object.freeze({
+        config: /** @type {Configuracao} */ (Object.freeze({
             ...dados,
             ehProducao: ambiente === 'production',
             // Derivados, para quem consome não repetir a conta.
             RATE_LIMIT_JANELA_MS: dados.RATE_LIMIT_JANELA_S * 1000,
             LOOP_JANELA_MS: dados.LOOP_JANELA_MIN * 60 * 1000,
             RESET_INATIVIDADE_MS: dados.RESET_INATIVIDADE_HORAS * 3600 * 1000
-        })
+        }))
     };
 }
 
@@ -157,7 +189,7 @@ function validar(env = process.env) {
  */
 function carregar(env = process.env) {
     const r = validar(env);
-    if (!r.ok) {
+    if (r.ok === false) {
         console.error('');
         console.error(r.mensagem);
         console.error('');

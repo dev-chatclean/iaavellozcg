@@ -15,7 +15,7 @@
 const manipuladoresDeMidia = require('../midia/manipuladores');
 const MontadorDeResumo = require('../../domain/atendimento/MontadorDeResumo');
 const PoliticaDeTransbordo = require('../../domain/atendimento/politicas/PoliticaDeTransbordo');
-const { determinarProximoCampo, aplicarCampos, detectarPerfil } = require('../../../flow');
+const { determinarProximoCampo, aplicarCampos, detectarPerfil } = require('../../domain/atendimento/Funil');
 const { DEPARTAMENTOS } = require('../../domain/catalogo/Catalogo');
 const mascarar = require('../../shared/mascarar');
 
@@ -25,10 +25,8 @@ const TEMPO_INATIVIDADE = 30 * 60 * 1000;
 const FOLLOWUP_SWEEP = 2 * 60 * 1000;
 
 /**
- * @param {object} deps    Portas: canal, notificador, repositorio, extrator,
- *                         redator, transcritor, leitorDeImagem,
- *                         baixadorDeMidia, expediente.
- * @param {object} config  LOOP_MAX_TURNOS, LOOP_JANELA_MS, RESET_INATIVIDADE_MS.
+ * @param {import('../portas').Dependencias} deps
+ * @param {import('../../main/config').Configuracao} config
  */
 function criar(deps, config) {
     const LOOP_MAX_TURNOS = config.LOOP_MAX_TURNOS;

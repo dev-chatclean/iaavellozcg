@@ -1,25 +1,26 @@
 // =============================================================
-//  FLOW — FACHADA do fluxo de qualificação.
+//  FUNIL — fachada do fluxo de qualificacao
 //
-//  A lógica vive em src/domain/atendimento/ desde a SPEC 0006:
-//    EtapaDoFunil  ordem oficial e a próxima etapa (RN-002)
-//    Qualificacao  política de sobrescrita de campos (RN-003)
-//    Perfil        classificação da dor (RN-005)
+//  A logica vive nos modulos ao lado desde a SPEC 0006:
+//    EtapaDoFunil  ordem oficial e a proxima etapa (RN-002)
+//    Qualificacao  politica de sobrescrita de campos (RN-003)
+//    Perfil        classificacao da dor (RN-005)
 //
-//  Este arquivo continua existindo porque index.js, test-chat.js e sim-lead.js
-//  ainda o importam. Ele morre quando o turno virar caso de uso (spec 0008) e
-//  os testers forem unificados (spec 0010).
+//  Esta fachada existe por UM motivo: preservar o efeito colateral do legado
+//  (D-06). `determinarProximoCampo` marca `qualificacaoCompleta` no lead ao
+//  CONSULTAR — no dominio isso nao acontece, `EtapaDoFunil.proxima()` e pura.
 //
-//  ATENÇÃO — a fachada PRESERVA o efeito colateral do legado (D-06):
-//  `determinarProximoCampo` marca `qualificacaoCompleta` no lead ao consultar.
-//  No domínio isso não existe: `EtapaDoFunil.proxima()` é pura. A correção do
-//  D-06 muda comportamento observável (montar um follow-up deixa de qualificar
-//  o lead) e por isso tem spec própria — não entra numa fatia estrutural.
+//  Corrigir muda comportamento observavel: hoje, montar uma mensagem de
+//  follow-up para um funil completo qualifica o lead. Por isso a correcao tem
+//  spec propria (0021) e nao entra numa fatia estrutural. Quando ela chegar,
+//  este arquivo some e quem chama passa a usar o dominio direto.
+//
+//  Era `flow.js` na raiz ate a SPEC 0022.
 // =============================================================
 
-const EtapaDoFunil = require('./src/domain/atendimento/EtapaDoFunil');
-const Qualificacao = require('./src/domain/atendimento/Qualificacao');
-const Perfil = require('./src/domain/atendimento/Perfil');
+const EtapaDoFunil = require('./EtapaDoFunil');
+const Qualificacao = require('./Qualificacao');
+const Perfil = require('./Perfil');
 
 const CAMPOS = EtapaDoFunil.CAMPOS;
 const CAMPOS_EXTRAS = Qualificacao.CAMPOS_EXTRAS;

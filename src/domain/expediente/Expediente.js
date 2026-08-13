@@ -97,7 +97,7 @@ function rotuloProximoExpediente(local) {
     // Diferença em dias de calendário (comparando só a data).
     const d0 = new Date(local); d0.setHours(0, 0, 0, 0);
     const d1 = new Date(alvo);  d1.setHours(0, 0, 0, 0);
-    const difDias = Math.round((d1 - d0) / 86400000);
+    const difDias = Math.round((d1.getTime() - d0.getTime()) / 86400000);
 
     if (difDias === 0) return `hoje às ${abre}h`;
     if (difDias === 1) return `amanhã às ${abre}h`;

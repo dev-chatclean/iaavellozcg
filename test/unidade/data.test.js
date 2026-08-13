@@ -144,7 +144,7 @@ describe('data: perfis e objecoes', () => {
 
 describe('data: campos de qualificacao', () => {
     it('a lista do data.js e a do flow.js descrevem o mesmo funil (mais o nome)', () => {
-        const { CAMPOS, CAMPOS_EXTRAS } = require('../../flow');
+        const { CAMPOS, CAMPOS_EXTRAS } = require('../../src/domain/atendimento/Funil');
         // data.js inclui "nome" no inicio; o resto e identico e na mesma ordem.
         expect(CAMPOS_QUALIFICACAO[0]).toBe('nome');
         expect(CAMPOS_QUALIFICACAO.slice(1)).toEqual(CAMPOS);

@@ -44,11 +44,11 @@ function montarRepositorio(config) {
 }
 
 /**
- * @param {object} config Configuração validada (src/main/config.js).
+ * @param {import('./config').Configuracao} config Configuração validada.
  * @param {object} [sobrescritas] Trocas pontuais de dependência. Usado pelos
  *   testers locais (spec 0010) para pôr o canal de terminal e o repositório em
  *   memória no lugar dos de produção, sem duplicar a montagem.
- * @returns {object} Dependências, todas conformes às portas de src/application/portas.
+ * @returns {import('../application/portas').Dependencias}
  */
 function criar(config, sobrescritas = {}) {
     const cliente = sobrescritas.cliente || new OpenAI({ apiKey: config.OPENAI_API_KEY });

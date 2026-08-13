@@ -24,6 +24,7 @@ const MOTIVOS = Object.freeze({
  * Departamento de destino a partir da loja escolhida (RN-041).
  * Sem loja identificada, Comercial.
  */
+/** @param {string|null|undefined} loja */
 function departamentoDaLoja(loja) {
     return lojaParaDepartamento(loja) || DEPARTAMENTOS.geral;
 }
@@ -32,6 +33,8 @@ function departamentoDaLoja(loja) {
  * Há motivo para transbordar AGORA, antes do fluxo normal?
  * Avalia os sinais da extração, na ordem de precedência do legado:
  * cliente atual primeiro, depois pedido explícito de humano.
+ * @param {import('../../../application/portas').Extracao|null} extracao
+ * @param {import('../tipos').EstadoDoAtendimento} [campos]
  * @returns {{motivo: string, departamento: string}|null}
  */
 function transbordoImediato(extracao, campos = {}) {
@@ -49,8 +52,11 @@ function transbordoImediato(extracao, campos = {}) {
 /**
  * Etiqueta e retorno sugerido do resumo, conforme o expediente (RN-061).
  * Dentro do expediente, nenhum dos dois.
+ * @param {{aberto: boolean, proximoExpediente: string|null}|null} expediente
+ * @param {{etiquetaForaDeExpediente?: string}} [opcoes]
  */
-function marcacaoDeExpediente(expediente, { etiquetaForaDeExpediente } = {}) {
+function marcacaoDeExpediente(expediente, opcoes = {}) {
+    const { etiquetaForaDeExpediente } = opcoes;
     if (!expediente || expediente.aberto) {
         return { tagExtra: undefined, proximoExpediente: null };
     }

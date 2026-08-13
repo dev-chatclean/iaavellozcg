@@ -33,8 +33,10 @@ const PALAVRAS_POR_PERFIL = Object.freeze([
 function classificar(texto) {
     if (!texto) return null;
     const t = String(texto).toLowerCase();
-    for (const [chave, palavras] of PALAVRAS_POR_PERFIL) {
-        if (palavras.some((p) => t.includes(p))) return chave;
+    for (const entrada of PALAVRAS_POR_PERFIL) {
+        const chave = /** @type {string} */ (entrada[0]);
+        const palavras = /** @type {string[]} */ (entrada[1]);
+        if (palavras.some((palavra) => t.includes(palavra))) return chave;
     }
     return null;
 }
@@ -42,8 +44,11 @@ function classificar(texto) {
 /**
  * Monta o texto que alimenta a classificação a partir do que se sabe do turno.
  * O texto bruto entra por último: os campos extraídos são sinal mais forte.
+ * @param {import('./tipos').EstadoDoAtendimento} [campos]
+ * @param {string} [textoBruto]
  */
-function textoParaClassificar({ finalidade, transporteAtual, situacaoMoto } = {}, textoBruto = '') {
+function textoParaClassificar(campos = {}, textoBruto = '') {
+    const { finalidade, transporteAtual, situacaoMoto } = campos;
     return [finalidade, transporteAtual, situacaoMoto, textoBruto].filter(Boolean).join(' ');
 }
 

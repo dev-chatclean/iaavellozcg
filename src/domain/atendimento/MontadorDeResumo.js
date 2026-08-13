@@ -17,10 +17,12 @@ const { departamentoDaLoja } = require('./politicas/PoliticaDeTransbordo');
 
 const NAO_INFORMADO = 'Não informado';
 
+/** @param {string|null|undefined} perfilKey */
 function nomeDoPerfil(perfilKey) {
     return perfilKey && PERFIS[perfilKey] ? PERFIS[perfilKey].nome : NAO_INFORMADO;
 }
 
+/** @param {import('./tipos').EstadoDoAtendimento} campos */
 function temDadosDeSimulacao(campos) {
     return !!(
         campos.nomeCompleto ||
@@ -33,9 +35,9 @@ function temDadosDeSimulacao(campos) {
 }
 
 /**
- * @param {object} campos  Estado do atendimento (leadData).
+ * @param {import('./tipos').EstadoDoAtendimento} campos
  * @param {string} chatId
- * @param {object} opcoes  { departamento, tagExtra, proximoExpediente }
+ * @param {import('./tipos').OpcoesDoResumo} [opcoes]
  */
 function montar(campos, chatId, opcoes = {}) {
     const departamento = opcoes.departamento || departamentoDaLoja(campos.loja);
@@ -65,7 +67,13 @@ function montar(campos, chatId, opcoes = {}) {
     );
 }
 
-/** Registro do lead para o histórico append-only. */
+/**
+ * Registro do lead para o histórico append-only.
+ * @param {import('./tipos').EstadoDoAtendimento} campos
+ * @param {string} chatId
+ * @param {string} departamento
+ * @param {string} dataIso
+ */
 function paraRegistro(campos, chatId, departamento, dataIso) {
     return {
         chatId,

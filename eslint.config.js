@@ -63,15 +63,6 @@ module.exports = [
         }
     },
     {
-        // RATCHET DO LEGADO — encerrado na SPEC 0018.
-        // Comecou com 9 arquivos em 'warn' porque a Fase 0 era
-        // zero-mudanca-de-comportamento. Cada um saiu da lista ao ser
-        // estrangulado; o ultimo saiu quando o index.js virou bootstrap.
-        // A lista so encolheu, como combinado, e agora esta vazia.
-        files: ['flow.js'],
-        rules: {}
-    },
-    {
         files: ['test/**/*.js', 'vitest.config.js'],
         languageOptions: {
             sourceType: 'module',

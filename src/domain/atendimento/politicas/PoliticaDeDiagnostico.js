@@ -18,17 +18,26 @@
 // As três coisas que precisam estar respondidas antes de liberar produto.
 const CAMPOS_DO_DIAGNOSTICO = Object.freeze(['transporteAtual', 'gastoMensal', 'situacaoMoto']);
 
-/** O diagnóstico mínimo está completo? */
+/**
+ * O diagnóstico mínimo está completo?
+ * @param {import('../tipos').EstadoDoAtendimento} [campos]
+ */
 function completo(campos = {}) {
     return CAMPOS_DO_DIAGNOSTICO.every((campo) => !!campos[campo]);
 }
 
-/** Pode revelar preço, modelo, especificação ou condição de pagamento? */
+/**
+ * Pode revelar preço, modelo, especificação ou condição de pagamento?
+ * @param {import('../tipos').EstadoDoAtendimento} [campos]
+ */
 function podeRevelarProduto(campos = {}) {
     return completo(campos);
 }
 
-/** O que ainda falta perguntar. Útil para log e métrica. */
+/**
+ * O que ainda falta perguntar. Útil para log e métrica.
+ * @param {import('../tipos').EstadoDoAtendimento} [campos]
+ */
 function faltando(campos = {}) {
     return CAMPOS_DO_DIAGNOSTICO.filter((campo) => !campos[campo]);
 }
