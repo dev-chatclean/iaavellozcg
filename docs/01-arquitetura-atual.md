@@ -3,14 +3,13 @@
 Retrato fiel do código como ele estava no commit `255c13b`, antes da refatoração. Serve de base para
 a estrangulação — não é modelo a seguir.
 
-> **Já estrangulado desde este levantamento:**
-> - Utilitários de telefone → `src/shared/telefone.js` (spec 0001)
-> - Configuração das 21 variáveis → `src/main/config.js` (spec 0002)
-> - Mascaramento de PII em log → `src/shared/mascarar.js` (spec 0002)
-> - Parse do payload → `src/infrastructure/chatclean/acl/` + `src/domain/mensageria/` (spec 0003)
->
-> `index.js` saiu de 1040 para 990 linhas. O destino está em
+> **ESTE DOCUMENTO É HISTÓRICO.** Descreve o código no commit `255c13b`, antes da refatoração.
+> A estrangulação foi concluída: `index.js` saiu de 1040 para 95 linhas e todo o resto vive em
+> `src/`. Para o estado atual, veja [13-estado-e-continuacao.md](13-estado-e-continuacao.md) e
 > [10-arquitetura-alvo.md](10-arquitetura-alvo.md).
+>
+> O documento continua aqui porque explica **por que** cada decisão foi tomada — e porque os testes
+> de caracterização congelam exatamente o comportamento descrito abaixo.
 
 ## Inventário de arquivos
 

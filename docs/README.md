@@ -26,6 +26,33 @@
 12. [11 — Plano Strangler Fig](11-plano-refatoracao-strangler.md) — **o caminho**
 13. [specs/](../specs/README.md) — o processo de trabalho
 
+
+## Onde cada coisa vive hoje
+
+Os documentos de funcionalidades, casos de uso, domínio e persistência foram escritos durante o
+levantamento e citam os arquivos **como eles eram**. As regras, os IDs e os fluxos continuam
+válidos — só o endereço mudou. Esta tabela traduz:
+
+| Citado nos docs | Onde vive hoje |
+|---|---|
+| `index.js: processarMensagem` e afins | `src/application/casos-de-uso/ProcessarMensagemRecebida.js` |
+| `index.js: parsePayload` | `src/infrastructure/chatclean/acl/` + `src/infrastructure/http/traduzirPayload.js` |
+| `index.js: handleWebhook`, rotas, proteções | `src/infrastructure/http/servidor.js` e `protecoes.js` |
+| `index.js: fila, debounce` | `src/application/fila/FilaDeTurnos.js` |
+| `index.js: montarResumo` | `src/domain/atendimento/MontadorDeResumo.js` |
+| `index.js: ccPush`, envio | `src/infrastructure/chatclean/CanalChatClean.js` |
+| `index.js`: chamadas OpenAI | `src/infrastructure/openai/` |
+| `index.js`: blocos de mídia | `src/application/midia/manipuladores.js` |
+| `data.js` | `src/domain/catalogo/Catalogo.js` |
+| `flow.js` | `src/domain/atendimento/` (`Funil`, `EtapaDoFunil`, `Qualificacao`, `Perfil`) |
+| `horario.js` | `src/domain/expediente/Expediente.js` |
+| `prompts.js` | `src/infrastructure/openai/prompts/` (versionado) |
+| `store.js` | `src/infrastructure/redis/RepositorioRedis.js` e `memoria/RepositorioMemoria.js` |
+| `pipeline.js` | **removido** (spec 0007) |
+| Variáveis de ambiente soltas | `src/main/config.js` (validadas) |
+
+O `index.js` de hoje tem 95 linhas e só monta as peças.
+
 ## Sistema de identificadores
 
 | Prefixo | Significado | Onde |

@@ -8,6 +8,7 @@
 |---|---|---|
 | `data.js` | `src/domain/catalogo/Catalogo.js` | Empresa, modelos, preços, pagamento, lojas, perfis, objeções, departamentos |
 | `horario.js` | `src/domain/expediente/Expediente.js` | Tabela de expediente por dia, feriados, modo plantão |
+| `flow.js` | `src/domain/atendimento/Funil.js` | Fachada do funil, que preserva o efeito colateral do D-06 |
 
 Os dois eram conhecimento de negócio morando na raiz junto com código de infraestrutura. Agora são
 domínio.
@@ -40,7 +41,7 @@ impossível escrever: *"instâncias diferentes não compartilham feriados"*.
 | Lint | 0 erros, 0 avisos |
 | Arquivos `.js` na raiz | **6** (eram 9 no início; 4 são configuração e testers) |
 
-## O que resta na raiz
+## O que resta na raiz (atualizado)
 
 ```
 index.js         95 linhas — bootstrap

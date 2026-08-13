@@ -21,12 +21,12 @@ Ver [docs/11-plano-refatoracao-strangler.md](../docs/11-plano-refatoracao-strang
 | **0014** | Graceful shutdown | 8 | Rascunho | D-16 | 0012 |
 | **0015** | Observabilidade: log estruturado e métricas | 8 | Rascunho | D-20, D-24, S1 | 0002 |
 | **0016** | LGPD: mascaramento, retenção e expurgo | 8 | Rascunho | S2, S3, S9, S10, RN-092 | 0006, 0015 |
-| **0017** | Tipagem incremental (JSDoc → TypeScript) | 9 | Adiada | D-14 | 0010 |
+| **0017** | [Verificação de tipos com JSDoc](0017-verificacao-de-tipos/resultado.md) | 9 | **Implementada** | D-14 (parcial) | 0010 |
 | **0018** | [`index.js` como bootstrap](0018-index-como-bootstrap/resultado.md) | 10 | **Implementada** | D-01, D-22 | 0008, 0010 |
 | **0019** | Endurecimento operacional: alarme de Redis e origem da mídia | — | Rascunho | D-18, S7 | 0004 |
 | **0020** | Política de envio: quebra de mensagem e atraso fora do lock | — | Rascunho | D-08, D-25 | 0005 |
 | **0021** | Correção do D-06: consulta do funil sem efeito colateral | — | Rascunho | D-06 | 0006 |
-| **0022** | [Catálogo e expediente no domínio](0022-catalogo-e-expediente-no-dominio/resultado.md) | 3 | **Implementada** | (estrutural) | 0006 |
+| **0022** | [Catálogo, expediente e funil no domínio](0022-catalogo-e-expediente-no-dominio/resultado.md) | 3 | **Implementada** | (estrutural) | 0006 |
 
 
 ---

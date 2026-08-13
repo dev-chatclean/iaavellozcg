@@ -1,5 +1,9 @@
 # 04 — Casos de Uso
 
+> Os nomes de arquivo citados aqui são os do levantamento inicial. As regras e os IDs continuam
+> válidos; para o endereço atual de cada peça, veja a tabela em [README.md](README.md).
+
+
 Formato: ator, gatilho, pré-condições, fluxo principal, fluxos alternativos, pós-condições, regras.
 Estes IDs (`UC-NNN`) são referenciados em specs e testes.
 

@@ -1,5 +1,9 @@
 # 05 — Modelo de Domínio (DDD)
 
+> Os nomes de arquivo citados aqui são os do levantamento inicial. As regras e os IDs continuam
+> válidos; para o endereço atual de cada peça, veja a tabela em [README.md](README.md).
+
+
 ## Domínio
 
 **Pré-venda consultiva de motos por mensageria**: transformar uma conversa de WhatsApp num lead

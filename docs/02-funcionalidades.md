@@ -1,5 +1,9 @@
 # 02 — Funcionalidades
 
+> Os nomes de arquivo citados aqui são os do levantamento inicial. As regras e os IDs continuam
+> válidos; para o endereço atual de cada peça, veja a tabela em [README.md](README.md).
+
+
 Catálogo funcional do sistema como ele existe hoje. Cada item traz o identificador `RF-NNN`, onde
 está implementado e as regras de negócio associadas.
 

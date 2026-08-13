@@ -30,3 +30,7 @@ vitest.config.js
 .prettierrc
 CLAUDE.md
 README.md
+
+# Configuração de ferramenta de desenvolvimento
+jsconfig.json
+eval.js

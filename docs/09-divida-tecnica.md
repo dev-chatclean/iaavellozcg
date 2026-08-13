@@ -146,9 +146,19 @@ As fronteiras da arquitetura alvo já estão declaradas em `no-restricted-import
 viram erro na Fase 2. O legado entrou num **ratchet**: os 9 arquivos antigos ficam em aviso e saem
 da lista conforme forem estrangulados; a lista só encolhe.
 
+### D-14 — RESOLVIDA EM PARTE (spec 0017, 2026-08-12)
+`npm run typecheck` verifica domínio, aplicação e compartilhado com `checkJs`, no CI, com zero
+erros. O formato do antigo `leadData` virou o contrato verificado `EstadoDoAtendimento`, junto com
+`Configuracao`, `Dependencias` e `Extracao`.
+Fora do escopo: `src/infrastructure` e os scripts da raiz, que tocam bibliotecas sem tipagem.
+Ver [resultado](../specs/0017-verificacao-de-tipos/resultado.md).
+
+<details><summary>Descrição original</summary>
+
 ### D-14 (Alta) — Sem tipagem
 JavaScript puro, sem JSDoc estruturado nem TypeScript. O shape do `leadData` só existe na cabeça de
 quem escreveu. **Fatia:** Fase 9 (opcional, alto retorno).
+</details>
 
 ---
 
