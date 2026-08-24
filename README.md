@@ -88,6 +88,26 @@ GET /diag/transferir?key=ADMIN_KEY&numero=5583999999999&loja=malvinas
 
 Ele responde `transferiu`, `idUsado`, `motivo` e `respostaDoCRM`. Não envia nada ao cliente — a nota é interna. `GET /diag` mostra a configuração ativa em `transferenciaDepartamento`.
 
+
+## Canal Instagram (API oficial da Meta)
+
+O ChatClean não tem conexão com o Instagram, então o Direct é falado **direto com a Meta**. As mensagens entram por `/webhook/instagram` e as respostas saem por `graph.instagram.com`. Todo o resto — qualificação, diagnóstico, loja, departamento, resumo do lead, follow-up — é o **mesmo fluxo** do WhatsApp.
+
+Quem separa os canais é o prefixo do `chatId`:
+
+| Canal | chatId | Resposta sai por |
+|---|---|---|
+| WhatsApp | `5583999999999` | Push do ChatClean |
+| Instagram | `ig:17841400000000000` | Graph API da Meta |
+
+O prefixo viaja pelo Redis, pela fila e pelo `leadData`, então o app sempre sabe por onde responder.
+
+**Diferença que importa:** um lead do Instagram **não tem ticket no ChatClean**, logo não há fila para mover. O departamento continua sendo calculado pela loja escolhida (mesma regra), mas vira o *endereço* do encaminhamento: o resumo vai para o `EQUIPE_NUMERO` carimbado com a unidade, e o consultor responde pelo Direct. Sem `EQUIPE_NUMERO`, um lead qualificado no Instagram **não chega a ninguém**.
+
+**Janela de 24h:** a Meta só aceita resposta dentro de 24h da última mensagem do cliente, e nunca deixa iniciar conversa. Fora disso a API recusa o envio — o motivo aparece no log.
+
+Variáveis: `IG_TOKEN`, `IG_VERIFY_TOKEN`, `META_APP_SECRET`, `IG_API_VERSION`. Sem `IG_TOKEN` o canal fica inativo e nada muda. `GET /diag` mostra o estado em `instagram`.
+
 ## Rodar local
 
 ```bash

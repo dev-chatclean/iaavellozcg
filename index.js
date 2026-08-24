@@ -8,7 +8,10 @@ const FormData = require('form-data');
 const crypto = require('crypto');
 
 const app = express();
-app.use(express.json({ limit: '10mb' }));
+// O 'verify' guarda o corpo CRU: a assinatura do webhook da Meta é HMAC do byte
+// exato recebido — re-serializar o JSON muda espaços/ordem e a conta nunca bate.
+const guardarCorpoCru = (req, _res, buf) => { req.rawBody = buf; };
+app.use(express.json({ limit: '10mb', verify: guardarCorpoCru }));
 
 // =============================================================
 //  CONFIGURAÇÃO — ChatClean (Webhook de entrada + Push API de saída)
@@ -71,6 +74,7 @@ const TRANSFERIR_FECHANDO = (process.env.TRANSFERIR_FECHANDO || 'false') === 'tr
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 const { EMPRESA_INFO, PERFIS, DEPARTAMENTOS, DEPARTAMENTO_IDS, departamentoId, lojaParaDepartamento, OFICINA } = require('./data');
+const instagram = require('./instagram');   // canal Instagram (API oficial da Meta)
 const { SYSTEM_SDR, promptExtracao, promptResposta } = require('./prompts');
 const { determinarProximoCampo, aplicarCampos, detectarPerfil, detectarModeloMencionado } = require('./flow');
 
@@ -146,6 +150,12 @@ function nucleoNumero(n) {
 // o número da lista continua sendo o começo do que veio. Lista vazia = todos.
 function contatoPermitido(numero) {
     if (!IA_ALLOWED_CONTACTS.length) return true;
+    // IDs do Instagram não são telefone: comparação exata com as entradas que
+    // também vêm prefixadas ("ig:17841400000000000"). Sem isto, um IGSID cairia
+    // na lógica de núcleo de número e nunca casaria com nada.
+    if (instagram.ehInstagram(numero)) {
+        return IA_ALLOWED_CONTACTS.some(a => a.trim() === String(numero).trim());
+    }
     const alvo = nucleoNumero(numero);
     return IA_ALLOWED_CONTACTS.some(a => {
         const permitido = nucleoNumero(a);
@@ -196,6 +206,13 @@ async function ccPush(number, payloadExtra = {}) {
 // mesmo push (forceTicketToClosed), que é o gatilho para ele reabrir já na fila
 // do departamento certo.
 async function transferirDepartamento(chatId, departamento) {
+    // Trava: um chatId do Instagram não tem ticket no ChatClean. Se chegasse
+    // aqui, o push iria para um "número" inexistente e a IA confirmaria uma
+    // transferência que nunca houve. O caminho certo é handoffInstagram().
+    if (instagram.ehInstagram(chatId)) {
+        console.warn(`⚠️ transferirDepartamento chamado com chatId do Instagram (${chatId}) — use handoffInstagram.`);
+        return { ok: false, departamento, motivo: 'lead do Instagram não tem ticket no ChatClean para transferir' };
+    }
     if (!TRANSFERIR_DEPARTAMENTO) {
         return { ok: false, departamento, motivo: 'transferência automática desligada (TRANSFERIR_DEPARTAMENTO=false)' };
     }
@@ -240,8 +257,12 @@ async function transferirDepartamento(chatId, departamento) {
     };
 }
 
+// Envia ao cliente pelo canal DELE. O prefixo "ig:" no chatId é o que decide:
+// Instagram fala com a API da Meta, WhatsApp continua indo pelo Push do ChatClean.
+// Todo o resto do app chama esta função sem saber de que canal se trata.
 async function enviarMensagem(chatId, texto) {
     if (!texto || !String(texto).trim()) return false;
+    if (instagram.ehInstagram(chatId)) return instagram.enviar(chatId, texto);
     return (await ccPush(chatId, { body: texto })).ok;
 }
 
@@ -292,23 +313,74 @@ function montarResumo(leadData, chatId, opcoes = {}) {
             : `\n➡️ Sem loja escolhida — o ticket permanece em ${departamento} para a equipe direcionar`);
 }
 
+// Encaminhamento de um lead que veio do INSTAGRAM.
+//
+// Não existe ticket do ChatClean para esta conversa, então "transferir de fila"
+// não se aplica. O handoff real é o resumo no WhatsApp da equipe, carimbado com
+// a unidade de destino — a mesma que o WhatsApp usaria. O consultor daquela loja
+// assume respondendo pelo Direct.
+//
+// Devolve o MESMO formato de transferirDepartamento para o chamador não precisar
+// saber de canal: o { ok } continua sendo o que autoriza a IA a confirmar a
+// passagem ao cliente. Aqui ok = a equipe foi realmente avisada.
+async function handoffInstagram(chatId, departamento, resumo) {
+    const id = departamentoId(departamento);
+
+    // Sem loja escolhida não há a quem encaminhar — mesma regra do WhatsApp.
+    if (!id) {
+        console.log(`ℹ️ ${chatId}: Instagram sem loja definida — nada a encaminhar.`);
+        return { ok: false, departamento, permanece: true, motivo: `sem loja escolhida — permanece em ${DEPARTAMENTOS.entrada}` };
+    }
+    // No Instagram o WhatsApp da equipe é o ÚNICO caminho de handoff. Sem ele o
+    // lead qualificado morre na conversa, e a IA não pode prometer transferência.
+    if (!EQUIPE_NUMERO) {
+        console.error(`❌ ${chatId}: lead do Instagram qualificado para ${departamento}, mas EQUIPE_NUMERO não está configurado — NINGUÉM foi avisado.`);
+        return { ok: false, departamento, motivo: 'EQUIPE_NUMERO não configurado — sem caminho de encaminhamento no Instagram' };
+    }
+
+    const cabecalho =
+        `📸 LEAD DO INSTAGRAM (Direct)\n` +
+        `➡️ Encaminhar para ${departamento} (#${id})\n` +
+        `Responder pelo Direct do Instagram — este lead NÃO tem ticket no ChatClean.\n` +
+        `⏰ A Meta só aceita resposta dentro de 24h da última mensagem do cliente.\n\n`;
+
+    const r = await ccPush(EQUIPE_NUMERO, { body: cabecalho + resumo });
+    console.log(`📸 handoff Instagram ${chatId} → ${departamento} (#${id}): ${r.ok ? 'equipe avisada' : 'FALHOU'}`);
+    return {
+        ok: r.ok, id, departamento,
+        motivo: r.ok ? null : 'não foi possível avisar a equipe',
+        resposta: r.data
+    };
+}
+
 async function notificarEquipe(leadData, chatId, opcoes = {}) {
     const departamento = opcoes.departamento || departamentoLead(leadData);
     const perfilNome = leadData.perfilKey && PERFIS[leadData.perfilKey]
         ? PERFIS[leadData.perfilKey].nome : 'Não informado';
     const resumo = montarResumo(leadData, chatId, opcoes);
 
-    // Nota interna no ticket do próprio cliente (fica no CRM p/ o atendente)
-    await ccPush(chatId, { body: resumo, onlyNote: true, note: { body: resumo } });
-    // Transferência REAL para a fila da unidade escolhida (depois da nota, para
-    // que o contexto já esteja no ticket quando ele chegar no departamento).
-    const transferencia = await transferirDepartamento(chatId, departamento);
-    // Resumo também por WhatsApp interno, se houver número da equipe. Quando a
-    // transferência falha, a equipe precisa saber para encaminhar na mão.
-    if (EQUIPE_NUMERO) {
-        const aviso = (transferencia.ok || transferencia.permanece) ? '' :
-            `\n\n⚠️ ATENÇÃO: a transferência automática para ${departamento} NÃO foi concluída (${transferencia.motivo}). Encaminhe este ticket manualmente.`;
-        await ccPush(EQUIPE_NUMERO, { body: resumo + aviso });
+    let transferencia;
+    if (instagram.ehInstagram(chatId)) {
+        // Instagram: a conversa NÃO existe como ticket no ChatClean — é
+        // justamente por isso que falamos com a API da Meta direto. Não há nota
+        // interna para gravar nem fila para mover. O departamento continua sendo
+        // calculado pela loja escolhida (mesma regra do WhatsApp) e vira o
+        // ENDEREÇO do encaminhamento: o resumo vai para a equipe dizendo a qual
+        // unidade o lead pertence e que a resposta sai pelo Direct.
+        transferencia = await handoffInstagram(chatId, departamento, resumo);
+    } else {
+        // Nota interna no ticket do próprio cliente (fica no CRM p/ o atendente)
+        await ccPush(chatId, { body: resumo, onlyNote: true, note: { body: resumo } });
+        // Transferência REAL para a fila da unidade escolhida (depois da nota, para
+        // que o contexto já esteja no ticket quando ele chegar no departamento).
+        transferencia = await transferirDepartamento(chatId, departamento);
+        // Resumo também por WhatsApp interno, se houver número da equipe. Quando a
+        // transferência falha, a equipe precisa saber para encaminhar na mão.
+        if (EQUIPE_NUMERO) {
+            const aviso = (transferencia.ok || transferencia.permanece) ? '' :
+                `\n\n⚠️ ATENÇÃO: a transferência automática para ${departamento} NÃO foi concluída (${transferencia.motivo}). Encaminhe este ticket manualmente.`;
+            await ccPush(EQUIPE_NUMERO, { body: resumo + aviso });
+        }
     }
 
     // Histórico append-only de leads qualificados
@@ -1215,6 +1287,59 @@ async function handleWebhook(req, res) {
     }
 }
 
+// =============================================================
+//  WEBHOOK DO INSTAGRAM (API oficial da Meta)
+//  GET  = verificação da URL (devolve hub.challenge cru)
+//  POST = eventos de mensagem
+//
+//  As mesmas proteções do webhook do WhatsApp valem aqui: lista de contatos
+//  liberados, rate-limit, deduplicação por id e enfileiramento. A partir do
+//  enfileirar() o caminho é EXATAMENTE o mesmo dos dois canais.
+// =============================================================
+app.get('/webhook/instagram', instagram.verificacao);
+
+app.post('/webhook/instagram', async (req, res) => {
+    res.status(200).send('EVENT_RECEIVED');   // responde rápido: a Meta reenvia se demorar
+    try {
+        if (!instagram.assinaturaValida(req)) {
+            console.warn('⚠️ Webhook do Instagram com assinatura inválida — ignorado.');
+            return;
+        }
+        console.log('🔍 PAYLOAD RAW (IG):', JSON.stringify(req.body, null, 2).slice(0, 4000));
+
+        // Um POST pode trazer vários eventos, de contatos diferentes.
+        for (const parsed of instagram.parsePayload(req.body)) {
+            console.log(`📸 Instagram de ${parsed.chatId} [${parsed.tipo}]: "${parsed.texto || '[mídia]'}"`);
+
+            if (!contatoPermitido(parsed.chatId)) {
+                console.log(`🚫 ${parsed.chatId} fora da lista de teste — ignorado`);
+                continue;
+            }
+            if (!dentroDoLimite(parsed.chatId)) {
+                console.warn(`🚦 Rate-limit: ${parsed.chatId} — ignorando.`);
+                continue;
+            }
+            if (parsed.msgId) {
+                if (mensagensProcessadas.has(parsed.msgId)) {
+                    console.log(`↩️ Mensagem duplicada (${parsed.msgId}) ignorada`);
+                    continue;
+                }
+                mensagensProcessadas.add(parsed.msgId);
+                if (mensagensProcessadas.size > 500) {
+                    [...mensagensProcessadas].slice(0, 200).forEach(id => mensagensProcessadas.delete(id));
+                }
+            }
+            if (!TIPOS_SUPORTADOS.includes(parsed.tipo)) {
+                await enviarMensagem(parsed.chatId, 'Pode me mandar por texto o que você precisa? Assim consigo te ajudar melhor 🙂');
+                continue;
+            }
+            enfileirar(parsed);
+        }
+    } catch (e) {
+        console.error('❌ Erro no webhook do Instagram:', e);
+    }
+});
+
 // Aceita o token embutido no path (/webhook/<secret>) ou em /webhook (header/query).
 app.post('/webhook', express.json({ limit: '10mb' }), handleWebhook);
 app.post('/webhook/:token', express.json({ limit: '10mb' }), handleWebhook);
@@ -1258,6 +1383,16 @@ app.get('/diag', async (req, res) => {
         pushConfigurado: !!CC_PUSH_URL,
         equipeNumero: !!EQUIPE_NUMERO,
         transferenciaDepartamento: { ativa: TRANSFERIR_DEPARTAMENTO, fechandoTicket: TRANSFERIR_FECHANDO, ids: DEPARTAMENTO_IDS },
+        // Canal Instagram: sem expor segredo, só se cada peça está configurada.
+        instagram: {
+            ativo: instagram.configurado(),                       // IG_TOKEN presente
+            verifyTokenConfigurado: !!process.env.IG_VERIFY_TOKEN,
+            assinaturaValidada: !!process.env.META_APP_SECRET,    // false = webhook aberto
+            versaoApi: process.env.IG_API_VERSION || 'v25.0',
+            // No Instagram o handoff SÓ acontece por aqui — sem número da equipe,
+            // um lead qualificado não chega a ninguém.
+            handoffPossivel: !!EQUIPE_NUMERO
+        },
         pipeline: pipeline.diag()
     });
 });
