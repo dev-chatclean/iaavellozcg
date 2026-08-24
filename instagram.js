@@ -159,7 +159,10 @@ function tipoDoAnexo(anexo, msg) {
 //  API devolve erro — por isso o motivo vem no log, e não em silêncio.
 // -------------------------------------------------------------
 async function enviar(chatId, texto) {
-    if (!IG_TOKEN) {
+    // Usa o token VIGENTE (o renovado, quando existe) — nunca a semente do .env
+    // direto, senão o canal para de funcionar na primeira renovação.
+    const token = await tokenVigente();
+    if (!token) {
         console.warn('⚠️ IG_TOKEN não configurado — resposta do Instagram não enviada.');
         return false;
     }
@@ -168,7 +171,7 @@ async function enviar(chatId, texto) {
         await axios.post(
             `https://graph.instagram.com/${IG_API_VERSION}/me/messages`,
             { recipient: { id: destino }, message: { text: String(texto).slice(0, 1000) } },
-            { headers: { Authorization: `Bearer ${IG_TOKEN}`, 'Content-Type': 'application/json' }, timeout: 30000 }
+            { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, timeout: 30000 }
         );
         return true;
     } catch (e) {
@@ -181,7 +184,121 @@ async function enviar(chatId, texto) {
     }
 }
 
+// =============================================================
+//  RENOVAÇÃO AUTOMÁTICA DO TOKEN
+//
+//  O token de longa duração vale 60 DIAS. Passando disso ele expira e NÃO PODE
+//  MAIS SER RENOVADO — só resta refazer o fluxo de autorização na mão. Ou seja:
+//  esquecer de renovar não degrada o canal, mata.
+//
+//  A Meta renova por GET refresh_access_token, devolvendo um token NOVO com
+//  mais 60 dias. Regras dela: o token precisa ter no mínimo 24h de vida e não
+//  estar expirado.
+//
+//  Como o token muda, ele não pode viver só no .env — passa a ser guardado no
+//  store (Redis). O .env vira apenas a SEMENTE do primeiro uso.
+//
+//  Renovamos aos 45 dias, não aos 59, para sobrar margem de retentativa caso a
+//  Meta esteja fora do ar justo naquele dia.
+// =============================================================
+const store = require('./store');
+
+const CHAVE_TOKEN    = 'ig_token';
+const RENOVAR_DIAS   = parseInt(process.env.IG_TOKEN_RENOVAR_DIAS || '45', 10);
+const VARRER_MS      = 12 * 60 * 60 * 1000;   // confere 2x por dia
+const DIA_MS         = 24 * 60 * 60 * 1000;
+
+let cache = null;   // { token, renovadoEm } — evita ler o Redis a cada mensagem
+
+// Token em vigor: o renovado (store) tem precedência sobre a semente (.env).
+async function tokenVigente() {
+    if (cache && cache.token) return cache.token;
+    try {
+        const salvo = await store.getConfig(CHAVE_TOKEN);
+        if (salvo && salvo.token) { cache = salvo; return salvo.token; }
+    } catch (_) { /* sem store, cai na semente */ }
+    return IG_TOKEN;
+}
+
+async function salvarToken(token, expiraEmSeg) {
+    cache = { token, renovadoEm: Date.now(), expiraEmSeg: expiraEmSeg || null };
+    try { await store.setConfig(CHAVE_TOKEN, cache); }
+    catch (e) { console.error('❌ Não foi possível PERSISTIR o token do Instagram:', e.message); }
+}
+
+// Troca o token atual por um novo, com mais 60 dias.
+async function renovarToken() {
+    const atual = await tokenVigente();
+    if (!atual) return { ok: false, motivo: 'sem token configurado' };
+    try {
+        const { data } = await axios.get('https://graph.instagram.com/refresh_access_token', {
+            params: { grant_type: 'ig_refresh_token', access_token: atual },
+            timeout: 30000
+        });
+        if (!data || !data.access_token) return { ok: false, motivo: 'resposta da Meta sem access_token' };
+        await salvarToken(data.access_token, data.expires_in);
+        const dias = Math.round((data.expires_in || 0) / 86400);
+        console.log(`🔑 Token do Instagram renovado — válido por mais ~${dias} dias.`);
+        return { ok: true, expiraEmDias: dias };
+    } catch (e) {
+        const erro = e.response?.data?.error;
+        console.error(`❌ Falha ao renovar o token do Instagram: ${erro?.message || e.message}`);
+        return { ok: false, motivo: erro?.message || e.message };
+    }
+}
+
+// Varredor: decide se está na hora de renovar. Roda de 12 em 12h.
+//
+// Na PRIMEIRA execução não há registro de renovação, então renova de cara. Isso
+// tem dois efeitos bons: valida que a semente do .env funciona, e estabelece um
+// marco conhecido de 60 dias (a idade do token do .env é desconhecida — pode já
+// estar com 50 dias). Se a semente tiver menos de 24h, a Meta recusa; a próxima
+// varredura, meio dia depois, resolve sozinha.
+async function varrerRenovacao() {
+    if (!IG_TOKEN && !cache) return;                 // canal desligado
+    let registro = cache;
+    if (!registro) {
+        try { registro = await store.getConfig(CHAVE_TOKEN); } catch (_) { registro = null; }
+    }
+    const idadeDias = registro && registro.renovadoEm
+        ? (Date.now() - registro.renovadoEm) / DIA_MS
+        : Infinity;                                   // sem registro → renova agora
+
+    if (idadeDias < RENOVAR_DIAS) return;
+    console.log(`🔑 Token do Instagram com ~${idadeDias === Infinity ? '?' : Math.round(idadeDias)} dias — renovando (limite: ${RENOVAR_DIAS}).`);
+    await renovarToken();
+}
+
+// Chamado uma vez na subida do servidor.
+function iniciarRenovacaoAutomatica() {
+    if (!IG_TOKEN) return;
+    if (!store.isRedis()) {
+        console.warn('⚠️ Instagram: sem REDIS_URL, o token renovado NÃO sobrevive ao restart. ' +
+                     'Passados 60 dias sem renovação persistida, o canal para de funcionar.');
+    }
+    varrerRenovacao();                                 // confere já na subida
+    setInterval(varrerRenovacao, VARRER_MS).unref?.();
+}
+
+// Estado para o /diag (sem expor o token).
+async function statusToken() {
+    let registro = cache;
+    if (!registro) {
+        try { registro = await store.getConfig(CHAVE_TOKEN); } catch (_) { registro = null; }
+    }
+    if (!registro || !registro.renovadoEm) {
+        return { renovadoEm: null, idadeDias: null, renovaAosDias: RENOVAR_DIAS, origem: IG_TOKEN ? '.env (ainda não renovado)' : 'não configurado' };
+    }
+    return {
+        renovadoEm: new Date(registro.renovadoEm).toISOString(),
+        idadeDias: Math.round((Date.now() - registro.renovadoEm) / DIA_MS),
+        renovaAosDias: RENOVAR_DIAS,
+        origem: 'store (renovado automaticamente)'
+    };
+}
+
 module.exports = {
     PREFIXO, configurado, ehInstagram, paraChatId, igsid,
-    verificacao, assinaturaValida, parsePayload, enviar
+    verificacao, assinaturaValida, parsePayload, enviar,
+    renovarToken, varrerRenovacao, iniciarRenovacaoAutomatica, statusToken, tokenVigente
 };

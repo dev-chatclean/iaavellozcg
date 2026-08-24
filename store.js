@@ -121,4 +121,34 @@ async function appendLeadFinalizado(registro) {
     memLeads.push(registro);
 }
 
-module.exports = { isRedis, getLead, saveLead, deleteLead, appendLeadFinalizado, scanLeadIds, acquireLock, releaseLock };
+// Configuração persistente do próprio app (não é lead). Hoje guarda o token do
+// Instagram, que é REESCRITO a cada renovação e por isso não pode viver só no
+// .env. Sem TTL: diferente das conversas, isto não deve expirar sozinho.
+//
+// ATENÇÃO: sem REDIS_URL isto cai na memória e se perde no restart. Para o
+// token do Instagram isso é grave — a renovação some e, passados 60 dias sem
+// renovar, o token do .env expira de vez e o canal para.
+const configKey = (chave) => `${PREFIX}:config:${chave}`;
+
+async function getConfig(chave) {
+    if (usingRedis) {
+        try {
+            const s = await redis.get(configKey(chave));
+            return s ? JSON.parse(s) : null;
+        } catch (e) {
+            console.error('❌ getConfig:', e.message);
+            return mem.get(configKey(chave)) || null;
+        }
+    }
+    return mem.get(configKey(chave)) || null;
+}
+
+async function setConfig(chave, valor) {
+    if (usingRedis) {
+        try { await redis.set(configKey(chave), JSON.stringify(valor)); return; }
+        catch (e) { console.error('❌ setConfig:', e.message); }
+    }
+    mem.set(configKey(chave), valor);
+}
+
+module.exports = { isRedis, getLead, saveLead, deleteLead, appendLeadFinalizado, scanLeadIds, acquireLock, releaseLock, getConfig, setConfig };

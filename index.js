@@ -408,8 +408,20 @@ async function notificarEquipe(leadData, chatId, opcoes = {}) {
 const TEMPO_INATIVIDADE = 30 * 60 * 1000; // 30 min sem resposta → reativação
 const FOLLOWUP_SWEEP    = 2 * 60 * 1000;  // varre a cada 2 min
 
-function agendarFollowUpReativacao(leadData) {
+// O follow-up de reativação é o ÚNICO ponto do app em que a IA fala sem ter
+// recebido mensagem. No Instagram isso não pode existir: o canal é RECEPTIVO —
+// a IA só responde quem falou com ela.
+//
+// Não é preferência de produto, é regra da plataforma: a Meta proíbe iniciar
+// conversa e só aceita resposta dentro de 24h da última mensagem do cliente.
+// Cutucar quem parou de responder é exatamente o padrão que a política veta, e
+// insistir nisso arrisca a conta.
+//
+// Agendar nunca, em vez de barrar só na hora do disparo, é de propósito: sem
+// followUpDueAt o varredor nem chega a olhar o lead.
+function agendarFollowUpReativacao(leadData, chatId) {
     if (leadData.finalizado) { leadData.followUpDueAt = null; return; }
+    if (instagram.ehInstagram(chatId || leadData.chatId)) { leadData.followUpDueAt = null; return; }
     leadData.followUpDueAt = Date.now() + TEMPO_INATIVIDADE;
 }
 
@@ -448,6 +460,10 @@ async function varrerFollowUps() {
             let leadData;
             try { leadData = await store.getLead(chatId); } catch (_) { continue; }
             if (!leadData || leadData.finalizado) continue;
+            // Segunda camada do modo receptivo do Instagram: mesmo que um lead
+            // tenha ficado com followUpDueAt agendado (de antes desta regra, ou
+            // por um caminho futuro que esqueça a checagem), ele nunca dispara.
+            if (instagram.ehInstagram(chatId)) continue;
             if (!leadData.followUpDueAt || leadData.followUpDueAt > agora) continue;
             await dispararFollowUpReativacao(chatId, leadData);
         }
@@ -983,7 +999,7 @@ async function processarMensagem({ chatId, contactId, texto, tipo, mediaBase64, 
             leadData.conversationHistory = leadData.conversationHistory.slice(-100);
         }
 
-        if (!leadData.finalizado) agendarFollowUpReativacao(leadData);
+        if (!leadData.finalizado) agendarFollowUpReativacao(leadData, chatId);
 
     } catch (e) {
         console.error(`❌ Erro ao processar mensagem de ${chatId}:`, e);
@@ -1391,7 +1407,11 @@ app.get('/diag', async (req, res) => {
             versaoApi: process.env.IG_API_VERSION || 'v25.0',
             // No Instagram o handoff SÓ acontece por aqui — sem número da equipe,
             // um lead qualificado não chega a ninguém.
-            handoffPossivel: !!EQUIPE_NUMERO
+            handoffPossivel: !!EQUIPE_NUMERO,
+            // Idade do token e quando renova. Se a idade passar de 60 dias o
+            // canal morreu: a Meta não renova token expirado — só refazendo a
+            // autorização na mão.
+            token: await instagram.statusToken()
         },
         pipeline: pipeline.diag()
     });
@@ -1463,6 +1483,14 @@ const server = app.listen(PORT, () => {
     console.log(store.isRedis()
         ? '🗄️  Estado das conversas: Redis (persistente)'
         : '🗄️  Estado das conversas: memória (defina REDIS_URL para persistir entre restarts)');
+
+    if (instagram.configurado()) {
+        console.log(`📸 Canal Instagram ATIVO — webhook em https://SEU_DOMINIO/webhook/instagram (receptivo: nunca inicia conversa)`);
+        if (!EQUIPE_NUMERO) console.error('❌ Instagram ATIVO mas EQUIPE_NUMERO vazio — lead qualificado no Direct NÃO chegará a ninguém.');
+        // Renovação do token: confere na subida e a cada 12h. Sem isso o token
+        // expira em 60 dias e o canal para de vez (não dá para renovar depois).
+        instagram.iniciarRenovacaoAutomatica();
+    }
 });
 
 // Encerramento limpo: fecha o servidor HTTP (para de aceitar conexões novas e
