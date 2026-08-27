@@ -81,6 +81,15 @@ const transcritorIA = require('./src/infrastructure/openai/TranscritorWhisper').
 });
 const baixadorDeMidia = require('./src/infrastructure/midia/BaixadorHttp').criar({ http: axios });
 
+// Um manipulador por tipo de midia (Strategy). A descricao da imagem entra
+// como funcao: a instrucao de visao e o tratamento de erro continuam em
+// analisarImagem, logo abaixo.
+const manipuladoresDeMidia = require('./src/application/midia/manipuladores').criar({
+    baixador: baixadorDeMidia,
+    transcritor: transcritorIA,
+    descreverImagem: (mediaUrl) => analisarImagem(mediaUrl)
+});
+
 const { EMPRESA_INFO, PERFIS, DEPARTAMENTOS, DEPARTAMENTO_IDS, departamentoId, lojaParaDepartamento, OFICINA } = require('./data');
 const { SYSTEM_SDR, promptExtracao, promptResposta } = require('./prompts');
 const { determinarProximoCampo, aplicarCampos, detectarPerfil, detectarModeloMencionado } = require('./flow');
@@ -588,89 +597,24 @@ async function processarMensagem({ chatId, contactId, texto, tipo, mediaBase64, 
             return;
         }
 
-        // Imagem → a IA ENXERGA (visão gpt-4o) e usa o conteúdo na resposta.
-        if (tipo === 'image') {
-            const desc = await analisarImagem(mediaUrl);
-            if (desc) {
-                leadData.analiseImagem = desc; // consumido na geração da resposta
-                console.log(`🖼️ Visão: ${desc}`);
-                leadData.conversationHistory.push({ role: 'user', content: `[O cliente enviou uma imagem] — ${desc}` });
-            } else {
-                leadData.conversationHistory.push({ role: 'user', content: '[O cliente enviou uma imagem]' });
-            }
-            texto = 'Enviei uma imagem.';
-            usuarioNoHistorico = true;
-        }
+        // Cada tipo de midia tem seu manipulador em src/application/midia. Dois
+        // desfechos possiveis: o turno CONTINUA (a midia virou texto) ou
+        // ENCERRA aqui, com uma resposta pronta. Antes isso eram quatro blocos
+        // `if` empilhados, cada um com seu proprio `return` no meio.
+        const manipuladorDeMidia = manipuladoresDeMidia.para(tipo);
+        if (manipuladorDeMidia) {
+            const r = await manipuladorDeMidia({ mediaUrl, mediaBase64, mediaMimetype });
 
-        // Documento (PDF/planilha/arquivo) → registra p/ o especialista (não é imagem).
-        // Acusa o recebimento e ENCERRA o turno (sem gerar outra mensagem em seguida);
-        // a próxima mensagem do cliente retoma a qualificação normalmente.
-        if (tipo === 'document') {
-            const ack = 'Recebi o arquivo! Vou deixar registrado pro nosso consultor analisar junto com você. Quer me adiantar do que se trata? 😊';
-            await enviarMensagem(chatId, ack);
-            leadData.conversationHistory.push({ role: 'user', content: '[O cliente enviou um documento]' });
-            leadData.conversationHistory.push({ role: 'assistant', content: ack });
-            return;
-        }
-
-        // Vídeo → transcreve o áudio do vídeo (Whisper aceita mp4) p/ entender o que é falado.
-        if (tipo === 'video') {
-            let videoBuffer = null;
-            try {
-                if (mediaBase64) videoBuffer = Buffer.from(mediaBase64, 'base64');
-                else if (mediaUrl) videoBuffer = await baixadorDeMidia.baixar(mediaUrl, { timeoutMs: 60000 });
-            } catch (e) { console.error('❌ Erro ao baixar vídeo:', e.message); }
-
-            let fala = '';
-            if (videoBuffer) {
-                try {
-                    const falaCrua = await transcritorIA.transcrever({
-                        buffer: videoBuffer,
-                        nomeArquivo: 'video.mp4',
-                        mimetype: mediaMimetype || 'video/mp4'
-                    });
-                    fala = (falaCrua || '').trim();
-                } catch (e) { console.error('❌ Erro ao transcrever vídeo:', e.message); }
-            }
-            if (fala) {
-                console.log(`🎬 Vídeo transcrito: "${fala}"`);
-                leadData.conversationHistory.push({ role: 'user', content: `[O cliente enviou um vídeo] Fala no vídeo: ${fala}` });
-                texto = fala;
-            } else {
-                leadData.conversationHistory.push({ role: 'user', content: '[O cliente enviou um vídeo]' });
-                texto = 'Enviei um vídeo.';
-            }
-            usuarioNoHistorico = true;
-        }
-
-        // Áudio → transcrição (Whisper). Se falhar, pede texto.
-        if (tipo === 'audio' || tipo === 'ptt') {
-            let audioBuffer = null;
-            try {
-                if (mediaBase64) {
-                    audioBuffer = Buffer.from(mediaBase64, 'base64');
-                } else if (mediaUrl) {
-                    audioBuffer = await baixadorDeMidia.baixar(mediaUrl, { timeoutMs: 30000 });
-                }
-            } catch (e) { console.error('❌ Erro ao baixar áudio:', e.message); }
-
-            if (audioBuffer) {
-                try {
-                    texto = await transcritorIA.transcrever({
-                        buffer: audioBuffer,
-                        nomeArquivo: 'audio.ogg',
-                        mimetype: mediaMimetype || 'audio/ogg'
-                    });
-                    console.log(`📝 Transcrição: "${texto}"`);
-                } catch (e) {
-                    console.error('❌ Erro ao transcrever áudio:', e.message);
-                    await enviarMensagem(chatId, 'Recebi seu áudio! Por aqui prefiro que a gente converse por texto pra eu anotar tudo certinho. Pode me escrever? 😊');
-                    return;
-                }
-            } else {
-                await enviarMensagem(chatId, 'Recebi seu áudio, mas não consegui abrir por aqui. Pode me escrever, por favor? 😊');
+            if (r.encerra) {
+                if (r.resposta) await enviarMensagem(chatId, r.resposta);
+                for (const h of r.historico) leadData.conversationHistory.push(h);
                 return;
             }
+
+            for (const h of r.historico) leadData.conversationHistory.push(h);
+            if (r.analiseImagem) leadData.analiseImagem = r.analiseImagem;
+            if (r.usuarioNoHistorico) usuarioNoHistorico = true;
+            texto = r.texto;
         }
 
         if (quotedText) {
