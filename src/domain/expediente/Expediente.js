@@ -1,23 +1,25 @@
 // =============================================================
-//  HORÁRIO — expediente do time ChatClean
-//  Atendimento humano: segunda a sexta, 09h–18h (horário de Natal-RN),
-//  exceto feriados. Fora disso (noite + fim de semana + feriado) o bot
-//  entra em MODO PLANTÃO (secretária): não promete atendimento imediato
-//  e agenda retorno para o próximo dia útil.
+//  EXPEDIENTE — quando a loja atende
 //
-//  estaEmExpediente(date?) → { aberto, motivo, proximoExpediente }
-//  Aceita uma data (para testes); por padrão usa a hora atual.
+//  Fora do expediente o bot entra em MODO PLANTAO: nao promete atendimento
+//  imediato e aponta o proximo horario. E a diferenca entre "ja te transfiro"
+//  as 2h da manha e "nosso consultor te retorna amanha as 9h".
 //
-//  Feriados: nacionais fixos embutidos + extras via env FERIADOS
-//  (lista separada por vírgula, "YYYY-MM-DD" ou "MM-DD"). Feriados
-//  MÓVEIS (Carnaval, Sexta-feira Santa, Corpus Christi) mudam a cada
-//  ano — coloque-os no FERIADOS do ano corrente.
+//  Modulo puro: os feriados extras entram por PARAMETRO. Antes eram lidos de
+//  process.env no carregamento do modulo (D-30), o que colocava uma regra de
+//  negocio — o calendario — dependendo de ambiente, e tornava impossivel
+//  testar dois calendarios no mesmo processo.
+//
+//  Os feriados FIXOS continuam embutidos: sao lei, nao configuracao. Os
+//  MOVEIS (Carnaval, Sexta-feira Santa, Corpus Christi) mudam a cada ano e
+//  entram pela configuracao.
+//
+//  NOTA DE LEITURA: o corpo foi movido verbatim do horario.js.
 // =============================================================
 
 const TZ = 'America/Recife'; // Natal-RN — UTC-3, sem horário de verão
 const ABRE = 9;   // 09h
 const FECHA = 18; // 18h (atende enquanto hora < 18)
-
 // Feriados nacionais de data fixa (MM-DD). Consciência Negra (11-20) é
 // feriado nacional desde 2024.
 const FERIADOS_FIXOS = new Set([
@@ -32,11 +34,16 @@ const FERIADOS_FIXOS = new Set([
     '12-25'  // Natal
 ]);
 // Extras/móveis por env (YYYY-MM-DD para um ano específico, ou MM-DD recorrente).
-const FERIADOS_EXTRA = new Set(
-    (process.env.FERIADOS || '').split(',').map(s => s.trim()).filter(Boolean)
-);
-
 const DIAS_SEMANA = ['domingo', 'segunda-feira', 'terça-feira', 'quarta-feira', 'quinta-feira', 'sexta-feira', 'sábado'];
+
+/**
+ * @param {{feriadosExtras?: string[]}} [opcoes]
+ *   Datas "YYYY-MM-DD" (um ano especifico) ou "MM-DD" (recorrente).
+ */
+function criar({ feriadosExtras = [] } = {}) {
+
+const FERIADOS_EXTRA = new Set(feriadosExtras.map((s) => String(s).trim()).filter(Boolean));
+
 
 // Instante → objeto Date na hora LOCAL de Natal-RN.
 function paraLocal(date) {
@@ -97,4 +104,17 @@ function estaEmExpediente(date = new Date()) {
     return { aberto, motivo, proximoExpediente: aberto ? null : rotuloProximoExpediente(local) };
 }
 
-module.exports = { estaEmExpediente, ehFeriado, TZ };
+
+return { estaEmExpediente, ehFeriado, TZ };
+}
+
+// Instancia padrao, sem feriados extras — usada por quem so quer o
+// calendario nacional.
+const padrao = criar();
+
+module.exports = {
+    criar,
+    TZ,
+    estaEmExpediente: padrao.estaEmExpediente,
+    ehFeriado: padrao.ehFeriado
+};

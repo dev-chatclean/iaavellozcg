@@ -169,6 +169,14 @@ Com ID de dois dígitos não acontece, porque a regra só age em 13 caracteres. 
 pequeno: a allow-list só vale na fase de teste (`IA_ALLOWED_CONTACTS` vazia libera todos). Congelado
 em `telefone.test.js`.
 
+**D-30 — RESOLVIDA.** Era: os feriados extras eram lidos do ambiente no carregamento do módulo.
+Agora entram por parâmetro (`Expediente.criar({ feriadosExtras })`), e quem lê a variável é o
+`src/main/config`, como todas as outras. O comportamento do sistema não mudou — a leitura continua
+acontecendo uma vez, no boot. O que mudou é que o domínio deixou de depender de ambiente, e ficou
+possível ter dois calendários no mesmo processo (antes, o primeiro `require` vencia para sempre).
+
+Texto original, para referência:
+
 **D-30: os feriados extras são lidos do ambiente no carregamento do módulo.**
 `horario.js` monta um `Set` a partir de `process.env.FERIADOS` quando o módulo é carregado. Mudar a
 variável em execução não tem efeito, e uma regra de negócio (o calendário) passa a depender de

@@ -21,6 +21,10 @@ function carregar(env = process.env) {
     // outras.
     const OPENAI_API_KEY = env.OPENAI_API_KEY || '';
 
+    // Feriados extras/moveis: "YYYY-MM-DD" (um ano) ou "MM-DD" (recorrente),
+    // separados por virgula. Os fixos nacionais sao embutidos no dominio.
+    const FERIADOS = (env.FERIADOS || '').split(',').map((s) => s.trim()).filter(Boolean);
+
     const CC_PUSH_URL    = env.CC_PUSH_URL    || '';
     const WEBHOOK_SECRET  = env.WEBHOOK_SECRET || '';
     const EQUIPE_NUMERO  = env.EQUIPE_NUMERO  || '';
@@ -69,6 +73,7 @@ function carregar(env = process.env) {
 
     return Object.freeze({
         OPENAI_API_KEY,
+        FERIADOS,
         CC_PUSH_URL,
         WEBHOOK_SECRET,
         EQUIPE_NUMERO,

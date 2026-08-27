@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { createRequire } from 'module';
 
 const require = createRequire(import.meta.url);
-const Expediente = require('../../horario');
+const Expediente = require('../../src/domain/expediente/Expediente');
 const { estaEmExpediente, ehFeriado, TZ } = Expediente;
 
 // =============================================================
@@ -162,59 +162,56 @@ describe('horario: virada de ano pulando feriado', () => {
     });
 });
 
-describe('horario: feriados extras via env FERIADOS (RN-062)', () => {
-    // CONGELA (D-30): os feriados extras sao lidos de process.env.FERIADOS no
-    // CARREGAMENTO do modulo, para um Set de escopo de modulo. Consequencias:
-    //   1. mudar a variavel em execucao nao tem efeito — so reiniciando;
-    //   2. o teste precisa limpar o cache do require a cada caso;
-    //   3. uma regra de negocio (o calendario) depende de ambiente.
-    // Injetar os feriados como parametro e refatoracao com mudanca de API, e
-    // sai na fatia do dominio de expediente.
-    const carregarCom = (feriados) => {
-        const anterior = process.env.FERIADOS;
-        process.env.FERIADOS = feriados;
-        delete require.cache[require.resolve('../../horario')];
-        const modulo = require('../../horario');
-        if (anterior === undefined) delete process.env.FERIADOS;
-        else process.env.FERIADOS = anterior;
-        return modulo;
-    };
+describe('expediente: feriados extras injetados (RN-062)', () => {
+    // D-30 RESOLVIDA: os feriados eram lidos de process.env no carregamento do
+    // modulo. Agora sao parametro — o dominio nao le ambiente, e da para ter
+    // dois calendarios no mesmo processo.
+    //
+    // O comportamento do SISTEMA nao mudou: quem le a variavel e o
+    // src/main/config, e continua lendo uma vez, no boot.
 
     it('aceita data completa YYYY-MM-DD (feriado movel de um ano especifico)', () => {
-        const e = carregarCom('2026-02-17');
+        const e = Expediente.criar({ feriadosExtras: ['2026-02-17'] });
         expect(e.ehFeriado(new Date('2026-02-17T12:00:00-03:00'))).toBe(true);
         expect(e.ehFeriado(new Date('2027-02-17T12:00:00-03:00'))).toBe(false);
     });
 
     it('aceita MM-DD como feriado recorrente (ex.: municipal)', () => {
-        const e = carregarCom('06-24');
+        const e = Expediente.criar({ feriadosExtras: ['06-24'] });
         expect(e.ehFeriado(new Date('2026-06-24T12:00:00-03:00'))).toBe(true);
         expect(e.ehFeriado(new Date('2027-06-24T12:00:00-03:00'))).toBe(true);
     });
 
-    it('aceita lista com espacos e entradas vazias', () => {
-        const e = carregarCom(' 2026-02-17 , , 06-24 ');
+    it('tolera espacos e entradas vazias na lista', () => {
+        const e = Expediente.criar({ feriadosExtras: [' 2026-02-17 ', '', ' 06-24 '] });
         expect(e.ehFeriado(new Date('2026-02-17T12:00:00-03:00'))).toBe(true);
         expect(e.ehFeriado(new Date('2026-06-24T12:00:00-03:00'))).toBe(true);
     });
 
     it('feriado extra fecha o expediente num dia util', () => {
-        const e = carregarCom('2026-08-12');
+        const e = Expediente.criar({ feriadosExtras: ['2026-08-12'] });
         const r = e.estaEmExpediente(new Date('2026-08-12T10:00:00-03:00'));
         expect(r.aberto).toBe(false);
         expect(r.motivo).toBe('feriado');
     });
 
-    it('CONGELA: mudar FERIADOS depois do carregamento NAO tem efeito', () => {
-        const e = carregarCom('');
-        process.env.FERIADOS = '2026-08-12';
-        expect(e.ehFeriado(new Date('2026-08-12T12:00:00-03:00'))).toBe(false);
-        delete process.env.FERIADOS;
+    it('sem feriados extras, o mesmo dia esta aberto', () => {
+        expect(Expediente.criar().estaEmExpediente(new Date('2026-08-12T10:00:00-03:00')).aberto).toBe(true);
     });
 
-    it('sem feriados extras, o mesmo dia esta aberto', () => {
-        const e = carregarCom('');
-        expect(e.estaEmExpediente(new Date('2026-08-12T10:00:00-03:00')).aberto).toBe(true);
+    it('instancias diferentes NAO compartilham feriados', () => {
+        // Era impossivel de escrever antes: com o Set no escopo do modulo, o
+        // primeiro require vencia para todo o processo.
+        const a = Expediente.criar({ feriadosExtras: ['2026-08-12'] });
+        const b = Expediente.criar({ feriadosExtras: [] });
+        expect(a.ehFeriado(new Date('2026-08-12T12:00:00-03:00'))).toBe(true);
+        expect(b.ehFeriado(new Date('2026-08-12T12:00:00-03:00'))).toBe(false);
+    });
+
+    it('os feriados FIXOS nao dependem de configuracao: sao lei', () => {
+        const e = Expediente.criar({ feriadosExtras: [] });
+        expect(e.ehFeriado(new Date('2026-12-25T12:00:00-03:00'))).toBe(true);
+        expect(e.ehFeriado(new Date('2026-09-07T12:00:00-03:00'))).toBe(true);
     });
 });
 

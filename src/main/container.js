@@ -33,6 +33,7 @@ const axios = require('axios');
 function criar(config, sobrescritas = {}) {
 const {
     OPENAI_API_KEY,
+    FERIADOS,
     CC_PUSH_URL,
     EQUIPE_NUMERO,
     IA_ALLOWED_CONTACTS,
@@ -110,7 +111,11 @@ const politicaDeTransbordo = require('../domain/atendimento/politicas/PoliticaDe
 
 const departamentoLead = (leadData) => politicaDeTransbordo.destinoDoLead(leadData);
 const departamentoPosVenda = (leadData) => politicaDeTransbordo.destinoDePosVenda(leadData);
-const { estaEmExpediente } = require('../../horario');
+// O expediente e dominio puro: os feriados extras entram por parametro, em vez
+// de serem lidos do ambiente no carregamento do modulo (D-30).
+const { estaEmExpediente } = require('../domain/expediente/Expediente').criar({
+    feriadosExtras: FERIADOS
+});
 const pipeline = require('../../pipeline'); // Oportunidades no CRM (inerte se não configurado)
 const store = require('../../store'); // estado das conversas (Redis + fallback em memória)
 
