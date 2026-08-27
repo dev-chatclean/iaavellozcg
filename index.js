@@ -241,36 +241,17 @@ async function enviarMensagensQuebradas(chatId, textoCompleto) {
 
 // Notifica a equipe (nota interna no ticket + WhatsApp interno) quando um lead
 // é qualificado, e sinaliza a transferência de departamento no CRM.
-// Monta o resumo estruturado do lead (reusado na nota da equipe e na descrição do evento).
-function montarResumo(leadData, chatId, opcoes = {}) {
-    const departamento = opcoes.departamento || departamentoLead(leadData);
-    const perfilNome = leadData.perfilKey && PERFIS[leadData.perfilKey]
-        ? PERFIS[leadData.perfilKey].nome : 'Não informado';
-    const temDadosSim = leadData.nomeCompleto || leadData.cpf || leadData.dataNascimento || leadData.telefone || leadData.cnh || leadData.corModelo;
-    return `🏍️ LEAD QUALIFICADO — Avelloz Campina${opcoes.tagExtra ? ' [' + opcoes.tagExtra + ']' : ''}\n\n` +
-        `Contato: ${leadData.nome || 'Lead'} (${chatId})\n` +
-        `Perfil: ${perfilNome}\n` +
-        `Finalidade: ${leadData.finalidade || 'Não informado'}\n` +
-        `Transporte hoje: ${leadData.transporteAtual || 'Não informado'}\n` +
-        `Gasto atual: ${leadData.gastoMensal || 'Não informado'}\n` +
-        `Situação de moto: ${leadData.situacaoMoto || 'Não informado'}\n` +
-        `Modelo de interesse: ${leadData.modeloInteresse || 'Não informado'}\n` +
-        `Forma de pagamento: ${leadData.formaPagamento || 'Não informado'}\n` +
-        `Loja escolhida: ${leadData.loja || 'Não informada'}\n` +
-        (temDadosSim
-            ? `\nDados p/ simulação:\n` +
-              `  Nome completo: ${leadData.nomeCompleto || 'Não informado'}\n` +
-              `  CPF: ${leadData.cpf || 'Não informado'}\n` +
-              `  Nascimento: ${leadData.dataNascimento || 'Não informado'}\n` +
-              `  Telefone: ${leadData.telefone || 'Não informado'}\n` +
-              `  CNH: ${leadData.cnh || 'Não informado'}\n` +
-              `  Cor/modelo: ${leadData.corModelo || 'Não informado'}\n`
-            : '') +
-        (opcoes.proximoExpediente ? `Retorno sugerido: ${opcoes.proximoExpediente}\n` : '') +
-        (departamentoId(departamento)
-            ? `\n➡️ Transferir para o departamento ${departamento} (#${departamentoId(departamento)})`
-            : `\n➡️ Sem loja escolhida — o ticket permanece em ${departamento} para a equipe direcionar`);
-}
+// O texto que o vendedor le vive em src/domain/atendimento/MontadorDeResumo.js.
+// Catalogo de perfis e IDs de departamento entram por parametro: o dominio nao
+// conhece a configuracao do CRM.
+const montadorDeResumo = require('./src/domain/atendimento/MontadorDeResumo').criar({
+    nomeDoPerfil: (leadData) =>
+        leadData.perfilKey && PERFIS[leadData.perfilKey] ? PERFIS[leadData.perfilKey].nome : 'Não informado',
+    idDoDepartamento: departamentoId,
+    destinoPadrao: (leadData) => departamentoLead(leadData)
+});
+
+const montarResumo = (leadData, chatId, opcoes = {}) => montadorDeResumo.montar(leadData, chatId, opcoes);
 
 async function notificarEquipe(leadData, chatId, opcoes = {}) {
     const departamento = opcoes.departamento || departamentoLead(leadData);

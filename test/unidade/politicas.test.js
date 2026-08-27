@@ -142,3 +142,94 @@ describe('PoliticaDeTransbordo (RN-040, RN-041)', () => {
         expect(comPosVenda.destinoDePosVenda({ loja: 'Matriz' })).toBe('Pós-venda');
     });
 });
+
+// =============================================================
+//  MontadorDeResumo, isolado.
+//
+//  A caracterizacao em test/caracterizacao/montarResumo.test.js ja congela o
+//  TEXTO, visto de fora pelo index.js. Aqui o alvo e a estrutura: a ordem dos
+//  campos e a injecao das dependencias.
+// =============================================================
+const MontadorDeResumo = require('../../src/domain/atendimento/MontadorDeResumo');
+
+describe('MontadorDeResumo (RN-043)', () => {
+    const montador = (over = {}) =>
+        MontadorDeResumo.criar({
+            nomeDoPerfil: () => 'Roda de app',
+            idDoDepartamento: (d) => ({ 'Loja Malvinas': 230 })[d] ?? null,
+            destinoPadrao: () => 'Loja Malvinas',
+            ...over
+        });
+
+    const LEAD = {
+        nome: 'Rafael',
+        finalidade: 'app',
+        transporteAtual: 'moto alugada',
+        gastoMensal: '250 por semana',
+        situacaoMoto: 'alugada',
+        modeloInteresse: 'AZ125',
+        formaPagamento: 'financiamento',
+        loja: 'Malvinas'
+    };
+
+    it('a ordem em que o vendedor le e explicita e imutavel', () => {
+        expect(MontadorDeResumo.LINHAS_DO_DIAGNOSTICO.map(([rotulo]) => rotulo)).toEqual([
+            'Finalidade',
+            'Transporte hoje',
+            'Gasto atual',
+            'Situação de moto',
+            'Modelo de interesse',
+            'Forma de pagamento'
+        ]);
+        expect(Object.isFrozen(MontadorDeResumo.LINHAS_DO_DIAGNOSTICO)).toBe(true);
+        expect(Object.isFrozen(MontadorDeResumo.LINHAS_DE_SIMULACAO)).toBe(true);
+    });
+
+    it('as linhas saem na ordem declarada, nao na ordem do objeto', () => {
+        // Objeto montado ao contrario de proposito.
+        const invertido = Object.fromEntries(Object.entries(LEAD).reverse());
+        const texto = montador().montar(invertido, '5583999998888');
+        const posicoes = ['Finalidade:', 'Transporte hoje:', 'Gasto atual:', 'Situação de moto:'].map((r) =>
+            texto.indexOf(r)
+        );
+        expect(posicoes).toEqual([...posicoes].sort((a, b) => a - b));
+    });
+
+    it('o bloco de simulacao so aparece quando ha algum dado', () => {
+        expect(montador().montar(LEAD, '5583999998888')).not.toContain('Dados p/ simulação');
+        expect(montador().montar({ ...LEAD, cpf: '000' }, '5583999998888')).toContain('Dados p/ simulação');
+    });
+
+    it('um unico campo de simulacao ja traz o bloco inteiro, com os ausentes marcados', () => {
+        const texto = montador().montar({ ...LEAD, cnh: 'sim' }, '5583999998888');
+        expect(texto).toContain('CNH: sim');
+        expect(texto).toContain(`CPF: ${MontadorDeResumo.NAO_INFORMADO}`);
+    });
+
+    it('o departamento explicito vence o destino padrao', () => {
+        const texto = montador().montar(LEAD, '5583999998888', { departamento: 'Loja Monteiro' });
+        expect(texto).toContain('Loja Monteiro');
+    });
+
+    it('a etiqueta extra entra no cabecalho', () => {
+        expect(montador().montar(LEAD, '5583999998888', { tagExtra: 'CLIENTE ATUAL' })).toContain('[CLIENTE ATUAL]');
+    });
+
+    it('o retorno sugerido so aparece quando informado', () => {
+        expect(montador().montar(LEAD, '5583999998888')).not.toContain('Retorno sugerido');
+        expect(montador().montar(LEAD, '5583999998888', { proximoExpediente: 'amanhã às 9h' })).toContain(
+            'Retorno sugerido: amanhã às 9h'
+        );
+    });
+
+    it('estado vazio nao lanca e marca tudo como nao informado', () => {
+        const texto = montador().montar({}, '5583999998888');
+        expect(texto).toContain('Contato: Lead (5583999998888)');
+        expect(texto).toContain('Loja escolhida: Não informada');
+    });
+
+    it('o catalogo de perfis e injetado: o dominio nao o conhece', () => {
+        const texto = montador({ nomeDoPerfil: () => 'Perfil inventado' }).montar(LEAD, '5583999998888');
+        expect(texto).toContain('Perfil: Perfil inventado');
+    });
+});
