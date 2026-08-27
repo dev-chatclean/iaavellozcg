@@ -94,8 +94,19 @@ Fora dos módulos puros, ainda **sem nenhuma caracterização**, tudo dentro de 
 - fail-fast quando falta `OPENAI_API_KEY`
 - `/health` devolvendo `uptime` e `timestamp`
 
-A borda HTTP dessas rotas está congelada na [linha de base](12-linha-de-base.md). A lógica interna
-ainda não.
+A borda HTTP dessas rotas está congelada na [linha de base](12-linha-de-base.md).
+
+**Atualização — a transferência de departamento já está caracterizada.** O teste dourado ganhou o
+cenário 2b, que cobre: o roteamento de cada loja para a fila certa (Matriz 228, Malvinas 230,
+Monteiro 231), o desligamento por `TRANSFERIR_DEPARTAMENTO=false`, o fechamento do ticket por
+`TRANSFERIR_FECHANDO=true`, a sobrescrita do ID pelo ambiente e a falha do Push.
+
+Esse último virou um `CONGELA` desconfortável: **quando toda chamada ao CRM falha, o lead é marcado
+como finalizado mesmo assim** — a resposta não chega ao cliente, a nota não chega à equipe, a
+transferência é recusada, e o atendimento simplesmente desaparece. É a D-17 vista por dentro.
+
+Continua sem caracterização: `senderAlt` e ID de dispositivo, lead impaciente (`modoAtalho`),
+encerramento pós-handoff, shutdown gracioso e o fail-fast da chave da OpenAI.
 
 ## Categoria D — dívida encontrada de passagem
 
