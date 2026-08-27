@@ -70,6 +70,13 @@ const TRANSFERIR_FECHANDO = (process.env.TRANSFERIR_FECHANDO || 'false') === 'tr
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
+// Os adapters da OpenAI vivem em src/infrastructure/openai. Recebem o cliente
+// por injecao e NAO tratam erro: quem chama e que decide entre cair em
+// fallback ou propagar, porque isso e decisao de produto, nao de transporte.
+const extratorIA = require('./src/infrastructure/openai/ExtratorOpenAI').criar({ cliente: openai });
+const redatorIA = require('./src/infrastructure/openai/RedatorOpenAI').criar({ cliente: openai });
+const leitorDeImagemIA = require('./src/infrastructure/openai/LeitorDeImagemOpenAI').criar({ cliente: openai });
+
 const { EMPRESA_INFO, PERFIS, DEPARTAMENTOS, DEPARTAMENTO_IDS, departamentoId, lojaParaDepartamento, OFICINA } = require('./data');
 const { SYSTEM_SDR, promptExtracao, promptResposta } = require('./prompts');
 const { determinarProximoCampo, aplicarCampos, detectarPerfil, detectarModeloMencionado } = require('./flow');
@@ -364,15 +371,7 @@ async function extrairInformacoesComIA(mensagem, campoAtual, historicoRecente = 
     try {
         const mensagemSanitizada = mensagem.replace(/[<>]/g, '').substring(0, 1000);
         const prompt = promptExtracao({ mensagemSanitizada, campoAtual });
-        const completion = await openai.chat.completions.create({
-            model: 'gpt-4o-mini',
-            messages: [...historicoRecente, { role: 'user', content: prompt }],
-            temperature: 0,
-            response_format: { type: 'json_object' } // garante JSON válido (o prompt já pede JSON)
-        });
-        let res = completion.choices[0].message.content.trim();
-        if (res.includes('```')) res = res.replace(/```json?/g, '').replace(/```/g, '').trim();
-        return JSON.parse(res);
+        return await extratorIA.extrair({ prompt, historico: historicoRecente });
     } catch (e) {
         console.error('Erro ao extrair informações:', e.message);
         return null;
@@ -386,16 +385,12 @@ async function gerarRespostaIA(leadData, mensagemCliente, proximoCampo, historic
     const mensagemSanitizada = mensagemCliente.replace(/[<>]/g, '').substring(0, 1000);
     const isInicioConversa = leadData.conversationHistory.length === 0;
     const prompt = promptResposta({ isInicioConversa, mensagemSanitizada, proximoCampo, leadData, expediente });
-    const completion = await openai.chat.completions.create({
-        model: 'gpt-4o-mini',
-        messages: [
-            { role: 'system', content: SYSTEM_SDR },
-            ...historicoRecente,
-            { role: 'user', content: prompt }
-        ],
-        temperature: 0.7
+    return await redatorIA.redigir({
+        system: SYSTEM_SDR,
+        prompt,
+        historico: historicoRecente,
+        temperatura: 0.7
     });
-    return completion.choices[0].message.content.trim();
 }
 
 // A IA "enxerga" a imagem enviada pelo cliente (gpt-4o com visão) e descreve
@@ -408,19 +403,7 @@ async function analisarImagem(mediaUrl) {
 - Se for um PRINT de conversa, anúncio ou simulação, resuma do que se trata.
 - Se for um documento (CNH, comprovante, print de dados), diga o que é sem transcrever dados sensíveis.
 Não invente o que não dá pra ver.`;
-        const completion = await openai.chat.completions.create({
-            model: 'gpt-4o',
-            messages: [{
-                role: 'user',
-                content: [
-                    { type: 'text', text: instrucao },
-                    { type: 'image_url', image_url: { url: mediaUrl } }
-                ]
-            }],
-            max_tokens: 300,
-            temperature: 0.3
-        });
-        return completion.choices[0].message.content.trim();
+        return await leitorDeImagemIA.descrever({ instrucao, url: mediaUrl });
     } catch (e) {
         console.error('❌ Erro ao analisar imagem (visão):', e.message);
         return null;
@@ -440,16 +423,13 @@ NÃO puxe conversa. Só faça uma pergunta se ela for REALMENTE necessária para
 - Se for sobre ${OFICINA.assuntos}, passe o telefone da nossa oficina: ${OFICINA.telefone}. Não diagnostique defeito nem cote peça/serviço.
 - Se for sobre INDICAÇÃO: ele passa o nome e o telefone do possível comprador pra um vendedor ANTES da compra; se o indicado fechar, ganha AZ1 R$ 50,00, AZ125 R$ 100,00, AZX160 R$ 150,00. Indicação reivindicada depois da compra fechada não é paga — diga isso com gentileza se for o caso.
 Nunca informe valor de parcela nem prometa prazo. Não refaça a qualificação e não repita o resumo.`;
-        const completion = await openai.chat.completions.create({
-            model: 'gpt-4o-mini',
-            messages: [
-                { role: 'system', content: 'Você é um consultor do time da Avelloz Campina. Escrita natural, curta, registro de WhatsApp.' },
-                ...historicoRecente,
-                { role: 'user', content: prompt }
-            ],
-            temperature: 0.6
+        const texto = await redatorIA.redigir({
+            system: 'Você é um consultor do time da Avelloz Campina. Escrita natural, curta, registro de WhatsApp.',
+            prompt,
+            historico: historicoRecente,
+            temperatura: 0.6
         });
-        return completion.choices[0].message.content.trim() || fallback;
+        return texto || fallback;
     } catch (e) {
         console.error('❌ Erro na resposta pós-encaminhamento:', e.message);
         return fallback;
