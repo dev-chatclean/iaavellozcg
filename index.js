@@ -73,6 +73,22 @@ const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const extratorIA = require('./src/infrastructure/openai/ExtratorOpenAI').criar({ cliente: openai });
 const redatorIA = require('./src/infrastructure/openai/RedatorOpenAI').criar({ cliente: openai });
 const leitorDeImagemIA = require('./src/infrastructure/openai/LeitorDeImagemOpenAI').criar({ cliente: openai });
+
+// =============================================================
+//  IA — a cola entre prompt e adapter
+// =============================================================
+const conversaComIA = require('./src/application/ia/ConversaComIA').criar({
+    extrator: extratorIA,
+    redator: redatorIA,
+    leitorDeImagem: leitorDeImagemIA,
+    prompts: require('./prompts')
+});
+
+const extrairInformacoesComIA = (msg, campo, hist) => conversaComIA.extrair(msg, campo, hist);
+const gerarRespostaIA = (lead, msg, campo, hist, exp) => conversaComIA.redigir(lead, msg, campo, hist, exp);
+const analisarImagem = (mediaUrl) => conversaComIA.descreverImagem(mediaUrl);
+const gerarRespostaPosEncaminhamento = (lead, msg, hist) => conversaComIA.redigirPosEncaminhamento(lead, msg, hist);
+
 // A transcricao e a UNICA chamada a OpenAI que nao passa pelo SDK: o endpoint
 // do Whisper espera multipart, montado a mao. Por isso a chave entra separada.
 const transcritorIA = require('./src/infrastructure/openai/TranscritorWhisper').criar({
@@ -91,7 +107,6 @@ const manipuladoresDeMidia = require('./src/application/midia/manipuladores').cr
 });
 
 const { EMPRESA_INFO, PERFIS, DEPARTAMENTOS, DEPARTAMENTO_IDS, departamentoId, lojaParaDepartamento, OFICINA } = require('./data');
-const { SYSTEM_SDR, promptExtracao, promptResposta } = require('./prompts');
 const { determinarProximoCampo, aplicarCampos, detectarPerfil, detectarModeloMencionado } = require('./flow');
 
 // Para onde o atendimento vai quando sai da IA. A regra vive em
@@ -271,77 +286,9 @@ async function varrerFollowUps() {
 // varredor no projeto inteiro. Duas fariam o cliente receber a mensagem de
 // reativação em dobro.
 
-// =============================================================
-//  IA — EXTRAÇÃO DE INFORMAÇÕES (gpt-4o-mini, temperatura 0)
-// =============================================================
-async function extrairInformacoesComIA(mensagem, campoAtual, historicoRecente = []) {
-    try {
-        const mensagemSanitizada = mensagem.replace(/[<>]/g, '').substring(0, 1000);
-        const prompt = promptExtracao({ mensagemSanitizada, campoAtual });
-        return await extratorIA.extrair({ prompt, historico: historicoRecente });
-    } catch (e) {
-        console.error('Erro ao extrair informações:', e.message);
-        return null;
-    }
-}
 
-// =============================================================
-//  IA — GERAÇÃO DE RESPOSTA (gpt-4o-mini, temperatura 0.7)
-// =============================================================
-async function gerarRespostaIA(leadData, mensagemCliente, proximoCampo, historicoRecente = [], expediente = null) {
-    const mensagemSanitizada = mensagemCliente.replace(/[<>]/g, '').substring(0, 1000);
-    const isInicioConversa = leadData.conversationHistory.length === 0;
-    const prompt = promptResposta({ isInicioConversa, mensagemSanitizada, proximoCampo, leadData, expediente });
-    return await redatorIA.redigir({
-        system: SYSTEM_SDR,
-        prompt,
-        historico: historicoRecente,
-        temperatura: 0.7
-    });
-}
 
-// A IA "enxerga" a imagem enviada pelo cliente (gpt-4o com visão) e descreve
-// o conteúdo para usar no atendimento. Retorna null se falhar.
-async function analisarImagem(mediaUrl) {
-    if (!mediaUrl) return null;
-    try {
-        const instrucao = `Você é atendente da Avelloz Campina (concessionária de motos). O cliente enviou esta imagem no WhatsApp durante o atendimento. Descreva de forma curta e útil (1 a 3 frases, tom natural, SEM markdown) o que é e o que há de relevante para entender a necessidade dele:
-- Se for uma foto de moto (dele ou de um modelo), diga o que dá pra entender (modelo/estado/cor, se dá pra saber).
-- Se for um PRINT de conversa, anúncio ou simulação, resuma do que se trata.
-- Se for um documento (CNH, comprovante, print de dados), diga o que é sem transcrever dados sensíveis.
-Não invente o que não dá pra ver.`;
-        return await leitorDeImagemIA.descrever({ instrucao, url: mediaUrl });
-    } catch (e) {
-        console.error('❌ Erro ao analisar imagem (visão):', e.message);
-        return null;
-    }
-}
 
-// Resposta quando o lead JÁ foi encaminhado ao especialista: tira dúvidas
-// pontuais de forma natural, sem refazer a qualificação nem repetir o resumo.
-async function gerarRespostaPosEncaminhamento(leadData, mensagemCliente, historicoRecente = []) {
-    const fallback = 'Já repassei tudo pro nosso consultor, ele continua seu atendimento aqui rapidinho 😊';
-    try {
-        const prompt = `Este lead já foi ENCAMINHADO a um consultor humano da Avelloz Campina. Ele acabou de dizer: "${String(mensagemCliente).replace(/[<>]/g, '').substring(0, 600)}".
-Responda de forma breve, calorosa e útil (registro de WhatsApp, sem markdown, no máximo 1 emoji).
-NÃO puxe conversa. Só faça uma pergunta se ela for REALMENTE necessária para responder o que ele perguntou. É PROIBIDO terminar com "tem mais alguma dúvida?", "posso ajudar em algo mais?" ou qualquer variação: quem conduz o atendimento agora é o consultor humano, e ficar puxando assunto atropela o trabalho dele.
-- Se for uma dúvida simples sobre as motos/condições, responda com o que você sabe e PARE.
-- Se depender do consultor (valor de parcela, aprovação de crédito, prazo de entrega, negociação), diga que ele já vai continuar o atendimento pra resolver.
-- Se for sobre ${OFICINA.assuntos}, passe o telefone da nossa oficina: ${OFICINA.telefone}. Não diagnostique defeito nem cote peça/serviço.
-- Se for sobre INDICAÇÃO: ele passa o nome e o telefone do possível comprador pra um vendedor ANTES da compra; se o indicado fechar, ganha AZ1 R$ 50,00, AZ125 R$ 100,00, AZX160 R$ 150,00. Indicação reivindicada depois da compra fechada não é paga — diga isso com gentileza se for o caso.
-Nunca informe valor de parcela nem prometa prazo. Não refaça a qualificação e não repita o resumo.`;
-        const texto = await redatorIA.redigir({
-            system: 'Você é um consultor do time da Avelloz Campina. Escrita natural, curta, registro de WhatsApp.',
-            prompt,
-            historico: historicoRecente,
-            temperatura: 0.6
-        });
-        return texto || fallback;
-    } catch (e) {
-        console.error('❌ Erro na resposta pós-encaminhamento:', e.message);
-        return fallback;
-    }
-}
 
 
 // =============================================================
