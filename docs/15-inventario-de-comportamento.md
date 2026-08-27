@@ -122,6 +122,24 @@ Cobertura dos módulos puros: **100% de statements, 99,1% de ramos.**
 
 ## Categoria D — dívida encontrada de passagem
 
+**D-34: a guarda contra promessa falsa de transferência tem um buraco.**
+Quando a transferência para a loja falha, o sistema substitui a resposta da IA se ela tiver
+prometido o repasse. A detecção usa
+`consultor (j[áa]|vai) (assumir|continuar|dar sequ)`, que casa "consultor **já** assumir" e
+"consultor **vai** assumir" — mas **não** "consultor **já vai** assumir", que é a redação mais
+natural das três e a que o modelo produz com frequência.
+
+| Frase | Guarda pega? |
+|---|---|
+| o consultor vai assumir | sim |
+| o consultor já assumir | sim |
+| **o consultor já vai assumir** | **não** |
+| o consultor já vai dar sequência | não |
+
+Consequência: transferência falha, a IA diz "o consultor já vai assumir", o cliente fica esperando
+alguém que nunca vai chegar. É exatamente o que a expressão existe para impedir. Congelado em
+`sinais-do-cliente.test.js`.
+
 **D-33: os dois repositórios divergem na leitura.** O adapter de memória devolve a **referência** do
 objeto guardado; o de Redis devolve uma cópia nova (o JSON é reparseado a cada leitura). Em memória,
 mutar o `leadData` lido altera o estado guardado **sem chamar `saveLead`** — com Redis, não altera.
@@ -157,7 +175,7 @@ Achados do lint, presos no ratchet e não corrigidos:
 
 ## Estado da suíte
 
-**385 testes verdes** contra o código de produção, sem rede e sem custo: unidade nos módulos puros,
+**569 testes verdes** contra o código de produção, sem rede e sem custo: unidade nos módulos puros,
 caracterização de `parsePayload`, `montarResumo` e das proteções, e o teste dourado, que exercita o
 turno inteiro com OpenAI, ChatClean e estado falsificados.
 
