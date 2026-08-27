@@ -9,7 +9,7 @@
 // =============================================================
 
 const PoliticaDeDiagnostico = require('./src/domain/atendimento/politicas/PoliticaDeDiagnostico');
-const { MODELOS, FORMAS_PAGAMENTO, LOJAS, PERFIS, OBJECOES, OFICINA, INDICACAO } = require('./data');
+const { MODELOS, FORMAS_PAGAMENTO, LOJAS, PERFIS, OBJECOES, OFICINA, INDICACAO } = require('./src/domain/catalogo/Catalogo');
 
 // Blocos montados a partir do data.js (mantém números/endereços em sincronia).
 const CATALOGO_TXT = Object.values(MODELOS).map(m =>

@@ -25,7 +25,7 @@ const readline = require('readline');
 
 const carregarConfig = require('./src/main/config').carregar;
 const CanalDeTerminal = require('./src/infrastructure/terminal/CanalDeTerminal');
-const { PERFIS } = require('./data');
+const { PERFIS } = require('./src/domain/catalogo/Catalogo');
 
 if (!process.env.OPENAI_API_KEY) {
     console.error('❌ Defina OPENAI_API_KEY no .env antes de rodar o tester.');

@@ -34,6 +34,7 @@ function criar(config, sobrescritas = {}) {
 const {
     OPENAI_API_KEY,
     FERIADOS,
+    DEPT_IDS,
     CC_PUSH_URL,
     EQUIPE_NUMERO,
     IA_ALLOWED_CONTACTS,
@@ -89,7 +90,10 @@ const manipuladoresDeMidia = require('../application/midia/manipuladores').criar
     descreverImagem: (mediaUrl) => analisarImagem(mediaUrl)
 });
 
-const { EMPRESA_INFO, PERFIS, DEPARTAMENTOS, DEPARTAMENTO_IDS, departamentoId, lojaParaDepartamento, OFICINA } = require('../../data');
+// O catalogo e dominio puro; os IDs de departamento entram por parametro.
+const Catalogo = require('../domain/catalogo/Catalogo');
+const { EMPRESA_INFO, PERFIS, DEPARTAMENTOS, lojaParaDepartamento, OFICINA } = Catalogo;
+const { DEPARTAMENTO_IDS, departamentoId } = Catalogo.criarDepartamentos({ ids: DEPT_IDS });
 const { determinarProximoCampo, aplicarCampos, detectarPerfil, detectarModeloMencionado } = require('../../flow');
 
 // Para onde o atendimento vai quando sai da IA. A regra vive em

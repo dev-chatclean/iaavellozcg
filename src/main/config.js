@@ -25,6 +25,17 @@ function carregar(env = process.env) {
     // separados por virgula. Os fixos nacionais sao embutidos no dominio.
     const FERIADOS = (env.FERIADOS || '').split(',').map((s) => s.trim()).filter(Boolean);
 
+    // IDs dos departamentos no CRM, por NOME. Configuracao de uma instalacao
+    // do ChatClean: se a operacao recriar os departamentos, os numeros mudam.
+    // Valor ausente ou invalido cai no padrao do catalogo.
+    const DEPT_IDS = {
+        'Loja Matriz': env.DEPT_ID_MATRIZ,
+        'Loja Malvinas': env.DEPT_ID_MALVINAS,
+        'Loja Monteiro': env.DEPT_ID_MONTEIRO,
+        'Agente IA': env.DEPT_ID_AGENTE_IA,
+        'Pós-venda': env.DEPT_ID_POSVENDA
+    };
+
     const CC_PUSH_URL    = env.CC_PUSH_URL    || '';
     const WEBHOOK_SECRET  = env.WEBHOOK_SECRET || '';
     const EQUIPE_NUMERO  = env.EQUIPE_NUMERO  || '';
@@ -74,6 +85,7 @@ function carregar(env = process.env) {
     return Object.freeze({
         OPENAI_API_KEY,
         FERIADOS,
+        DEPT_IDS,
         CC_PUSH_URL,
         WEBHOOK_SECRET,
         EQUIPE_NUMERO,

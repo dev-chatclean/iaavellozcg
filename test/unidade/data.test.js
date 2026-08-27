@@ -12,7 +12,7 @@ const {
     lojaParaDepartamento,
     CAMPOS_QUALIFICACAO,
     CAMPOS_SIMULACAO
-} = require('../../data');
+} = require('../../src/domain/catalogo/Catalogo');
 
 // =============================================================
 //  SPEC 0001 — T14 · Cobre RN-041 (roteamento por departamento),
@@ -156,5 +156,51 @@ describe('data: campos de qualificacao', () => {
         expect(CAMPOS_QUALIFICACAO[0]).toBe('nome');
         expect(CAMPOS_QUALIFICACAO.slice(1)).toEqual(CAMPOS);
         expect(CAMPOS_SIMULACAO).toEqual(CAMPOS_EXTRAS.filter((c) => c !== 'nome'));
+    });
+});
+
+describe('catalogo: IDs de departamento injetados', () => {
+    const Catalogo = require('../../src/domain/catalogo/Catalogo');
+
+    it('sem sobrescrita, usa os IDs cadastrados hoje no painel', () => {
+        const { departamentoId } = Catalogo.criarDepartamentos();
+        expect(departamentoId('Loja Matriz')).toBe(228);
+        expect(departamentoId('Loja Malvinas')).toBe(230);
+        expect(departamentoId('Loja Monteiro')).toBe(231);
+    });
+
+    // A porta de entrada e o pos-venda nascem SEM id: nao ha para onde
+    // transferir, o ticket permanece onde esta.
+    it.each(['Agente IA', 'Pós-venda'])('"%s" nasce sem ID', (nome) => {
+        expect(Catalogo.criarDepartamentos().departamentoId(nome)).toBeNull();
+    });
+
+    it('a sobrescrita vale por departamento, sem afetar os outros', () => {
+        const { departamentoId } = Catalogo.criarDepartamentos({ ids: { 'Loja Malvinas': 777 } });
+        expect(departamentoId('Loja Malvinas')).toBe(777);
+        expect(departamentoId('Loja Matriz')).toBe(228);
+    });
+
+    it('cadastrar o pos-venda passa a permitir transferir para ele', () => {
+        const { departamentoId } = Catalogo.criarDepartamentos({ ids: { 'Pós-venda': 42 } });
+        expect(departamentoId('Pós-venda')).toBe(42);
+    });
+
+    // Uma variavel mal digitada no .env nao pode derrubar a transferencia:
+    // cair no padrao mantem o lead chegando ao vendedor.
+    it.each(['abc', '', null, undefined, {}])('valor invalido (%s) cai no padrao', (v) => {
+        const { departamentoId } = Catalogo.criarDepartamentos({ ids: { 'Loja Matriz': v } });
+        expect(departamentoId('Loja Matriz')).toBe(228);
+    });
+
+    it('instancias diferentes nao se contaminam', () => {
+        const a = Catalogo.criarDepartamentos({ ids: { 'Loja Matriz': 1 } });
+        const b = Catalogo.criarDepartamentos();
+        expect(a.departamentoId('Loja Matriz')).toBe(1);
+        expect(b.departamentoId('Loja Matriz')).toBe(228);
+    });
+
+    it('os padroes sao congelados: mudar exige mudar codigo', () => {
+        expect(Object.isFrozen(Catalogo.IDS_PADRAO)).toBe(true);
     });
 });
