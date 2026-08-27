@@ -230,56 +230,18 @@ const encaminhar = (chatId, leadData, dep, msg, hist, exp) => transbordo.encamin
 //  FOLLOW-UP DE REATIVAÇÃO (durável — sobrevive a redeploy)
 //  Guarda leadData.followUpDueAt e um varredor dispara os vencidos.
 // =============================================================
-const TEMPO_INATIVIDADE = 30 * 60 * 1000; // 30 min sem resposta → reativação
-const FOLLOWUP_SWEEP    = 2 * 60 * 1000;  // varre a cada 2 min
+// O follow-up de reativacao vive em src/application/reativacao/FollowUp.js.
+const followUp = require('./src/application/reativacao/FollowUp').criar({
+    store,
+    lockDeAtendimento,
+    enviarMensagem,
+    determinarProximoCampo
+});
 
-function agendarFollowUpReativacao(leadData) {
-    if (leadData.finalizado) { leadData.followUpDueAt = null; return; }
-    leadData.followUpDueAt = Date.now() + TEMPO_INATIVIDADE;
-}
-
-function montarMsgReativacao(leadData) {
-    const proximo = determinarProximoCampo(leadData);
-    if (!proximo) return null;
-    const nome = leadData.nome?.split(' ')[0] || '';
-    const oi = nome ? `Oi ${nome}` : 'Oi';
-    if (proximo.campo === 'finalidade')      return `${oi}! Ainda por aí? Me conta pra que você quer a moto no dia a dia que eu te ajudo a achar a certa 😊`;
-    if (proximo.campo === 'transporteAtual') return `${oi}, ainda por aí? Como você tá se locomovendo hoje — Uber, ônibus, carro?`;
-    if (proximo.campo === 'gastoMensal')     return `${oi}, seguindo de onde paramos: mais ou menos quanto você gasta por mês com transporte hoje?`;
-    if (proximo.campo === 'modeloInteresse') return `${oi}, ainda por aí? Quer que eu te indique o modelo que mais encaixa no seu dia a dia?`;
-    if (proximo.campo === 'loja')            return `${oi}, pra eu já adiantar com o consultor: qual unidade fica melhor pra você — Matriz, Malvinas ou Monteiro?`;
-    return `${oi}, ainda por aí? Se quiser, seguimos de onde paramos que eu já organizo tudo pro nosso consultor 😊`;
-}
-
-async function dispararFollowUpReativacao(chatId, leadData) {
-    const msg = montarMsgReativacao(leadData);
-    leadData.followUpDueAt = null;
-    if (!msg || leadData.followUpUltimo === msg) {
-        try { await store.saveLead(chatId, leadData); } catch (_) {}
-        return;
-    }
-    leadData.followUpUltimo = msg;
-    try { await store.saveLead(chatId, leadData); } catch (_) {}
-    await enviarMensagem(chatId, msg);
-    console.log(`📩 Follow-up de reativação enviado para ${chatId}`);
-}
-
-async function varrerFollowUps() {
-    try {
-        const ids = await store.scanLeadIds();
-        const agora = Date.now();
-        for (const chatId of ids) {
-            if (lockDeAtendimento.ocupado(chatId)) continue;
-            let leadData;
-            try { leadData = await store.getLead(chatId); } catch (_) { continue; }
-            if (!leadData || leadData.finalizado) continue;
-            if (!leadData.followUpDueAt || leadData.followUpDueAt > agora) continue;
-            await dispararFollowUpReativacao(chatId, leadData);
-        }
-    } catch (e) {
-        console.error('Erro no varredor de follow-up:', e.message);
-    }
-}
+const FOLLOWUP_SWEEP = followUp.FOLLOWUP_SWEEP;
+const agendarFollowUpReativacao = (leadData) => followUp.agendar(leadData);
+const montarMsgReativacao = (leadData) => followUp.montarMensagem(leadData);
+const varrerFollowUps = () => followUp.varrer();
 // O varredor de follow-up é disparado por iniciar(), no fim deste arquivo, e não
 // no carregamento do módulo — senão a suíte, que só importa o arquivo, passaria
 // a agendar timers reais. ATENÇÃO: existe UMA chamada de setInterval para o
