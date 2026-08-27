@@ -122,6 +122,16 @@ Cobertura dos módulos puros: **100% de statements, 99,1% de ramos.**
 
 ## Categoria D — dívida encontrada de passagem
 
+**D-36: o modo plantão nunca chega ao prompt da resposta.**
+`promptResposta` recebe `expediente` na assinatura, mas **o corpo não usa**. O plantão aparece só na
+etiqueta do resumo interno — então o bot pode prometer atendimento imediato às 2h da manhã. É a D-28
+da primeira passada, que foi corrigida lá e voltou junto com a `develop`. Congelado com
+`eslint-disable` comentado no ponto exato.
+
+**A classe de caracteres de emoji mistura emoji com compositor.** `RE_EMOJI` inclui o seletor de
+variação (`FE0F`), que *compõe* um caractere em vez de ser um emoji. Sequências compostas casam de
+forma imprevisível, e a contagem da RN-022 (máximo 1 emoji) pode errar para mais ou para menos.
+
 **D-35: valor de configuração inválido vira `NaN` em silêncio.**
 `parseInt('vinte', 10)` devolve `NaN`, e nada reclama. O servidor sobe normalmente e só se comporta
 de forma estranha depois: uma janela `NaN` faz **toda comparação de tempo dar `false`** — o
