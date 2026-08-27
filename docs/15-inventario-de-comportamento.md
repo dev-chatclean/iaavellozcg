@@ -1,0 +1,132 @@
+# 15 — Inventário de Comportamento
+
+O que mudou no comportamento do sistema entre o commit raiz (`255c13b`) e o que está em produção
+hoje, levantado **mecanicamente**, sem depender de leitura manual dos commits.
+
+## Como foi levantado
+
+A primeira refatoração (branch `refatoracao/arquitetura-ddd`) produziu uma suíte que congelava o
+comportamento de `255c13b`. Como aquela refatoração preservou os nomes exportados dos módulos puros,
+os testes rodam contra o código do legado trocando **uma linha de `require`** em cada arquivo:
+
+| Teste | Apontado para |
+|---|---|
+| `test/unidade/flow.test.js` | `flow.js` |
+| `test/unidade/data.test.js` | `data.js` |
+| `test/unidade/horario.test.js` | `horario.js` |
+
+Rodando assim, **cada asserção que falha é uma mudança de comportamento**. Resultado da primeira
+execução: **102 testes, 85 passaram, 17 falharam.**
+
+Os 85 que passaram já são informação: aquela parte do comportamento **não mudou** e está protegida.
+
+## Categoria A — o outro dev mudou (v2 tem de preservar)
+
+### A1. `formaPagamento` deixou de bloquear o funil
+
+`flow.js` passou de `if (!formaPagamento)` para `if (!formaPagamento && !loja)`.
+
+Depois que o cliente escolhe a unidade, a forma de pagamento não é mais perguntada — quem fecha a
+condição é o consultor da loja. Antes, a IA voltava atrás e represava pagamento depois de o cliente
+já ter decidido onde comprar.
+
+Congelado em `flow.test.js`, em dois testes: um para cada lado da condição.
+
+### A2. Não existe mais departamento de fallback
+
+`DEPARTAMENTOS.geral = 'Comercial'` saiu. Entrou `entrada: 'Agente IA'`, que é **onde o lead já
+está** enquanto a IA atende.
+
+A consequência é conceitual e importante: quando a loja não é identificada, **não há transferência**
+— o ticket simplesmente permanece na fila de entrada para a equipe direcionar. Isso é caminho
+normal, não falha.
+
+### A3. Objeção `moto_eletrica`
+
+`OBJECOES` foi de 9 para 10 entradas. A loja não vende moto elétrica, e a objeção existe para a IA
+parar de afirmar que vende.
+
+## Categoria B — a refatoração mudou, aprovado pelo negócio, nunca chegou à produção
+
+### B1. Sábado (D-19)
+
+O código em produção trata **sábado como fim de semana**: fechado o dia inteiro, em qualquer hora.
+A spec 0009 da primeira refatoração mudou para **08h às 18h**, e o negócio confirmou.
+
+Essa correção nunca foi para a `main`. Foram 8 falhas na sonda, todas na mesma causa, incluindo três
+efeitos visíveis para o cliente:
+
+| Momento | Produção diz | Deveria dizer |
+|---|---|---|
+| Sábado 10h | fechado, "na segunda-feira às 9h" | aberto |
+| Sexta 19h | "na segunda-feira às 9h" | "amanhã às 8h" |
+| Sexta 25/12 (Natal) | "na segunda-feira às 9h" | "amanhã às 8h" |
+
+**Está congelado como está**, marcado `CONGELA` em `horario.test.js`. Corrigir é mudança de
+comportamento e precisa de spec própria — mas é uma correção **já aprovada**, só represada.
+
+Junto dela vinha o **D-28**: o modo plantão chegando ao prompt da resposta, para o bot não prometer
+atendimento imediato de madrugada. Também não está em produção.
+
+## Categoria C — comportamento NOVO, que a sonda não detecta
+
+A sonda encontra comportamento que **mudou** em caminho já coberto. Não encontra comportamento
+**acrescentado** em caminho novo — ali não há teste para falhar.
+
+Esse buraco aparece na cobertura. Rodando a sonda com `--coverage`, as linhas não cobertas de
+`flow.js` são, literalmente, o código novo:
+
+| Linhas | O que é |
+|---|---|
+| 23-29 | `detectarModeloMencionado` — qual moto a IA já citou |
+| 37-40 | `modoAtalho` — cliente com pressa abandona o funil, só a loja importa |
+| 50-55 | adoção automática de `modeloApresentado` após 2 menções, ou quando o cliente seguiu adiante |
+
+Cobertura da sonda: `horario.js` 100%, `data.js` 98%, `flow.js` **85,6%** — e os 14% que faltam são
+exatamente o que o outro dev acrescentou.
+
+Fora dos módulos puros, ainda **sem nenhuma caracterização**, tudo dentro de `index.js`:
+
+- transferência de departamento (`forceTicketToDepartment` + `queueId`, rota `/diag/transferir`)
+- `senderAlt` com prioridade e tolerância ao ID de dispositivo na allow-list
+- lead impaciente transferido e conversa encerrada pós-handoff
+- encerramento gracioso em SIGTERM/SIGINT
+- fail-fast quando falta `OPENAI_API_KEY`
+- `/health` devolvendo `uptime` e `timestamp`
+
+A borda HTTP dessas rotas está congelada na [linha de base](12-linha-de-base.md). A lógica interna
+ainda não.
+
+## Categoria D — dívida encontrada de passagem
+
+**D-30: os feriados extras são lidos do ambiente no carregamento do módulo.**
+`horario.js` monta um `Set` a partir de `process.env.FERIADOS` quando o módulo é carregado. Mudar a
+variável em execução não tem efeito, e uma regra de negócio (o calendário) passa a depender de
+ambiente. Congelado num teste explícito; injetar os feriados por parâmetro sai na fatia do domínio
+de expediente.
+
+Achados do lint, presos no ratchet e não corrigidos:
+
+- `index.js` — `fs` e `path` importados sem uso; 4 blocos `catch` vazios
+- `prompts.js` — argumento `expediente` sem uso; **classe de caracteres com emoji composto** na
+  regex de quebra de mensagem (seletor de variação `\u{FE0F}`), que é defeito em potencial
+
+## Estado da suíte
+
+**101 testes verdes** contra o código de produção, sem rede e sem custo.
+
+```bash
+npm test
+```
+
+Os testes marcados `CONGELA` documentam comportamento que sabemos estar errado e que **não deve ser
+corrigido pela refatoração**. Quando a correção vier, com spec aprovada, o mesmo teste é invertido —
+foi assim que o D-19 e o D-28 foram tratados na primeira passada.
+
+## O que este inventário decide
+
+1. **Categoria A entra na v2 como está.** É produção funcionando.
+2. **Categoria B é decisão do negócio**, e já está tomada — falta só agendar a spec.
+3. **Categoria C precisa de caracterização antes de ser refatorada.** É o próximo passo: nenhuma
+   dessas áreas pode ser tocada sem teste, e a maior delas (transferência de departamento) é também
+   a mais crítica, porque é o que faz o lead chegar ao vendedor.
