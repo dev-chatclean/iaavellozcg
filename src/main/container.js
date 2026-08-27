@@ -22,8 +22,15 @@ const axios = require('axios');
 
 /**
  * @param {object} config saida de src/main/config
+ * @param {object} [sobrescritas] adapters alternativos, por nome
+ *
+ *   O ponto de existir: os testers locais montam o MESMO atendimento — mesmo
+ *   caso de uso, mesmas politicas, mesma fila — trocando so o canal de saida
+ *   por um que escreve no terminal. Sem isso, a unica forma de exercitar a
+ *   conversa fora do WhatsApp era reimplementar o turno, que foi o que os
+ *   testers faziam ate aqui — e que ja tinha divergido da producao.
  */
-function criar(config) {
+function criar(config, sobrescritas = {}) {
 const {
     OPENAI_API_KEY,
     CC_PUSH_URL,
@@ -144,7 +151,7 @@ const contatoPermitido = (numero) => telefone.contatoPermitido(numero, IA_ALLOWE
 // Continua devolvendo { ok, status, data, erro } — e nao um booleano — porque a
 // transferencia de departamento precisa saber o que o CRM respondeu para so
 // entao confirmar a transferencia ao cliente.
-const canalChatClean = require('../infrastructure/chatclean/CanalChatClean').criar({
+const canalChatClean = sobrescritas.canal || require('../infrastructure/chatclean/CanalChatClean').criar({
     http: axios,
     pushUrl: CC_PUSH_URL
 });

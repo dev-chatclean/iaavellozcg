@@ -1,116 +1,108 @@
 // =============================================================
 //  TESTER LOCAL — conversa com o consultor no terminal, SEM WhatsApp
-//  e SEM ChatClean. Usa o MESMO cérebro (prompts + flow + OpenAI).
+//  e SEM ChatClean.
 //
-//  Precisa só de OPENAI_API_KEY no .env.
+//  Usa o ATENDIMENTO DE PRODUCAO: o mesmo caso de uso, as mesmas politicas,
+//  a mesma fila, o mesmo transbordo. A UNICA coisa trocada e o canal de
+//  saida, que escreve na tela em vez de falar com o CRM.
+//
+//  Isso importa. Ate a refatoracao, este arquivo tinha a PROPRIA copia do
+//  turno — montava o proprio cliente da OpenAI, o proprio prompt, o proprio
+//  loop. As duas implementacoes divergiram: a copia daqui nao passava o
+//  expediente ao prompt (a conversa no terminal nunca sabia se a loja estava
+//  aberta) e ainda citava um departamento que nao existe mais. Ou seja:
+//  validar uma mudanca de prompt por aqui validava outro sistema.
+//
+//  Precisa so de OPENAI_API_KEY no .env.
 //  Rodar:  npm run chat   (ou: node test-chat.js)
-//  Comandos: /reset  reinicia a conversa | /estado  mostra o lead |
-//            /sair   encerra
+//  Comandos: /reset  reinicia | /estado  mostra o lead | /sair  encerra
+//
+//  ATENCAO: gasta credito real da OpenAI.
 // =============================================================
 
 require('dotenv').config();
 const readline = require('readline');
-const OpenAI = require('openai');
-const { SYSTEM_SDR, promptExtracao, promptResposta } = require('./prompts');
-const { PERFIS, DEPARTAMENTOS, lojaParaDepartamento } = require('./data');
-const { determinarProximoCampo, aplicarCampos, detectarPerfil } = require('./flow');
+
+const carregarConfig = require('./src/main/config').carregar;
+const CanalDeTerminal = require('./src/infrastructure/terminal/CanalDeTerminal');
+const { PERFIS } = require('./data');
 
 if (!process.env.OPENAI_API_KEY) {
     console.error('❌ Defina OPENAI_API_KEY no .env antes de rodar o tester.');
     process.exit(1);
 }
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-let leadData = novoLead();
-function novoLead() { return { conversationHistory: [] }; }
+const CHAT = '5583999990000'; // numero ficticio; o estado fica so em memoria
 
-async function extrair(mensagem, campoAtual, hist) {
-    try {
-        const prompt = promptExtracao({ mensagemSanitizada: mensagem.replace(/[<>]/g, '').substring(0, 1000), campoAtual });
-        const c = await openai.chat.completions.create({
-            model: 'gpt-4o-mini',
-            messages: [...hist, { role: 'user', content: prompt }],
-            temperature: 0
-        });
-        let res = c.choices[0].message.content.trim();
-        if (res.includes('```')) res = res.replace(/```json?/g, '').replace(/```/g, '').trim();
-        return JSON.parse(res);
-    } catch (e) { console.error('  (extração falhou:', e.message + ')'); return null; }
-}
+// Sem CC_PUSH_URL e sem REDIS_URL: nada sai para o mundo, estado em memoria.
+// O atraso de digitacao vai a zero — no terminal ele so atrapalha.
+const config = carregarConfig({ ...process.env, CC_PUSH_URL: '', REDIS_URL: '', AGRUPAR_MENSAGENS_MS: '0' });
 
-async function responder(mensagem, proximoCampo, hist) {
-    const isInicioConversa = leadData.conversationHistory.length === 0;
-    const prompt = promptResposta({ isInicioConversa, mensagemSanitizada: mensagem.replace(/[<>]/g, '').substring(0, 1000), proximoCampo, leadData });
-    const c = await openai.chat.completions.create({
-        model: 'gpt-4o-mini',
-        messages: [{ role: 'system', content: SYSTEM_SDR }, ...hist, { role: 'user', content: prompt }],
-        temperature: 0.7
-    });
-    return c.choices[0].message.content.trim();
-}
+const canal = CanalDeTerminal.criar();
+const container = require('./src/main/container').criar(config, { canal });
+const { processarMensagem, store } = container;
 
 async function turno(texto) {
-    const proximoAntes = determinarProximoCampo(leadData);
-    const hist = leadData.conversationHistory.slice(-10).map(h => ({ role: h.role === 'user' ? 'user' : 'assistant', content: h.content }));
-
-    const extraido = await extrair(texto, proximoAntes?.campo, hist.slice(-4));
-    leadData.objecaoAtiva = null;
-    leadData.perguntouAgora = null;
-    if (extraido) {
-        aplicarCampos(leadData, extraido);
-        if (extraido.objecao) leadData.objecaoAtiva = extraido.objecao;
-        if (extraido.perguntou) leadData.perguntouAgora = true;
-        if (extraido.tipoContato) leadData.tipoContato = extraido.tipoContato;
-        if (!leadData.perfilKey) leadData.perfilKey = detectarPerfil([extraido.finalidade, extraido.transporteAtual, extraido.situacaoMoto, texto].filter(Boolean).join(' '));
-    }
-
-    const proximoDepois = determinarProximoCampo(leadData);
-    const resposta = await responder(texto, proximoDepois, hist);
-
-    leadData.conversationHistory.push({ role: 'user', content: texto });
-    leadData.conversationHistory.push({ role: 'assistant', content: resposta });
-
-    // Sinaliza (só no terminal) quando qualificaria/transferiria
-    const depLoja = lojaParaDepartamento(leadData.loja) || DEPARTAMENTOS.geral;
-    let tag = '';
-    if (extraido?.querFalarComHumano) tag = `\n  ➡️  [pediu humano → Transferir para ${depLoja}]`;
-    else if (extraido?.tipoContato === 'cliente') tag = `\n  ➡️  [cliente atual → Transferir para ${DEPARTAMENTOS.posvenda}]`;
-    else if (leadData.qualificacaoCompleta && !leadData.finalizado) { tag = `\n  ✅ [qualificação completa → Transferir para ${depLoja}]`; leadData.finalizado = true; }
-
-    return resposta + tag;
+    await processarMensagem({
+        chatId: CHAT,
+        contactId: null,
+        texto,
+        tipo: 'text',
+        msgId: 'TERMINAL-' + Date.now(),
+        nomeContato: '',
+        quotedText: null,
+        mediaBase64: null,
+        mediaUrl: null,
+        mediaMimetype: null
+    });
 }
 
-function mostrarEstado() {
-    const perfil = leadData.perfilKey && PERFIS[leadData.perfilKey] ? PERFIS[leadData.perfilKey].nome : null;
-    console.log('\n  📋 Estado do lead:');
-    for (const k of ['nome', 'finalidade', 'transporteAtual', 'gastoMensal', 'situacaoMoto', 'modeloInteresse', 'formaPagamento', 'loja', 'nomeCompleto', 'cpf', 'dataNascimento', 'telefone', 'cnh', 'corModelo']) {
-        if (leadData[k]) console.log(`     ${k}: ${leadData[k]}`);
+async function mostrarEstado() {
+    const lead = (await store.getLead(CHAT)) || {};
+    const perfil = lead.perfilKey && PERFIS[lead.perfilKey] ? PERFIS[lead.perfilKey].nome : null;
+    console.log('\n  Estado do lead:');
+    for (const k of [
+        'nome', 'finalidade', 'transporteAtual', 'gastoMensal', 'situacaoMoto',
+        'modeloInteresse', 'formaPagamento', 'loja',
+        'nomeCompleto', 'cpf', 'dataNascimento', 'telefone', 'cnh', 'corModelo'
+    ]) {
+        if (lead[k]) console.log(`     ${k}: ${lead[k]}`);
     }
     if (perfil) console.log(`     perfil: ${perfil}`);
-    console.log(`     qualificado: ${!!leadData.qualificacaoCompleta} | finalizado: ${!!leadData.finalizado}\n`);
+    console.log(`     qualificado: ${!!lead.qualificacaoCompleta} | finalizado: ${!!lead.finalizado}\n`);
 }
 
 const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-console.log('\n💬 IA Avelloz Campina — tester local (gpt-4o-mini)');
+console.log('\nIA Avelloz Campina — tester local (atendimento de producao, canal de terminal)');
 console.log('   Digite como se fosse o cliente. Comandos: /reset  /estado  /sair\n');
 rl.setPrompt('você > ');
 rl.prompt();
 
 rl.on('line', async (linha) => {
     const texto = linha.trim();
-    if (!texto) { rl.prompt(); return; }
-    if (texto === '/sair') { rl.close(); return; }
-    if (texto === '/reset') { leadData = novoLead(); console.log('  🔄 conversa reiniciada\n'); rl.prompt(); return; }
-    if (texto === '/estado') { mostrarEstado(); rl.prompt(); return; }
+    if (!texto) return rl.prompt();
+    if (texto === '/sair') return rl.close();
+    if (texto === '/reset') {
+        await store.deleteLead(CHAT);
+        console.log('  conversa reiniciada\n');
+        return rl.prompt();
+    }
+    if (texto === '/estado') {
+        await mostrarEstado();
+        return rl.prompt();
+    }
 
     try {
         process.stdout.write('  ...\r');
-        const resp = await turno(texto);
-        console.log('bot  > ' + resp + '\n');
+        await turno(texto);
+        console.log('');
     } catch (e) {
         console.error('❌ erro:', e.message, '\n');
     }
     rl.prompt();
 });
 
-rl.on('close', () => { console.log('\n👋 encerrado.'); process.exit(0); });
+rl.on('close', () => {
+    console.log('\nencerrado.');
+    process.exit(0);
+});
