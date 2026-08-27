@@ -122,6 +122,14 @@ Cobertura dos módulos puros: **100% de statements, 99,1% de ramos.**
 
 ## Categoria D — dívida encontrada de passagem
 
+**D-33: os dois repositórios divergem na leitura.** O adapter de memória devolve a **referência** do
+objeto guardado; o de Redis devolve uma cópia nova (o JSON é reparseado a cada leitura). Em memória,
+mutar o `leadData` lido altera o estado guardado **sem chamar `saveLead`** — com Redis, não altera.
+
+Isso significa que o sistema pode se comportar de um jeito em desenvolvimento (memória) e de outro em
+produção (Redis), exatamente na parte mais delicada: a persistência do atendimento. O teste de
+contrato declara a divergência em voz alta em vez de escondê-la.
+
 **D-32: a tolerância ao 9º dígito e a tolerância ao ID de dispositivo colidem.**
 Um ID de dispositivo de **um** dígito colado num número de 12 dígitos produz 13 — exatamente o
 comprimento que dispara a regra do 9º dígito. Se o 5º caractere for `9` (parte do número, não o 9º
@@ -149,7 +157,7 @@ Achados do lint, presos no ratchet e não corrigidos:
 
 ## Estado da suíte
 
-**297 testes verdes** contra o código de produção, sem rede e sem custo: unidade nos módulos puros,
+**385 testes verdes** contra o código de produção, sem rede e sem custo: unidade nos módulos puros,
 caracterização de `parsePayload`, `montarResumo` e das proteções, e o teste dourado, que exercita o
 turno inteiro com OpenAI, ChatClean e estado falsificados.
 

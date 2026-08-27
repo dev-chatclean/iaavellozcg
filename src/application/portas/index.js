@@ -40,4 +40,22 @@
  * @property {(url: string, config?: object) => Promise<{status: number, data: any}>} [get]
  */
 
+/**
+ * Estado das conversas. Duas implementacoes: Redis (duravel, compartilhado
+ * entre instancias) e memoria (processo local, e fallback do Redis). O teste
+ * de contrato roda a mesma bateria contra as duas.
+ *
+ * @typedef {object} RepositorioDeAtendimento
+ * @property {() => boolean} isRedis
+ * @property {(chatId: string) => Promise<object|null>} getLead
+ * @property {(chatId: string, leadData: object) => Promise<void>} saveLead
+ * @property {(chatId: string) => Promise<void>} deleteLead
+ * @property {() => Promise<string[]>} scanLeadIds
+ * @property {(registro: object) => Promise<void>} appendLeadFinalizado
+ * @property {(chatId: string, ttlMs?: number) => Promise<boolean>} acquireLock
+ *   Lock cross-instancia. Fail-OPEN: um Redis instavel nao pode impedir o
+ *   cliente de ser atendido.
+ * @property {(chatId: string) => Promise<void>} releaseLock
+ */
+
 module.exports = {};
