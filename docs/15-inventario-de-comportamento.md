@@ -105,8 +105,20 @@ Esse último virou um `CONGELA` desconfortável: **quando toda chamada ao CRM fa
 como finalizado mesmo assim** — a resposta não chega ao cliente, a nota não chega à equipe, a
 transferência é recusada, e o atendimento simplesmente desaparece. É a D-17 vista por dentro.
 
-Continua sem caracterização: `senderAlt` e ID de dispositivo, lead impaciente (`modoAtalho`),
-encerramento pós-handoff, shutdown gracioso e o fail-fast da chave da OpenAI.
+**Atualização 2 — a Categoria C está fechada, com uma exceção.** Além da transferência, entraram:
+
+| Área | Onde ficou | O que revelou |
+|---|---|---|
+| `senderAlt` vs `contact.number` | `parsePayload.test.js` | **A prioridade inverteu.** O `SenderAlt` agora vence, porque vem como JID completo e o ID do dispositivo (`:24`) é cortado corretamente; o `contact.number` às vezes chega com o sufixo grudado, sem separador, e aí não há como separar |
+| Lead impaciente (`modoAtalho`) | `turno.test.js` cenário 16 + `flow.test.js` | A pergunta da loja é **fixa**, não passa pelo modelo — quem pediu objetividade não recebe outro parágrafo de qualificação |
+| Encerramento pós-handoff | `turno.test.js` cenário 17 | Sinal de fim ou teto de respostas encerram; depois disso a IA fica em **silêncio absoluto**, só registrando o histórico |
+| Adoção do modelo apresentado | `flow.test.js` | Adota após 2 menções da IA, ou assim que o cliente seguir adiante (loja, pagamento, CPF, cor) |
+
+Falta apenas o **shutdown gracioso** e o **fail-fast da chave**, que são comportamento de processo:
+estão cobertos pela borda (a linha de base sobe o servidor de verdade) e pela guarda de
+inicialização em `agendamento.test.js`.
+
+Cobertura dos módulos puros: **100% de statements, 99,1% de ramos.**
 
 ## Categoria D — dívida encontrada de passagem
 
@@ -124,9 +136,9 @@ Achados do lint, presos no ratchet e não corrigidos:
 
 ## Estado da suíte
 
-**154 testes verdes** contra o código de produção, sem rede e sem custo: 101 de unidade nos módulos
-puros e 53 no teste dourado, que exercita o turno inteiro com OpenAI, ChatClean e estado
-falsificados.
+**269 testes verdes** contra o código de produção, sem rede e sem custo: unidade nos módulos puros,
+caracterização de `parsePayload`, `montarResumo` e das proteções, e o teste dourado, que exercita o
+turno inteiro com OpenAI, ChatClean e estado falsificados.
 
 ```bash
 npm test

@@ -734,3 +734,107 @@ describe('extra: falha da OpenAI no meio do turno', () => {
         expect(s.openai.chamadas).toHaveLength(0);
     });
 });
+
+// -------------------------------------------------------------
+//  16. Lead impaciente: atalho do funil (modoAtalho)
+//
+//  Comportamento NOVO. Quem pede objetividade nao pode receber mais um
+//  paragrafo de qualificacao: o funil inteiro e abandonado e so a LOJA importa,
+//  porque sem ela o ticket nao sai da fila de entrada.
+// -------------------------------------------------------------
+describe('cenario 16: cliente com pressa', () => {
+    it('pula o funil e pergunta SO a loja, sem passar pelo modelo', async () => {
+        s = montarSistema();
+
+        await s.sistema.processarMensagem({ chatId: CHAT, texto: 'vamos direto ao ponto', tipo: 'text' });
+
+        const lead = s.store.leads.get(CHAT);
+        expect(lead.modoAtalho).toBe(true);
+        expect(lead.atalhoPerguntado).toBe(true);
+
+        // A pergunta e FIXA: nenhuma chamada de redacao foi feita para produzi-la.
+        expect(s.axios.enviadas).toHaveLength(1);
+        expect(s.axios.enviadas[0].body).toContain('Matriz');
+        expect(s.axios.enviadas[0].body).toContain('Malvinas');
+        expect(s.axios.enviadas[0].body).toContain('Monteiro');
+        expect(s.openai.chamadas.filter((c) => c.tipo === 'resposta')).toHaveLength(0);
+    });
+
+    it('com a loja ja escolhida, transfere na hora em vez de perguntar', async () => {
+        s = montarSistema();
+        s.store.leads.set(CHAT, { conversationHistory: [], loja: 'Monteiro' });
+
+        await s.sistema.processarMensagem({ chatId: CHAT, texto: 'to com pressa', tipo: 'text' });
+
+        expect(s.store.leads.get(CHAT).finalizado).toBe(true);
+        expect(s.axios.transferencias()).toEqual([{ number: CHAT, queueId: 231, fechandoTicket: false }]);
+    });
+
+    it('a etiqueta do atalho entra no resumo entregue a equipe', async () => {
+        s = montarSistema();
+        s.store.leads.set(CHAT, { conversationHistory: [], loja: 'Malvinas' });
+
+        await s.sistema.processarMensagem({ chatId: CHAT, texto: 'sem enrolação', tipo: 'text' });
+
+        expect(s.axios.notas[0].body).toContain('PEDIU AGILIDADE — SEM DIAGNÓSTICO');
+    });
+});
+
+// -------------------------------------------------------------
+//  17. Encerramento pos-handoff
+//
+//  Comportamento NOVO. Depois de transferir, a IA respondia para sempre e era
+//  obrigada a terminar toda mensagem com pergunta: o cliente dizia "nao" e ela
+//  perguntava de novo, falando por cima do consultor humano.
+// -------------------------------------------------------------
+describe('cenario 17: conversa apos o handoff', () => {
+    const jaTransferido = () => ({ conversationHistory: [], loja: 'Malvinas', finalizado: true });
+
+    it('sinal de fim do cliente encerra a conversa com uma despedida', async () => {
+        s = montarSistema();
+        s.store.leads.set(CHAT, jaTransferido());
+
+        await s.sistema.processarMensagem({ chatId: CHAT, texto: 'ok', tipo: 'text' });
+
+        const lead = s.store.leads.get(CHAT);
+        expect(lead.conversaEncerrada).toBe(true);
+        expect(s.axios.enviadas.at(-1).body).toContain('Nosso consultor assume');
+    });
+
+    it('depois de encerrada, a IA fica em SILENCIO e so registra o historico', async () => {
+        s = montarSistema();
+        s.store.leads.set(CHAT, { ...jaTransferido(), conversaEncerrada: true });
+
+        await s.sistema.processarMensagem({ chatId: CHAT, texto: 'e o financiamento?', tipo: 'text' });
+
+        expect(s.axios.enviadas).toHaveLength(0);
+        expect(s.store.leads.get(CHAT).conversationHistory.at(-1)).toEqual({
+            role: 'user',
+            content: 'e o financiamento?'
+        });
+    });
+
+    it('duvida pontual antes do teto ainda e respondida', async () => {
+        s = montarSistema();
+        s.store.leads.set(CHAT, jaTransferido());
+        s.openai.filaResposta.push('O consultor vai te passar as condições certinho!');
+
+        await s.sistema.processarMensagem({ chatId: CHAT, texto: 'qual a cor disponível?', tipo: 'text' });
+
+        expect(s.axios.enviadas).toHaveLength(1);
+        expect(s.store.leads.get(CHAT).conversaEncerrada).toBeFalsy();
+        expect(s.store.leads.get(CHAT).respostasPosHandoff).toBe(1);
+    });
+
+    it('o teto de respostas encerra mesmo sem sinal de fim', async () => {
+        s = montarSistema({ env: { MAX_RESPOSTAS_POS_HANDOFF: '2' } });
+        s.store.leads.set(CHAT, jaTransferido());
+
+        for (const texto of ['e a cor?', 'e o prazo?', 'e a garantia?']) {
+            await s.sistema.processarMensagem({ chatId: CHAT, texto, tipo: 'text' });
+        }
+
+        expect(s.store.leads.get(CHAT).conversaEncerrada).toBe(true);
+        expect(s.axios.enviadas.at(-1).body).toContain('Nosso consultor assume');
+    });
+});

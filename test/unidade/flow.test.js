@@ -2,7 +2,14 @@ import { describe, it, expect } from 'vitest';
 import { createRequire } from 'module';
 
 const require = createRequire(import.meta.url);
-const { CAMPOS, CAMPOS_EXTRAS, determinarProximoCampo, aplicarCampos, detectarPerfil } = require('../../flow');
+const {
+    CAMPOS,
+    CAMPOS_EXTRAS,
+    determinarProximoCampo,
+    aplicarCampos,
+    detectarPerfil,
+    detectarModeloMencionado
+} = require('../../flow');
 
 // =============================================================
 //  SPEC 0001 — T10/T11/T12
@@ -243,5 +250,96 @@ describe('flow: deteccao de perfil (RN-005)', () => {
         expect(detectarPerfil('')).toBeNull();
         expect(detectarPerfil(null)).toBeNull();
         expect(detectarPerfil(undefined)).toBeNull();
+    });
+});
+
+// =============================================================
+//  Comportamento acrescentado depois do commit raiz.
+// =============================================================
+
+describe('flow: atalho do lead impaciente (modoAtalho)', () => {
+    it('com modoAtalho, o unico campo que importa e a loja', () => {
+        const lead = { modoAtalho: true };
+        expect(determinarProximoCampo(lead).campo).toBe('loja');
+        expect(determinarProximoCampo(lead).pergunta).toContain('OBJETIVIDADE');
+    });
+
+    it('com modoAtalho e loja definida, o funil fecha na hora', () => {
+        const lead = { modoAtalho: true, loja: 'Malvinas' };
+        expect(determinarProximoCampo(lead)).toBeNull();
+        expect(lead.qualificacaoCompleta).toBe(true);
+    });
+
+    it('o atalho ignora todo o diagnostico, mesmo vazio', () => {
+        // Sem modoAtalho este lead pararia em "finalidade".
+        expect(determinarProximoCampo({}).campo).toBe('finalidade');
+        expect(determinarProximoCampo({ modoAtalho: true }).campo).toBe('loja');
+    });
+});
+
+describe('flow: adocao automatica do modelo ja apresentado', () => {
+    const historico = (n) =>
+        Array.from({ length: n }, () => ({ role: 'assistant', content: 'A AZ125 encaixa no seu perfil.' }));
+
+    const diagnosticoFeito = (extra = {}) => ({
+        finalidade: 'app',
+        transporteAtual: 'moto alugada',
+        gastoMensal: '250',
+        situacaoMoto: 'alugada',
+        modeloApresentado: 'AZ125',
+        conversationHistory: [],
+        ...extra
+    });
+
+    it('adota o modelo quando o cliente seguiu adiante (escolheu loja)', () => {
+        const lead = diagnosticoFeito({ loja: 'Malvinas' });
+        determinarProximoCampo(lead);
+        expect(lead.modeloInteresse).toBe('AZ125');
+    });
+
+    it('adota tambem quando o cliente ja passou o CPF ou a forma de pagamento', () => {
+        for (const sinal of [{ cpf: '000' }, { formaPagamento: 'financiamento' }, { corModelo: 'vermelha' }]) {
+            const lead = diagnosticoFeito(sinal);
+            determinarProximoCampo(lead);
+            expect(lead.modeloInteresse).toBe('AZ125');
+        }
+    });
+
+    it('adota depois de a moto aparecer em DUAS mensagens da IA', () => {
+        const lead = diagnosticoFeito({ conversationHistory: historico(2) });
+        determinarProximoCampo(lead);
+        expect(lead.modeloInteresse).toBe('AZ125');
+    });
+
+    it('NAO adota com apenas uma mencao e nenhum outro sinal', () => {
+        const lead = diagnosticoFeito({ conversationHistory: historico(1) });
+        expect(determinarProximoCampo(lead).campo).toBe('modeloInteresse');
+        expect(lead.modeloInteresse).toBeUndefined();
+    });
+});
+
+describe('flow: deteccao do modelo citado no texto', () => {
+    // A ordem importa: AZX160 e AZ125 sao testados ANTES de AZ1, senao "AZ1"
+    // casaria dentro de "AZ125".
+    it.each([
+        ['a AZX160 tem mais potencia', 'AZX160'],
+        ['a AZ 160 tambem serve', null],
+        ['recomendo a AZ125', 'AZ125'],
+        ['a AZ 125 encaixa', 'AZ125'],
+        ['a AZ1 e a mais economica', 'AZ1'],
+        ['a AZ-1 sai por menos', 'AZ1'],
+        ['nenhum modelo citado', null],
+        ['', null]
+    ])('em "%s" detecta %s', (texto, esperado) => {
+        expect(detectarModeloMencionado(texto)).toBe(esperado);
+    });
+
+    it('nao confunde AZ1 dentro de AZ125', () => {
+        expect(detectarModeloMencionado('a AZ125 e a escolha')).toBe('AZ125');
+    });
+
+    it('tolera entrada nula', () => {
+        expect(detectarModeloMencionado(null)).toBeNull();
+        expect(detectarModeloMencionado(undefined)).toBeNull();
     });
 });

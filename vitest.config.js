@@ -14,11 +14,13 @@ export default defineConfig({
             include: ['flow.js', 'horario.js', 'data.js', 'src/**/*.js'],
             excludeAfterRemap: true,
             thresholds: {
-                // Ligados progressivamente ao longo dos PRs da Fase 0 (T34).
-                lines: 70,
-                functions: 70,
-                statements: 70,
-                branches: 60
+                // Ratchet: os modulos puros estao em 100% de statements e 99%
+                // de ramos. O piso fica logo abaixo para dar folga ao src/ que
+                // vai nascer, mas alto o bastante para barrar regressao.
+                lines: 95,
+                functions: 95,
+                statements: 95,
+                branches: 90
             }
         }
     }
