@@ -1,6 +1,5 @@
 require('dotenv').config();
 const express = require('express');
-const crypto = require('crypto');
 
 const app = express();
 app.use(express.json({ limit: '10mb' }));
@@ -96,36 +95,10 @@ function parsePayload(body) {
 const mensagensProcessadas = new Set(); // dedup de webhooks
 const TIPOS_SUPORTADOS = ['text', 'image', 'document', 'audio', 'ptt', 'video'];
 
-// Valida o token do webhook contra WEBHOOK_SECRET. Aceita no header
-// (x-webhook-token / Authorization: Bearer), na query (?token=) ou no path
-// (/webhook/<token>). Se WEBHOOK_SECRET estiver vazio, o webhook fica aberto
-// (compat) — CONFIGURE-O antes do go-live e aponte a URL do ChatClean para
-// https://.../webhook/<secret> (ou .../webhook?token=<secret>).
-function webhookAutorizado(req) {
-    if (!WEBHOOK_SECRET) return true;
-    const raw = req.headers['x-webhook-token'] || req.headers['authorization'] || req.query.token || req.params.token || '';
-    const token = String(raw).replace(/^Bearer\s+/i, '');
-    if (token.length !== WEBHOOK_SECRET.length) return false;
-    const a = Buffer.from(token.padEnd(128).slice(0, 128));
-    const b = Buffer.from(WEBHOOK_SECRET.padEnd(128).slice(0, 128));
-    return crypto.timingSafeEqual(a, b);
-}
-
-// Rate-limit por número (janela deslizante em memória, por instância).
-const rateHits = new Map(); // chatId -> [timestamps]
-function dentroDoLimite(chatId) {
-    if (!RATE_LIMIT_MSGS) return true; // desativado
-    const agora = Date.now();
-    const hits = (rateHits.get(chatId) || []).filter(t => agora - t < RATE_LIMIT_JANELA);
-    hits.push(agora);
-    rateHits.set(chatId, hits);
-    if (rateHits.size > 5000) { // poda defensiva
-        for (const [k, v] of rateHits) {
-            if (!v.length || agora - v[v.length - 1] > RATE_LIMIT_JANELA) rateHits.delete(k);
-        }
-    }
-    return hits.length <= RATE_LIMIT_MSGS;
-}
+// As protecoes da borda vivem em src/infrastructure/http/protecoes.js.
+const protecoes = require('./src/infrastructure/http/protecoes').criar(config);
+const webhookAutorizado = (req) => protecoes.webhookAutorizado(req);
+const dentroDoLimite = (chatId) => protecoes.dentroDoLimite(chatId);
 
 async function handleWebhook(req, res) {
     res.status(200).json({ status: 'ok' }); // responde rápido (evita retry do ChatClean)
