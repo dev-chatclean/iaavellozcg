@@ -1,10 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const OpenAI = require('openai');
-const fs = require('fs');
-const path = require('path');
 const axios = require('axios');
-const FormData = require('form-data');
 const crypto = require('crypto');
 
 const app = express();
@@ -76,6 +73,13 @@ const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const extratorIA = require('./src/infrastructure/openai/ExtratorOpenAI').criar({ cliente: openai });
 const redatorIA = require('./src/infrastructure/openai/RedatorOpenAI').criar({ cliente: openai });
 const leitorDeImagemIA = require('./src/infrastructure/openai/LeitorDeImagemOpenAI').criar({ cliente: openai });
+// A transcricao e a UNICA chamada a OpenAI que nao passa pelo SDK: o endpoint
+// do Whisper espera multipart, montado a mao. Por isso a chave entra separada.
+const transcritorIA = require('./src/infrastructure/openai/TranscritorWhisper').criar({
+    http: axios,
+    apiKey: process.env.OPENAI_API_KEY
+});
+const baixadorDeMidia = require('./src/infrastructure/midia/BaixadorHttp').criar({ http: axios });
 
 const { EMPRESA_INFO, PERFIS, DEPARTAMENTOS, DEPARTAMENTO_IDS, departamentoId, lojaParaDepartamento, OFICINA } = require('./data');
 const { SYSTEM_SDR, promptExtracao, promptResposta } = require('./prompts');
@@ -632,22 +636,18 @@ async function processarMensagem({ chatId, contactId, texto, tipo, mediaBase64, 
             let videoBuffer = null;
             try {
                 if (mediaBase64) videoBuffer = Buffer.from(mediaBase64, 'base64');
-                else if (mediaUrl) {
-                    const resp = await axios.get(mediaUrl, { responseType: 'arraybuffer', timeout: 60000 });
-                    videoBuffer = Buffer.from(resp.data);
-                }
+                else if (mediaUrl) videoBuffer = await baixadorDeMidia.baixar(mediaUrl, { timeoutMs: 60000 });
             } catch (e) { console.error('❌ Erro ao baixar vídeo:', e.message); }
 
             let fala = '';
             if (videoBuffer) {
                 try {
-                    const formData = new FormData();
-                    formData.append('file', videoBuffer, { filename: 'video.mp4', contentType: mediaMimetype || 'video/mp4' });
-                    formData.append('model', 'whisper-1');
-                    const tr = await axios.post('https://api.openai.com/v1/audio/transcriptions', formData, {
-                        headers: { ...formData.getHeaders(), Authorization: `Bearer ${process.env.OPENAI_API_KEY}` }
+                    const falaCrua = await transcritorIA.transcrever({
+                        buffer: videoBuffer,
+                        nomeArquivo: 'video.mp4',
+                        mimetype: mediaMimetype || 'video/mp4'
                     });
-                    fala = (tr.data.text || '').trim();
+                    fala = (falaCrua || '').trim();
                 } catch (e) { console.error('❌ Erro ao transcrever vídeo:', e.message); }
             }
             if (fala) {
@@ -668,20 +668,17 @@ async function processarMensagem({ chatId, contactId, texto, tipo, mediaBase64, 
                 if (mediaBase64) {
                     audioBuffer = Buffer.from(mediaBase64, 'base64');
                 } else if (mediaUrl) {
-                    const resp = await axios.get(mediaUrl, { responseType: 'arraybuffer', timeout: 30000 });
-                    audioBuffer = Buffer.from(resp.data);
+                    audioBuffer = await baixadorDeMidia.baixar(mediaUrl, { timeoutMs: 30000 });
                 }
             } catch (e) { console.error('❌ Erro ao baixar áudio:', e.message); }
 
             if (audioBuffer) {
                 try {
-                    const formData = new FormData();
-                    formData.append('file', audioBuffer, { filename: 'audio.ogg', contentType: mediaMimetype || 'audio/ogg' });
-                    formData.append('model', 'whisper-1');
-                    const transcription = await axios.post('https://api.openai.com/v1/audio/transcriptions', formData, {
-                        headers: { ...formData.getHeaders(), Authorization: `Bearer ${process.env.OPENAI_API_KEY}` }
+                    texto = await transcritorIA.transcrever({
+                        buffer: audioBuffer,
+                        nomeArquivo: 'audio.ogg',
+                        mimetype: mediaMimetype || 'audio/ogg'
                     });
-                    texto = transcription.data.text;
                     console.log(`📝 Transcrição: "${texto}"`);
                 } catch (e) {
                     console.error('❌ Erro ao transcrever áudio:', e.message);
