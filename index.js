@@ -98,6 +98,12 @@ const { determinarProximoCampo, aplicarCampos, detectarPerfil, detectarModeloMen
 // src/domain/atendimento/politicas/PoliticaDeTransbordo.js; o catalogo de
 // departamentos entra por parametro, porque quem sabe os IDs cadastrados no
 // CRM e a infraestrutura, nao a regra.
+// RN-056: teto de mensagens numa janela curta e deteccao de mensagem repetida.
+const politicaAntiLoop = require('./src/domain/atendimento/politicas/PoliticaAntiLoop').criar({
+    maxTurnos: LOOP_MAX_TURNOS,
+    janelaMs: LOOP_JANELA_MS
+});
+
 const politicaDeTransbordo = require('./src/domain/atendimento/politicas/PoliticaDeTransbordo').criar({
     resolverLoja: lojaParaDepartamento,
     departamentoDeEntrada: DEPARTAMENTOS.entrada,
@@ -533,29 +539,20 @@ async function processarMensagem({ chatId, contactId, texto, tipo, mediaBase64, 
             return;
         }
 
-        // --- Blindagem anti-loop (contra outras IAs / auto-respondedores) ---
-        // Se o contato dispara muitas mensagens numa janela curta, ou repete a
-        // mesma mensagem, PAUSA as respostas — evita ping-pong infinito com outro
-        // bot (ex.: IA da operadora). Cobre também o caminho pós-encaminhamento.
-        {
-            const agoraMs = Date.now();
-            leadData.turnosTs = (leadData.turnosTs || []).filter(t => agoraMs - t < LOOP_JANELA_MS);
-            leadData.turnosTs.push(agoraMs);
-            if (leadData.turnosTs.length <= 2) leadData.loopAvisado = false; // conversa normalizou
-            const textoNorm = String(texto || '').toLowerCase().replace(/\s+/g, ' ').trim().slice(0, 200);
-            leadData.ultimasMsgs = leadData.ultimasMsgs || [];
-            const repetida = textoNorm.length > 1 && leadData.ultimasMsgs.filter(t => t === textoNorm).length >= 2;
-            leadData.ultimasMsgs.push(textoNorm);
-            if (leadData.ultimasMsgs.length > 6) leadData.ultimasMsgs.shift();
-
-            if (leadData.turnosTs.length > LOOP_MAX_TURNOS || repetida) {
-                if (!leadData.loopAvisado) {
-                    console.warn(`🔁 Possível loop/bot em ${chatId} (${leadData.turnosTs.length} msgs/${LOOP_JANELA_MS / 60000}min${repetida ? ', msg repetida' : ''}) — pausando respostas.`);
-                    if (EQUIPE_NUMERO) { try { await ccPush(EQUIPE_NUMERO, { body: `⚠️ Possível loop com outro bot/IA no contato ${chatId}. A IA pausou as respostas para não entrar em ping-pong. Verificar manualmente.` }); } catch (_) {} }
-                    leadData.loopAvisado = true;
+        // Blindagem anti-loop (RN-056): a regra vive em
+        // src/domain/atendimento/politicas/PoliticaAntiLoop.js. Aqui fica so o
+        // efeito — logar e avisar a equipe — porque isso e I/O.
+        const loop = politicaAntiLoop.avaliar(leadData, texto, Date.now());
+        if (loop.pausar) {
+            if (loop.avisar) {
+                console.warn(`\u{1F501} Possível loop/bot em ${chatId} (${loop.turnosNaJanela} msgs/${LOOP_JANELA_MS / 60000}min${loop.motivo === 'repeticao' ? ', msg repetida' : ''}) — pausando respostas.`);
+                if (EQUIPE_NUMERO) {
+                    try {
+                        await ccPush(EQUIPE_NUMERO, { body: `\u{26A0}\u{FE0F} Possível loop com outro bot/IA no contato ${chatId}. A IA pausou as respostas para não entrar em ping-pong. Verificar manualmente.` });
+                    } catch (_) {}
                 }
-                return; // não responde — corta o loop
             }
+            return; // nao responde — corta o loop
         }
 
         // Lead já encaminhado → só tira dúvidas pontuais, sem refazer o funil.
