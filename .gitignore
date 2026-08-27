@@ -4,3 +4,7 @@ node_modules/
 npm-debug.log*
 .DS_Store
 database.json
+
+# A linha de base e evidencia versionada (docs/12-linha-de-base.md)
+!test/baseline/*.log
+coverage/
