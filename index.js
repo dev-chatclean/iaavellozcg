@@ -95,12 +95,12 @@ const processandoMensagem = new Map(); // lock de processamento (por instância)
 // =============================================================
 //  UTILITÁRIOS
 // =============================================================
-function normalizarPhone(phone) {
-    // Corta sufixos de JID antes de limpar: "558491756446:24@s.whatsapp.net"
-    // tem o ID do dispositivo (:24) e o servidor (@...). Sem cortar, o :24
-    // grudaria no número (…6446 + 24). Pega só a parte antes de ':' e '@'.
-    return String(phone).split('@')[0].split(':')[0].replace(/\D/g, '');
-}
+// normalizarPhone / nucleoNumero / contatoPermitido vivem em
+// src/shared/telefone.js: mesma logica, agora testavel em unidade e sem
+// depender de ambiente. A allow-list e passada por parametro, porque o modulo
+// compartilhado nao le process.env.
+const telefone = require('./src/shared/telefone');
+const normalizarPhone = telefone.normalizarPhone;
 
 // Frases em que a IA AFIRMA que já passou o atendimento adiante. Usado para não
 // deixar essa promessa sair quando a transferência de fato não aconteceu.
@@ -130,31 +130,8 @@ const PEDE_AGILIDADE = /(diret[oa]s?\s+(ao|pro|para\s+o)\s+(assunto|ponto)|ir\s+
 // ("não entendi o preço") com um encerramento de verdade.
 const SINAL_ENCERRAMENTO = /^\s*(n[ãa]o|nada|nop|s[óo]\s+(esperar|aguardar)|vou\s+(esperar|aguardar)|ok(ay)?|blz|beleza|t[áa]\s+(bom|certo|ok)|certo|obrigad\w*|obg|vlw|valeu|show|perfeito|isso|[éeE]\s+isso|combinado|fechou|[\p{Emoji_Presentation}\u{1F44D}\u{1F44C}\u{1F64F}]+)\s*[.!]*\s*$/iu;
 
-// Núcleo canônico de um número BR p/ COMPARAÇÃO (ignora o 9º dígito de celular).
-// Ex.: 5584994610845 (13) e 558494610845 (12) viram o mesmo núcleo → casam.
-function nucleoNumero(n) {
-    let d = String(n).split('@')[0].split(':')[0].replace(/\D/g, '');
-    if (d.length === 13 && d.startsWith('55') && d[4] === '9') {
-        d = d.slice(0, 4) + d.slice(5); // remove o 9 logo após o DDD
-    }
-    return d;
-}
 
-// true se o número está na allow-list. Tolerante ao 9º dígito e ao ID de
-// dispositivo do WhatsApp grudado no fim: o JID "558494610845:59" às vezes
-// chega com os dois-pontos já removidos, virando "55849461084559" — nesse caso
-// o número da lista continua sendo o começo do que veio. Lista vazia = todos.
-function contatoPermitido(numero) {
-    if (!IA_ALLOWED_CONTACTS.length) return true;
-    const alvo = nucleoNumero(numero);
-    return IA_ALLOWED_CONTACTS.some(a => {
-        const permitido = nucleoNumero(a);
-        if (!permitido) return false;
-        if (permitido === alvo) return true;
-        const sobra = alvo.length - permitido.length; // ID de dispositivo tem 1 ou 2 dígitos
-        return sobra > 0 && sobra <= 2 && alvo.startsWith(permitido);
-    });
-}
+const contatoPermitido = (numero) => telefone.contatoPermitido(numero, IA_ALLOWED_CONTACTS);
 
 // =============================================================
 //  CHATCLEAN — ENVIO VIA PUSH API

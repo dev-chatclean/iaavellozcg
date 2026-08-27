@@ -122,6 +122,19 @@ Cobertura dos módulos puros: **100% de statements, 99,1% de ramos.**
 
 ## Categoria D — dívida encontrada de passagem
 
+**D-32: a tolerância ao 9º dígito e a tolerância ao ID de dispositivo colidem.**
+Um ID de dispositivo de **um** dígito colado num número de 12 dígitos produz 13 — exatamente o
+comprimento que dispara a regra do 9º dígito. Se o 5º caractere for `9` (parte do número, não o 9º
+dígito de celular), a regra remove o dígito errado e a comparação falha:
+
+```
+558494610845 + 9  ->  5584946108459  ->  núcleo 558446108459   (perdeu o 9 do meio)
+```
+
+Com ID de dois dígitos não acontece, porque a regra só age em 13 caracteres. Alcance real hoje é
+pequeno: a allow-list só vale na fase de teste (`IA_ALLOWED_CONTACTS` vazia libera todos). Congelado
+em `telefone.test.js`.
+
 **D-30: os feriados extras são lidos do ambiente no carregamento do módulo.**
 `horario.js` monta um `Set` a partir de `process.env.FERIADOS` quando o módulo é carregado. Mudar a
 variável em execução não tem efeito, e uma regra de negócio (o calendário) passa a depender de
@@ -136,7 +149,7 @@ Achados do lint, presos no ratchet e não corrigidos:
 
 ## Estado da suíte
 
-**269 testes verdes** contra o código de produção, sem rede e sem custo: unidade nos módulos puros,
+**297 testes verdes** contra o código de produção, sem rede e sem custo: unidade nos módulos puros,
 caracterização de `parsePayload`, `montarResumo` e das proteções, e o teste dourado, que exercita o
 turno inteiro com OpenAI, ChatClean e estado falsificados.
 
