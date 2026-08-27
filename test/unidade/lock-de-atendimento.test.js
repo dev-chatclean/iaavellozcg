@@ -48,6 +48,21 @@ describe('lock: nivel local', () => {
         expect(segunda).toMatchObject({ ok: false, motivo: 'em_processamento' });
     });
 
+    it('liberar a trava recusada por "em processamento" e inofensivo', async () => {
+        // Importante: quem foi recusado NAO pode soltar o lock de quem esta
+        // atendendo. As liberacoes desta trava sao no-op de proposito.
+        const repo = repositorioCom();
+        const lock = LockDeAtendimento.criar({ repositorio: repo });
+        await lock.adquirir(CHAT);
+
+        const recusada = await lock.adquirir(CHAT);
+        recusada.liberarLocal();
+        await recusada.liberarRemoto();
+
+        expect(lock.ocupado(CHAT)).toBe(true); // o dono continua com o lock
+        expect(repo.releaseLock).not.toHaveBeenCalled();
+    });
+
     it('clientes diferentes nao se bloqueiam', async () => {
         const lock = LockDeAtendimento.criar({ repositorio: repositorioCom() });
         expect((await lock.adquirir('A')).ok).toBe(true);
