@@ -12,6 +12,9 @@ export default defineConfig({
             reporter: ['text', 'html'],
             all: true,
             include: ['flow.js', 'horario.js', 'data.js', 'src/**/*.js'],
+            // portas/ so tem typedef JSDoc: nao ha codigo para exercitar, e
+            // conta-lo como 0% falsearia o numero para baixo.
+            exclude: ['src/application/portas/**'],
             excludeAfterRemap: true,
             thresholds: {
                 // Ratchet: os modulos puros estao em 100% de statements e 99%

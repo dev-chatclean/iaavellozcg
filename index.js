@@ -138,26 +138,17 @@ const contatoPermitido = (numero) => telefone.contatoPermitido(numero, IA_ALLOWE
 //  Um único endpoint autenticado (CC_PUSH_URL) entrega as mensagens.
 //  O token JWT já vem embutido na URL como ?token=... (sem header).
 // =============================================================
-// Retorna { ok, status, data, erro } — e não só true/false — porque a
-// transferência de departamento precisa saber o que o CRM respondeu para só
-// então confirmar a transferência ao cliente.
-async function ccPush(number, payloadExtra = {}) {
-    if (!CC_PUSH_URL) {
-        console.warn('⚠️ CC_PUSH_URL não configurado no .env — envio ignorado');
-        return { ok: false, erro: 'CC_PUSH_URL ausente' };
-    }
-    try {
-        const resp = await axios.post(CC_PUSH_URL, {
-            number: normalizarPhone(number),
-            externalKey: crypto.randomUUID(),
-            ...payloadExtra
-        }, { headers: { 'Content-Type': 'application/json' }, timeout: 30000 });
-        return { ok: true, status: resp.status, data: resp.data };
-    } catch (e) {
-        console.error('❌ Erro no Push ChatClean:', e.response?.data || e.message);
-        return { ok: false, status: e.response?.status, data: e.response?.data, erro: e.message };
-    }
-}
+// O transporte vive em src/infrastructure/chatclean/CanalChatClean.js. O axios
+// entra por injecao: o adapter nao conhece biblioteca de HTTP, so a porta.
+// Continua devolvendo { ok, status, data, erro } — e nao um booleano — porque a
+// transferencia de departamento precisa saber o que o CRM respondeu para so
+// entao confirmar a transferencia ao cliente.
+const canalChatClean = require('./src/infrastructure/chatclean/CanalChatClean').criar({
+    http: axios,
+    pushUrl: CC_PUSH_URL
+});
+
+const ccPush = (number, payloadExtra) => canalChatClean.enviar(number, payloadExtra);
 
 // Transfere o ticket do cliente para o DEPARTAMENTO (fila) da unidade escolhida.
 // A Push API espera DOIS campos: forceTicketToDepartment = true (interruptor) e
