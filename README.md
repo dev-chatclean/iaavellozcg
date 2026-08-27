@@ -27,17 +27,44 @@ O ChatClean cuida só do transporte. Toda a inteligência (persona, diagnóstico
 - **Mídia:** áudio transcrito (Whisper); imagem lida por visão (gpt-4o); documento/vídeo têm acuse humanizado.
 - **Estado durável:** conversas no Redis (fallback em memória) + follow-up de reativação após 30 min de inatividade.
 
-## Arquivos
+## Onde o código vive
 
-| Arquivo | Papel |
-|---|---|
-| `index.js` | Servidor Express: webhook, Push, state machine, Whisper, visão, follow-up, transbordo por loja |
-| `data.js` | Conteúdo de negócio (empresa, modelos+preços, formas de pagamento, lojas, oficina, indicação, perfis, objeções, departamentos + IDs) |
-| `prompts.js` | `SYSTEM_SDR` (prompt-mestre Avelloz) + extração (temp 0) + resposta (temp 0.7) |
-| `flow.js` | State machine de qualificação (pura, compartilhada com os testers) |
-| `horario.js` | Expediente do time → modo plantão |
-| `store.js` | Estado das conversas em Redis + fallback em memória |
-| `pipeline.js` | Oportunidades no CRM — opcional, **desligado por padrão** (fechamento é transferir para o consultor) |
+```
+index.js                 bootstrap: monta, sobe, encerra (235 linhas)
+
+src/
+  domain/                REGRAS. Nao conhece rede, banco nem ambiente.
+    atendimento/           Funil, MontadorDeResumo, SinaisDoCliente
+      politicas/           Diagnostico (RN-001), Transbordo, AntiLoop
+    catalogo/              modelos, precos, lojas, objecoes, departamentos
+    expediente/            horario de atendimento e feriados
+    mensageria/            motivos de descarte
+
+  application/           COORDENACAO. Orquestra o dominio e as portas.
+    casos-de-uso/          ProcessarMensagemRecebida — o turno
+    transbordo/            entrega do lead ao vendedor
+    ia/                    cola entre prompt e adapter
+    fila/ envio/ midia/ reativacao/ atendimento/
+    portas/                contratos do mundo externo
+
+  infrastructure/        O MUNDO. Fala com quem esta fora.
+    chatclean/             Push API + ACL dos tres formatos de payload
+    openai/                extrator, redator, visao, Whisper, prompts/
+    redis/ memoria/        estado das conversas
+    http/ midia/ terminal/
+
+  main/                  COMPOSICAO. Quem e cada dependencia.
+    config.js              o UNICO lugar que le process.env
+    container.js           monta tudo, na ordem
+
+store.js pipeline.js     legado remanescente (montagem e /diag)
+test-chat.js sim-lead.js testers locais — usam o atendimento de producao
+```
+
+**A regra de dependencia:** `domain` nao importa nada de fora; `application`
+usa `domain` e as portas; `infrastructure` implementa as portas; `main` conhece
+todos. O lint barra cada uma dessas fronteiras — e a barreira foi testada com
+violacao proposital.
 
 ## Fluxo de qualificação (guia)
 
@@ -74,7 +101,7 @@ A loja que o **cliente escolhe** define o departamento de destino. Ao qualificar
 
 Se o cliente não chegar a escolher uma unidade, **não há transferência**: o ticket permanece no Agente IA, com a nota do resumo, para a equipe direcionar. Isso é fluxo normal, não falha — a equipe só é alertada quando a transferência era esperada e o CRM a recusou. Cliente antigo pedindo pós-venda é encaminhado para a unidade onde comprou; se a operação criar um departamento próprio de pós-venda, basta preencher `DEPT_ID_POSVENDA`.
 
-Os IDs vêm de **Configurações → Departamentos** no painel e ficam em `data.js`; se forem recriados, sobrescreva pelo `.env` (`DEPT_ID_MATRIZ`, `DEPT_ID_MALVINAS`, `DEPT_ID_MONTEIRO`). `TRANSFERIR_DEPARTAMENTO=false` desliga a transferência automática e volta ao comportamento antigo, em que o atendente encaminha à mão a partir da nota interna.
+Os IDs vêm de **Configurações → Departamentos** no painel e ficam em `src/domain/catalogo/Catalogo.js`; se forem recriados, sobrescreva pelo `.env` (`DEPT_ID_MATRIZ`, `DEPT_ID_MALVINAS`, `DEPT_ID_MONTEIRO`). `TRANSFERIR_DEPARTAMENTO=false` desliga a transferência automática e volta ao comportamento antigo, em que o atendente encaminha à mão a partir da nota interna.
 
 A IA **só confirma a transferência ao cliente depois que ela acontece**. A ordem em cada fechamento é: grava a nota interna, tenta transferir, e só então responde. Se o CRM recusar a transferência, a IA responde sem prometer o repasse e a equipe recebe o resumo com um alerta para encaminhar à mão.
 
@@ -99,6 +126,39 @@ npm start                 # sobe o servidor (webhook/Push)
 ```
 
 `GET /health` → `{ status: 'ok' }` · `GET /leads` e `GET /diag` exigem `ADMIN_KEY`.
+
+## Testes
+
+```bash
+npm test          # 711 testes, ~5s, sem rede e sem custo de OpenAI
+npm run lint      # fronteiras da arquitetura, verificadas
+npm run coverage
+```
+
+A suíte cobre o domínio, os adapters (com fakes injetados), o contrato do
+repositório rodando contra Redis **e** memória, e o turno completo de ponta a
+ponta. Nada nela chama serviço externo.
+
+Além dela há a **linha de base executável**, que sobe o servidor de verdade e
+compara a resposta de todas as rotas:
+
+```bash
+bash test/baseline/coletar-baseline.sh <rotulo>
+diff test/baseline/producao-develop-requisicoes.log test/baseline/<rotulo>-requisicoes.log
+```
+
+Detalhes em [docs/12-linha-de-base.md](docs/12-linha-de-base.md).
+
+## Documentação
+
+| | |
+|---|---|
+| [docs/12-linha-de-base.md](docs/12-linha-de-base.md) | O comportamento de produção, capturado executando |
+| [docs/15-inventario-de-comportamento.md](docs/15-inventario-de-comportamento.md) | O que mudou entre o commit raiz e a produção, e as dívidas catalogadas |
+| [docs/16-revisao-da-v2.md](docs/16-revisao-da-v2.md) | Como revisar a refatoração |
+
+Os testes marcados `CONGELA` documentam comportamento que **sabemos estar
+errado** e que foi preservado de propósito. A lista completa está no inventário.
 
 ## Deploy (Hostinger)
 
