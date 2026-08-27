@@ -219,24 +219,14 @@ async function transferirDepartamento(chatId, departamento) {
     };
 }
 
-async function enviarMensagem(chatId, texto) {
-    if (!texto || !String(texto).trim()) return false;
-    return (await ccPush(chatId, { body: texto })).ok;
-}
+// Como a resposta chega no WhatsApp — quebra em partes e atraso de digitacao —
+// vive em src/application/envio/EnvioAoCliente.js.
+const envioAoCliente = require('./src/application/envio/EnvioAoCliente').criar({
+    canal: canalChatClean
+});
 
-// Quebra a resposta em mensagens curtas (registro de WhatsApp), a menos que
-// seja um resumo/encaminhamento (mandado inteiro).
-async function enviarMensagensQuebradas(chatId, textoCompleto) {
-    if (/encaminhando|consultor|especialista|resumo|repassando/i.test(textoCompleto)) {
-        await enviarMensagem(chatId, textoCompleto);
-        return;
-    }
-    const partes = String(textoCompleto).split('\n').filter(p => p.trim());
-    for (const parte of partes) {
-        await new Promise(r => setTimeout(r, 900 + parte.length * 18));
-        await enviarMensagem(chatId, parte);
-    }
-}
+const enviarMensagem = (chatId, texto) => envioAoCliente.enviar(chatId, texto);
+const enviarMensagensQuebradas = (chatId, texto) => envioAoCliente.enviarEmPartes(chatId, texto);
 
 // Notifica a equipe (nota interna no ticket + WhatsApp interno) quando um lead
 // é qualificado, e sinaliza a transferência de departamento no CRM.
