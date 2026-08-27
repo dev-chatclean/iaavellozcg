@@ -983,133 +983,42 @@ async function drenarFila(chatId) {
     else filaPorChat.delete(chatId);
 }
 
-// Detecta se a mensagem veio de um GRUPO. O whatsmeow expõe Info.IsGroup e
-// Info.Chat (JID do chat); grupo = JID termina em "@g.us". Cobrimos também
-// variantes de payload plano (from/remoteJid/chatId/isGroup).
-function ehGrupo(body = {}, msg = {}) {
-    const info = msg.raw?.Info || {};
-    // Sinal nativo do ChatClean (o mais confiável): o ticket marca grupo.
-    if (body.ticket?.isGroup === true || body.ticket?.status === 'group') return true;
-    if (msg.ticket?.isGroup === true || msg.ticket?.status === 'group') return true;
-    // Sinais do whatsmeow / formato plano.
-    if (info.IsGroup === true || body.isGroup === true || msg.isGroup === true) return true;
-    const candidatos = [
-        info.Chat, info.ChatJID, info.chat,
-        msg.chatId, msg.from, msg.remoteJid,
-        body.chatId, body.from, body.remoteJid, body.remotejid,
-        body.contact?.remoteJid, body.contact?.jid
-    ];
-    return candidatos.some(j => typeof j === 'string' && j.includes('@g.us'));
-}
+// A traducao do payload vive em src/infrastructure/chatclean/acl/tradutor.js:
+// e a unica camada que conhece os tres formatos do ChatClean. Ela devolve um
+// MOTIVO nomeado de descarte; a decisao de logar continua aqui, para o log
+// permanecer identico ao de antes.
+const aclChatClean = require('./src/infrastructure/chatclean/acl/tradutor');
+const MotivoDeDescarte = require('./src/domain/mensageria/MotivoDeDescarte');
 
-// Ticket do payload (pode vir em body.ticket ou message.ticket, conforme o canal).
-function getTicket(body = {}, msg = {}) {
-    return body.ticket || msg.ticket || {};
-}
-function ticketStatus(body = {}, msg = {}) {
-    return getTicket(body, msg).status || null;
-}
-// A IA atua como bot de fila: responde enquanto NINGUÉM humano assumiu o ticket.
-// - status "pending" (na fila) → responde
-// - status "closed" → não responde
-// - ticket com userId humano atribuído (a pessoa ACEITOU a conversa) → não responde
-// - sem status no payload → responde (compat)
-// Assim, no instante em que o atendente aceita (userId é atribuído / status muda),
-// a IA para — sem o risco de silenciar leads novos que chegem como "open".
-function deveResponderTicket(body = {}, msg = {}) {
-    if (!IA_SO_PENDENTES) return true;
-    const t = getTicket(body, msg);
-    if (t.userId) return false;             // humano ACEITOU (userId atribuído) → para
-    const st = t.status || null;
-    if (!st) return true;                   // sem status → compat
-    if (st === 'closed') return false;      // encerrado
-    return true;                            // pending / open sem humano → responde
-}
+const ehGrupo = aclChatClean.ehGrupo;
+const ticketStatus = aclChatClean.ticketStatus;
+const deveResponderTicket = (body = {}, msg = {}) => aclChatClean.deveResponderTicket(body, msg, IA_SO_PENDENTES);
+
+const tradutorDePayload = aclChatClean.criar({
+    ignorarGrupos: IGNORAR_GRUPOS,
+    soPendentes: IA_SO_PENDENTES
+});
 
 // =============================================================
 //  WEBHOOK — PARSE DO PAYLOAD DO CHATCLEAN
 // =============================================================
 function parsePayload(body) {
-    try {
-        const normTipo = (t) => {
-            const v = String(t || 'text').toLowerCase();
-            if (['image', 'audio', 'ptt', 'document', 'text'].includes(v)) return v;
-            if (v === 'chat' || v === '') return 'text';
-            return v; // sticker/video/location → tratado como não-texto no /webhook
-        };
+    const r = tradutorDePayload.traduzir(body);
+    if (r.mensagem) return r.mensagem;
 
-        // Formato ChatClean: contact + message aninhados.
-        // O telefone real vem em message.raw.Info.SenderAlt (ex.: "558494610845@s.whatsapp.net").
-        if (body?.contact || (body?.message && typeof body.message === 'object' && !body.message.add)) {
-            const contato = body.contact || {};
-            const msg     = body.message || {};
-            if (msg.fromMe) return null; // ignora eco do próprio bot/atendente
-            if (IGNORAR_GRUPOS && ehGrupo(body, msg)) { console.log('👥 Mensagem de grupo ignorada'); return null; }
-            if (!deveResponderTicket(body, msg)) { console.log(`⏭️ Ticket "${ticketStatus(body, msg)}" (aceito/atendido por humano) — IA não responde`); return null; }
-            const senderAlt = msg.raw?.Info?.SenderAlt ? String(msg.raw.Info.SenderAlt).split('@')[0] : null;
-            // WABA (WhatsApp Oficial): o número do remetente vem em message.raw.from
-            // (não existe raw.Info.SenderAlt como no WhatsApp Web/whatsmeow).
-            const wabaFrom = msg.raw?.from || null;
-            // O SenderAlt do whatsmeow tem PRIORIDADE: vem como JID completo
-            // ("558494610845:59@s.whatsapp.net"), então o ID do dispositivo (:59)
-            // é cortado corretamente por normalizarPhone. O contact.number do CRM
-            // às vezes já chega com esse sufixo grudado ("55849461084559"), sem os
-            // dois-pontos — e aí não há como separar o telefone do dispositivo.
-            // Em contas com LID, o SenderAlt também é quem carrega o telefone real
-            // (Chat/Sender vêm como "14079406125304@lid").
-            const numero = senderAlt || contato.number || contato.phone || body.number || wabaFrom || msg.number;
-            const phone  = normalizarPhone(numero);
-            if (!phone) return null;
-            // contactId do CRM — usado para criar oportunidade no funil ao agendar.
-            const tk = getTicket(body, msg);
-            const contactId = msg.contactId || contato.id || tk.contactId || body.contactId || null;
-            return {
-                chatId:        phone,
-                contactId:     contactId ? Number(contactId) : null,
-                msgId:         msg.id ? String(msg.id) : (msg.messageId ? String(msg.messageId) : null),
-                texto:         String(msg.body || msg.text || '').trim(),
-                tipo:          normTipo(msg.type || msg.mediaType),
-                mediaBase64:   msg.mediaBase64 || msg.base64 || null,
-                mediaUrl:      msg.mediaUrl || null,
-                mediaMimetype: msg.mimetype || msg.raw?.Message?.imageMessage?.mimetype || null,
-                quotedText:    msg.quotedMsg?.body || msg.quotedMsg?.text || null,
-                nomeContato:   contato.name || msg.raw?.Info?.PushName || body.contactName || ''
-            };
-        }
-
-        // Formato plano (webhook/n8n simples): { number, type, body, contactName, id }
-        if (body?.number && (body?.body !== undefined || body?.type)) {
-            if (body.fromMe) return null;
-            if (IGNORAR_GRUPOS && ehGrupo(body)) { console.log('👥 Mensagem de grupo ignorada'); return null; }
-            if (!deveResponderTicket(body)) { console.log(`⏭️ Ticket "${ticketStatus(body)}" (aceito/atendido por humano) — IA não responde`); return null; }
-            const phone = normalizarPhone(body.number);
-            if (!phone) return null;
-            return {
-                chatId:        phone,
-                contactId:     body.contactId ? Number(body.contactId) : (body.contact?.id ? Number(body.contact.id) : null),
-                msgId:         body.id ? String(body.id) : null,
-                texto:         String(body.body || '').trim(),
-                tipo:          normTipo(body.type),
-                mediaBase64:   body.mediaBase64 || body.base64 || null,
-                mediaUrl:      body.mediaUrl || null,
-                mediaMimetype: body.mimetype || null,
-                quotedText:    body.quotedText || null,
-                nomeContato:   body.contactName || body.name || ''
-            };
-        }
-
-        // Formato numero_cliente/mensagem_cliente (disparo duplicado do ChatBot) → ignorado
-        if (body?.numero_cliente && body?.mensagem_cliente !== undefined) {
-            console.log('↩️ Ignorando disparo duplicado (formato numero_cliente)');
-            return null;
-        }
-
-        console.log('⚠️ Payload não reconhecido:', JSON.stringify(body, null, 2).slice(0, 800));
-        return null;
-    } catch (e) {
-        console.error('❌ Erro ao fazer parse do payload:', e.message);
-        return null;
+    const { motivo, detalhe } = r.descarte;
+    if (motivo === MotivoDeDescarte.GRUPO) {
+        console.log('\u{1F465} Mensagem de grupo ignorada');
+    } else if (motivo === MotivoDeDescarte.TICKET_ASSUMIDO) {
+        console.log(`\u{23ED}\u{FE0F} Ticket "${detalhe}" (aceito/atendido por humano) — IA não responde`);
+    } else if (motivo === MotivoDeDescarte.DISPARO_DUPLICADO) {
+        console.log('\u{21A9}\u{FE0F} Ignorando disparo duplicado (formato numero_cliente)');
+    } else if (motivo === MotivoDeDescarte.FORMATO_DESCONHECIDO) {
+        console.log('\u{26A0}\u{FE0F} Payload não reconhecido:', JSON.stringify(detalhe, null, 2).slice(0, 800));
+    } else if (motivo === MotivoDeDescarte.ERRO_DE_PARSE) {
+        console.error('\u{274C} Erro ao fazer parse do payload:', detalhe.message);
     }
+    return null;
 }
 
 const mensagensProcessadas = new Set(); // dedup de webhooks
