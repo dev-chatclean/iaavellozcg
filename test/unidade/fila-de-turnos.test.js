@@ -156,9 +156,7 @@ describe('fila: nada e descartado', () => {
     it('mensagem que chega DURANTE o processamento e drenada em seguida', async () => {
         const processados = [];
         let ocupado = false;
-        let fila;
-
-        fila = FilaDeTurnos.criar({
+        const fila = FilaDeTurnos.criar({
             estaProcessando: () => ocupado,
             janelaDeAgrupamentoMs: 10,
             processarTurno: async (t) => {
@@ -235,5 +233,44 @@ describe('fila: nada e descartado', () => {
             estaProcessando: () => false
         });
         await expect(fila.drenar('ninguem')).resolves.not.toThrow();
+    });
+});
+
+describe('fila: padroes', () => {
+    beforeEach(() => vi.useFakeTimers());
+    afterEach(() => vi.useRealTimers());
+
+    it('sem aoFalhar, a falha e engolida em silencio e a fila continua', async () => {
+        const processados = [];
+        const fila = FilaDeTurnos.criar({
+            estaProcessando: () => false,
+            janelaDeAgrupamentoMs: 10,
+            processarTurno: async (t) => {
+                processados.push(t);
+                if (processados.length === 1) throw new Error('sem tratador');
+            }
+        });
+
+        fila.enfileirar(midia('image'));
+        await vi.advanceTimersByTimeAsync(20);
+        fila.enfileirar(midia('audio'));
+        await vi.advanceTimersByTimeAsync(20);
+
+        expect(processados).toHaveLength(2);
+    });
+
+    it('sem janela informada, usa o padrao de 2s', async () => {
+        const processados = [];
+        const fila = FilaDeTurnos.criar({
+            processarTurno: async (t) => processados.push(t),
+            estaProcessando: () => false
+        });
+
+        fila.enfileirar(texto('oi'));
+        await vi.advanceTimersByTimeAsync(FilaDeTurnos.JANELA_PADRAO_MS - 1);
+        expect(processados).toHaveLength(0);
+
+        await vi.advanceTimersByTimeAsync(1);
+        expect(processados).toHaveLength(1);
     });
 });
