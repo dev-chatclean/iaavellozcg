@@ -124,7 +124,9 @@ Achados do lint, presos no ratchet e não corrigidos:
 
 ## Estado da suíte
 
-**101 testes verdes** contra o código de produção, sem rede e sem custo.
+**154 testes verdes** contra o código de produção, sem rede e sem custo: 101 de unidade nos módulos
+puros e 53 no teste dourado, que exercita o turno inteiro com OpenAI, ChatClean e estado
+falsificados.
 
 ```bash
 npm test
