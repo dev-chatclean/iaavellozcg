@@ -85,18 +85,19 @@ const { EMPRESA_INFO, PERFIS, DEPARTAMENTOS, DEPARTAMENTO_IDS, departamentoId, l
 const { SYSTEM_SDR, promptExtracao, promptResposta } = require('./prompts');
 const { determinarProximoCampo, aplicarCampos, detectarPerfil, detectarModeloMencionado } = require('./flow');
 
-// Departamento de transbordo do lead = a loja que ele escolheu (obrigatória
-// no fluxo). Sem loja identificada, permanece no Agente IA (a porta de entrada).
-function departamentoLead(leadData) {
-    return lojaParaDepartamento(leadData.loja) || DEPARTAMENTOS.entrada;
-}
-// Pós-venda: a operação não tem um departamento próprio para isso. O cliente
-// atual vai para a UNIDADE onde comprou; se ainda não sabemos qual é, o ticket
-// permanece no Agente IA até a equipe direcionar.
-function departamentoPosVenda(leadData) {
-    if (departamentoId(DEPARTAMENTOS.posvenda)) return DEPARTAMENTOS.posvenda;
-    return lojaParaDepartamento(leadData.loja) || DEPARTAMENTOS.entrada;
-}
+// Para onde o atendimento vai quando sai da IA. A regra vive em
+// src/domain/atendimento/politicas/PoliticaDeTransbordo.js; o catalogo de
+// departamentos entra por parametro, porque quem sabe os IDs cadastrados no
+// CRM e a infraestrutura, nao a regra.
+const politicaDeTransbordo = require('./src/domain/atendimento/politicas/PoliticaDeTransbordo').criar({
+    resolverLoja: lojaParaDepartamento,
+    departamentoDeEntrada: DEPARTAMENTOS.entrada,
+    idDoDepartamento: departamentoId,
+    departamentoDePosVenda: DEPARTAMENTOS.posvenda
+});
+
+const departamentoLead = (leadData) => politicaDeTransbordo.destinoDoLead(leadData);
+const departamentoPosVenda = (leadData) => politicaDeTransbordo.destinoDePosVenda(leadData);
 const { estaEmExpediente } = require('./horario');
 const pipeline = require('./pipeline'); // Oportunidades no CRM (inerte se não configurado)
 const store = require('./store'); // estado das conversas (Redis + fallback em memória)

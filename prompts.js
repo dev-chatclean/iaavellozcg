@@ -8,6 +8,7 @@
 //  - promptExtracao: extração de campos (gpt-4o-mini, temp 0).
 // =============================================================
 
+const PoliticaDeDiagnostico = require('./src/domain/atendimento/politicas/PoliticaDeDiagnostico');
 const { MODELOS, FORMAS_PAGAMENTO, LOJAS, PERFIS, OBJECOES, OFICINA, INDICACAO } = require('./data');
 
 // Blocos montados a partir do data.js (mantém números/endereços em sincronia).
@@ -192,9 +193,10 @@ function promptResposta({ isInicioConversa, mensagemSanitizada, proximoCampo, le
     const jaInformouPreco = falasBot.some(h => RE_PRECO.test(h.content || ''));
     const jaFezConta = falasBot.some(h => /por ano|no ano|anual/i.test(h.content || ''));
 
-    // Diagnóstico mínimo: transporte + gasto + situação de moto. Enquanto isso
-    // não fecha, NÃO libere preço/modelo — redirecione com naturalidade.
-    const diagnosticoCompleto = !!(leadData.transporteAtual && leadData.gastoMensal && leadData.situacaoMoto);
+    // RN-001 vive em src/domain/atendimento/politicas/PoliticaDeDiagnostico.js.
+    // Enquanto o diagnostico nao fecha, NAO libere preco/modelo — redirecione
+    // com naturalidade.
+    const diagnosticoCompleto = PoliticaDeDiagnostico.podeRevelarProduto(leadData);
 
     const coletados = [
         leadData.nome ? 'Nome: ' + leadData.nome : null,
