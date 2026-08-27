@@ -224,6 +224,11 @@ function criarStoreFake() {
 // cache a cada montagem para o teste conseguir variar a configuracao.
 const MODULOS_QUE_LEEM_ENV = ['./data', './horario'];
 
+// O composition root captura openai/axios no escopo do modulo. Sem limpa-lo,
+// a segunda montagem reusaria os clientes REAIS da primeira, e os fakes nao
+// teriam efeito nenhum.
+const MODULOS_DE_MONTAGEM = ['./src/main/container', './src/main/config'];
+
 function montarSistema({ env = {} } = {}) {
     const openai = criarOpenAIFake();
     const axios = criarAxiosFake();
@@ -283,6 +288,7 @@ function montarSistema({ env = {} } = {}) {
             limparDoCache('axios');
             limparDoCache('./store');
             for (const modulo of MODULOS_QUE_LEEM_ENV) limparDoCache(modulo);
+            for (const modulo of MODULOS_DE_MONTAGEM) limparDoCache(modulo);
             for (const [k, v] of Object.entries(envAnterior)) {
                 if (v === undefined) delete process.env[k];
                 else process.env[k] = v;
