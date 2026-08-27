@@ -809,73 +809,17 @@ async function processarMensagem({ chatId, contactId, texto, tipo, mediaBase64, 
 //  em sequência são agrupadas num só turno (debounce AGRUPAR_MS); mídia é
 //  processada assim que chega (mas ainda em série, nunca descartada).
 // =============================================================
-const filaPorChat   = new Map(); // chatId -> [parsed, ...] aguardando processamento
-const debounceTimers = new Map(); // chatId -> timer de agrupamento de texto
+// A coordenacao vive em src/application/fila/FilaDeTurnos.js. O lock do turno
+// (processandoMensagem) continua aqui, porque quem o mantem e quem processa —
+// entra na fila como parametro.
+const filaDeTurnos = require('./src/application/fila/FilaDeTurnos').criar({
+    processarTurno: (turno) => processarMensagem(turno),
+    estaProcessando: (chatId) => !!processandoMensagem.get(chatId),
+    janelaDeAgrupamentoMs: AGRUPAR_MS,
+    aoFalhar: (erro, chatId) => console.error(`\u{274C} Erro ao drenar fila de ${chatId}:`, erro.message)
+});
 
-function enfileirar(parsed) {
-    const { chatId } = parsed;
-    const fila = filaPorChat.get(chatId) || [];
-    fila.push(parsed);
-    filaPorChat.set(chatId, fila);
-
-    if (parsed.tipo === 'text') {
-        // Espera um instante juntando mensagens rápidas antes de drenar.
-        if (debounceTimers.has(chatId)) clearTimeout(debounceTimers.get(chatId));
-        debounceTimers.set(chatId, setTimeout(() => {
-            debounceTimers.delete(chatId);
-            drenarFila(chatId);
-        }, AGRUPAR_MS));
-    } else {
-        // Mídia não espera: cancela o debounce pendente e drena já.
-        if (debounceTimers.has(chatId)) { clearTimeout(debounceTimers.get(chatId)); debounceTimers.delete(chatId); }
-        drenarFila(chatId);
-    }
-}
-
-// Junta as mensagens de TEXTO consecutivas no início da fila num único "turno".
-// Mídia é sempre uma unidade isolada (não dá pra concatenar imagem+áudio+texto).
-function proximaUnidade(fila) {
-    if (fila[0].tipo !== 'text') return fila.shift();
-    const textos = [], ids = [];
-    let nome = '', quoted = null, contactId = null;
-    while (fila.length && fila[0].tipo === 'text') {
-        const m = fila.shift();
-        if (m.texto) textos.push(m.texto);
-        if (m.msgId) ids.push(m.msgId);
-        if (!nome && m.nomeContato) nome = m.nomeContato;
-        if (!quoted && m.quotedText) quoted = m.quotedText;
-        if (!contactId && m.contactId) contactId = m.contactId;
-    }
-    return {
-        chatId: null, // preenchido pelo chamador
-        contactId,
-        tipo: 'text',
-        texto: textos.join('\n'),
-        msgId: ids.join(',') || null,
-        nomeContato: nome,
-        quotedText: quoted,
-        mediaBase64: null, mediaUrl: null, mediaMimetype: null
-    };
-}
-
-async function drenarFila(chatId) {
-    if (processandoMensagem.get(chatId)) return; // já rodando: será drenado ao terminar
-    const fila = filaPorChat.get(chatId);
-    if (!fila || !fila.length) return;
-
-    const unidade = proximaUnidade(fila);
-    unidade.chatId = chatId;
-    try {
-        await processarMensagem(unidade);
-    } catch (e) {
-        console.error(`❌ Erro ao drenar fila de ${chatId}:`, e.message);
-    }
-
-    // Limpa a fila vazia; se algo chegou durante o processamento, drena de novo.
-    const restante = filaPorChat.get(chatId);
-    if (restante && restante.length) drenarFila(chatId);
-    else filaPorChat.delete(chatId);
-}
+const enfileirar = (parsed) => filaDeTurnos.enfileirar(parsed);
 
 // A traducao do payload vive em src/infrastructure/chatclean/acl/tradutor.js:
 // e a unica camada que conhece os tres formatos do ChatClean. Ela devolve um
