@@ -70,11 +70,7 @@ module.exports = [
         // arquivo novo aqui.
         files: [
             'index.js',
-            'prompts.js',
-            'data.js',
-            'flow.js',
             'store.js',
-            'horario.js',
             'pipeline.js',
             'test-chat.js',
             'sim-lead.js'

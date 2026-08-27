@@ -9,7 +9,7 @@ const {
     aplicarCampos,
     detectarPerfil,
     detectarModeloMencionado
-} = require('../../flow');
+} = require('../../src/domain/atendimento/Funil');
 
 // =============================================================
 //  SPEC 0001 — T10/T11/T12

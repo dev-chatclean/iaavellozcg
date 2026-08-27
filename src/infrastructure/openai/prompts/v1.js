@@ -1,4 +1,16 @@
 // =============================================================
+//  PROMPTS — VERSAO 1
+//
+//  Esta e a versao EM PRODUCAO. Prompts sao comportamento: mudar uma frase
+//  aqui muda o que o cliente ouve, e nenhum teste unitario pega isso. Por
+//  isso vivem numa pasta versionada — uma v2 nasce ao lado, e a suite de
+//  evals compara as duas antes de trocar.
+//
+//  O SYSTEM_SDR e estatico de proposito: identico em toda chamada, o que
+//  permite cache de prompt no provedor e corta custo.
+// =============================================================
+
+// =============================================================
 //  PROMPTS DE IA — SDR Virtual Avelloz Campina
 //  - SYSTEM_SDR: prompt-mestre ULTRABLOQUEADO (persona + regras +
 //    conhecimento). Estático, idêntico em toda chamada (bom p/ cache).
@@ -8,8 +20,8 @@
 //  - promptExtracao: extração de campos (gpt-4o-mini, temp 0).
 // =============================================================
 
-const PoliticaDeDiagnostico = require('./src/domain/atendimento/politicas/PoliticaDeDiagnostico');
-const { MODELOS, FORMAS_PAGAMENTO, LOJAS, PERFIS, OBJECOES, OFICINA, INDICACAO } = require('./src/domain/catalogo/Catalogo');
+const PoliticaDeDiagnostico = require('../../../domain/atendimento/politicas/PoliticaDeDiagnostico');
+const { MODELOS, FORMAS_PAGAMENTO, LOJAS, PERFIS, OBJECOES, OFICINA, INDICACAO } = require('../../../domain/catalogo/Catalogo');
 
 // Blocos montados a partir do data.js (mantém números/endereços em sincronia).
 const CATALOGO_TXT = Object.values(MODELOS).map(m =>
@@ -170,6 +182,11 @@ Responda APENAS com JSON válido, sem comentários e sem crases.`;
 //  Rodapé DINÂMICO da resposta (turno do usuário; muda a cada msg)
 //  As regras/persona/conhecimento vêm do SYSTEM_SDR (role system).
 // -------------------------------------------------------------
+// CONGELA (D-36): `expediente` faz parte da assinatura mas o corpo NAO o usa.
+// O modo plantao chega ao resumo interno, mas nunca ao prompt da resposta —
+// entao o bot pode prometer atendimento imediato as 2h da manha. Corrigir e
+// mudanca de comportamento (era a D-28 da primeira passada).
+// eslint-disable-next-line no-unused-vars
 function promptResposta({ isInicioConversa, mensagemSanitizada, proximoCampo, leadData, expediente }) {
     const perfil = leadData.perfilKey && PERFIS[leadData.perfilKey];
     const objecaoAtiva = leadData.objecaoAtiva && OBJECOES[leadData.objecaoAtiva];
@@ -184,6 +201,12 @@ function promptResposta({ isInicioConversa, mensagemSanitizada, proximoCampo, le
     const ultimasAssist = falasBot.slice(-2);
     const usouNomeRecente = primeiroNome.length > 1 && ultimasAssist.some(h => (h.content || '').toLowerCase().includes(primeiroNome));
 
+    // CONGELA: a classe abaixo mistura faixas de emoji com o seletor de
+    // variacao (FE0F), que e um caractere COMPOSITOR, nao um emoji. Sequencias
+    // compostas casam de forma imprevisivel — a contagem de emoji da RN-022
+    // pode errar para mais ou para menos. Corrigir muda quantos emoji o bot
+    // usa; fica como divida.
+    // eslint-disable-next-line no-misleading-character-class
     const RE_EMOJI = /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{FE0F}]/u;
     const RE_PRECO = /11\.?390|14\.?190|19\.?990/;
     // Emoji: proíbe se qualquer uma das 2 últimas mensagens já teve — na prática

@@ -65,7 +65,7 @@ const conversaComIA = require('../application/ia/ConversaComIA').criar({
     extrator: extratorIA,
     redator: redatorIA,
     leitorDeImagem: leitorDeImagemIA,
-    prompts: require('../../prompts')
+    prompts: require('../infrastructure/openai/prompts')
 });
 
 const extrairInformacoesComIA = (msg, campo, hist) => conversaComIA.extrair(msg, campo, hist);
@@ -94,7 +94,7 @@ const manipuladoresDeMidia = require('../application/midia/manipuladores').criar
 const Catalogo = require('../domain/catalogo/Catalogo');
 const { EMPRESA_INFO, PERFIS, DEPARTAMENTOS, lojaParaDepartamento, OFICINA } = Catalogo;
 const { DEPARTAMENTO_IDS, departamentoId } = Catalogo.criarDepartamentos({ ids: DEPT_IDS });
-const { determinarProximoCampo, aplicarCampos, detectarPerfil, detectarModeloMencionado } = require('../../flow');
+const { determinarProximoCampo, aplicarCampos, detectarPerfil, detectarModeloMencionado } = require('../domain/atendimento/Funil');
 
 // Para onde o atendimento vai quando sai da IA. A regra vive em
 // src/domain/atendimento/politicas/PoliticaDeTransbordo.js; o catalogo de
