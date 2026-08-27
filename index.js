@@ -117,7 +117,13 @@ const { estaEmExpediente } = require('./horario');
 const pipeline = require('./pipeline'); // Oportunidades no CRM (inerte se não configurado)
 const store = require('./store'); // estado das conversas (Redis + fallback em memória)
 
-const processandoMensagem = new Map(); // lock de processamento (por instância)
+// Lock de atendimento em dois niveis (local + cluster). A coordenacao vive em
+// src/application/atendimento/LockDeAtendimento.js.
+const lockDeAtendimento = require('./src/application/atendimento/LockDeAtendimento').criar({
+    repositorio: store,
+    ttlMs: 60000,
+    aoExpirar: (chatId) => console.log(`\u{23F1}\u{FE0F} Timeout: liberando processamento para ${chatId}`)
+});
 
 // =============================================================
 //  UTILITÁRIOS
@@ -348,7 +354,7 @@ async function varrerFollowUps() {
         const ids = await store.scanLeadIds();
         const agora = Date.now();
         for (const chatId of ids) {
-            if (processandoMensagem.has(chatId)) continue;
+            if (lockDeAtendimento.ocupado(chatId)) continue;
             let leadData;
             try { leadData = await store.getLead(chatId); } catch (_) { continue; }
             if (!leadData || leadData.finalizado) continue;
@@ -488,25 +494,13 @@ async function encaminhar(chatId, leadData, departamento, mensagemCliente, histo
 //  PROCESSAMENTO DE MENSAGEM
 // =============================================================
 async function processarMensagem({ chatId, contactId, texto, tipo, mediaBase64, mediaUrl, mediaMimetype, quotedText, nomeContato }) {
-    if (processandoMensagem.get(chatId)) {
-        console.log(`⚠️ Já processando mensagem de ${chatId}. Ignorando.`);
-        return;
-    }
-    processandoMensagem.set(chatId, true);
-    const timeoutId = setTimeout(() => {
-        if (processandoMensagem.get(chatId)) {
-            console.log(`⏱️ Timeout: liberando processamento para ${chatId}`);
-            processandoMensagem.delete(chatId);
+    const trava = await lockDeAtendimento.adquirir(chatId);
+    if (!trava.ok) {
+        if (trava.motivo === 'em_processamento') {
+            console.log(`\u{26A0}\u{FE0F} Já processando mensagem de ${chatId}. Ignorando.`);
+        } else {
+            console.log(`\u{1F512} ${chatId} já está sendo processado por outra instância — pulando.`);
         }
-    }, 60000);
-
-    // Lock cross-instância (Redis): impede que outro container processe o mesmo
-    // lead ao mesmo tempo. Sem Redis, é no-op (o lock em memória acima já basta).
-    const lockRedis = await store.acquireLock(chatId, 60000);
-    if (!lockRedis) {
-        console.log(`🔒 ${chatId} já está sendo processado por outra instância — pulando.`);
-        clearTimeout(timeoutId);
-        processandoMensagem.delete(chatId);
         return;
     }
 
@@ -788,13 +782,15 @@ async function processarMensagem({ chatId, contactId, texto, tipo, mediaBase64, 
     } catch (e) {
         console.error(`❌ Erro ao processar mensagem de ${chatId}:`, e);
     } finally {
-        clearTimeout(timeoutId);
-        processandoMensagem.delete(chatId);
+        // O lock LOCAL sai primeiro, para a fila poder drenar o proximo turno.
+        trava.liberarLocal();
         if (leadData) {
             try { await store.saveLead(chatId, leadData); }
-            catch (e) { console.error('❌ Erro ao salvar estado da conversa:', e.message); }
+            catch (e) { console.error('\u{274C} Erro ao salvar estado da conversa:', e.message); }
         }
-        await store.releaseLock(chatId);
+        // O REMOTO sai por ultimo, depois de gravado: senao outra instancia
+        // leria um estado velho.
+        await trava.liberarRemoto();
     }
 }
 
@@ -806,12 +802,11 @@ async function processarMensagem({ chatId, contactId, texto, tipo, mediaBase64, 
 //  em sequência são agrupadas num só turno (debounce AGRUPAR_MS); mídia é
 //  processada assim que chega (mas ainda em série, nunca descartada).
 // =============================================================
-// A coordenacao vive em src/application/fila/FilaDeTurnos.js. O lock do turno
-// (processandoMensagem) continua aqui, porque quem o mantem e quem processa —
-// entra na fila como parametro.
+// A coordenacao vive em src/application/fila/FilaDeTurnos.js. A fila nao
+// mantem o lock: ela apenas pergunta se o cliente ja esta sendo atendido.
 const filaDeTurnos = require('./src/application/fila/FilaDeTurnos').criar({
     processarTurno: (turno) => processarMensagem(turno),
-    estaProcessando: (chatId) => !!processandoMensagem.get(chatId),
+    estaProcessando: (chatId) => lockDeAtendimento.ocupado(chatId),
     janelaDeAgrupamentoMs: AGRUPAR_MS,
     aoFalhar: (erro, chatId) => console.error(`\u{274C} Erro ao drenar fila de ${chatId}:`, erro.message)
 });
