@@ -122,6 +122,14 @@ Cobertura dos módulos puros: **100% de statements, 99,1% de ramos.**
 
 ## Categoria D — dívida encontrada de passagem
 
+**D-35: valor de configuração inválido vira `NaN` em silêncio.**
+`parseInt('vinte', 10)` devolve `NaN`, e nada reclama. O servidor sobe normalmente e só se comporta
+de forma estranha depois: uma janela `NaN` faz **toda comparação de tempo dar `false`** — o
+anti-loop para de proteger, o agrupamento para de agrupar, o reset por inatividade nunca dispara.
+
+Não há erro no log, não há alerta. Congelado em `config.test.js`. Validar a configuração no boot e
+recusar subir com valor inválido é mudança de comportamento e tem spec própria.
+
 **D-34: a guarda contra promessa falsa de transferência tem um buraco.**
 Quando a transferência para a loja falha, o sistema substitui a resposta da IA se ela tiver
 prometido o repasse. A detecção usa
@@ -175,7 +183,7 @@ Achados do lint, presos no ratchet e não corrigidos:
 
 ## Estado da suíte
 
-**569 testes verdes** contra o código de produção, sem rede e sem custo: unidade nos módulos puros,
+**678 testes verdes** contra o código de produção, sem rede e sem custo: unidade nos módulos puros,
 caracterização de `parsePayload`, `montarResumo` e das proteções, e o teste dourado, que exercita o
 turno inteiro com OpenAI, ChatClean e estado falsificados.
 

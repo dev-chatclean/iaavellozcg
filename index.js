@@ -19,53 +19,31 @@ app.use(express.json({ limit: '10mb' }));
 //  IA_ALLOWED_CONTACTS = Números liberados na fase de teste (vazio = responde a todos)
 //  PORT            = Porta do servidor (padrão: 3000)
 // =============================================================
-const CC_PUSH_URL    = process.env.CC_PUSH_URL    || '';
-const WEBHOOK_SECRET  = process.env.WEBHOOK_SECRET || '';
-const EQUIPE_NUMERO  = process.env.EQUIPE_NUMERO  || '';
-const IA_ALLOWED_CONTACTS = (process.env.IA_ALLOWED_CONTACTS || '').split(',').map(s => s.trim()).filter(Boolean);
-const PORT           = process.env.PORT           || 3000;
-// Chave para proteger os endpoints administrativos (/leads, /diag), que expõem
-// dados de leads e config. Sem ela, esses endpoints ficam BLOQUEADOS (não abertos).
-const ADMIN_KEY      = process.env.ADMIN_KEY      || '';
-// A IA NÃO responde em grupos por padrão (só conversa individual). Para permitir
-// grupos no futuro, defina IGNORAR_GRUPOS=false.
-const IGNORAR_GRUPOS = (process.env.IGNORAR_GRUPOS || 'true') !== 'false';
-// A IA só responde tickets PENDENTES (na fila). Quando um humano aceita a
-// conversa (ticket sai de "pending"), a IA para de responder. Para desativar
-// esse filtro, defina IA_SO_PENDENTES=false.
-const IA_SO_PENDENTES = (process.env.IA_SO_PENDENTES || 'true') !== 'false';
-// Rate-limit por número: no máximo RATE_LIMIT_MSGS mensagens por janela de
-// RATE_LIMIT_JANELA_S segundos (proteção contra loop/spam e custo OpenAI).
-// 0 desativa. Padrão: 20 msgs / 60s.
-const RATE_LIMIT_MSGS   = parseInt(process.env.RATE_LIMIT_MSGS   || '20', 10);
-const RATE_LIMIT_JANELA = parseInt(process.env.RATE_LIMIT_JANELA_S || '60', 10) * 1000;
-// Blindagem anti-loop (contra outras IAs / auto-respondedores): se um mesmo
-// contato trocar mais de LOOP_MAX_TURNOS mensagens em LOOP_JANELA_MIN minutos,
-// ou repetir a mesma mensagem, a IA PAUSA as respostas para não entrar em
-// ping-pong infinito com outro bot.
-const LOOP_MAX_TURNOS = parseInt(process.env.LOOP_MAX_TURNOS || '15', 10);
-const LOOP_JANELA_MS  = parseInt(process.env.LOOP_JANELA_MIN || '3', 10) * 60 * 1000;
-// Teto de respostas da IA DEPOIS que o lead já foi transferido. Passando disso ela
-// se despede e cala: quem conduz o atendimento a partir da transferência é o
-// consultor humano, e a IA respondendo em paralelo atropela o trabalho dele.
-const MAX_RESPOSTAS_POS_HANDOFF = parseInt(process.env.MAX_RESPOSTAS_POS_HANDOFF || '3', 10);
-// Janela (ms) para AGRUPAR mensagens rápidas do mesmo cliente antes de responder.
-// No WhatsApp o cliente costuma mandar várias mensagens seguidas; juntamos tudo
-// num único turno em vez de responder só a primeira e ignorar o resto.
-const AGRUPAR_MS     = parseInt(process.env.AGRUPAR_MENSAGENS_MS || '2000', 10);
-// Reinicia o atendimento após N horas sem interação do cliente (padrão: 24h).
-const RESET_INATIVIDADE = parseInt(process.env.RESET_INATIVIDADE_HORAS || '24', 10) * 3600 * 1000;
-// Transferência REAL do ticket para o departamento da loja escolhida (fila do
-// CRM), via forceTicketToDepartment da Push API. Defina false para voltar ao
-// comportamento antigo (só a nota interna, encaminhamento manual do atendente).
-const TRANSFERIR_DEPARTAMENTO = (process.env.TRANSFERIR_DEPARTAMENTO || 'true') !== 'false';
-// A plataforma só reposiciona ticket que está FECHADO ou é primeiro contato. Com
-// isto ligado, o push de transferência fecha o ticket junto (forceTicketToClosed),
-// que é o gatilho documentado para ele reabrir já no departamento certo. Ligue se
-// a transferência simples não mover o ticket de fila.
-const TRANSFERIR_FECHANDO = (process.env.TRANSFERIR_FECHANDO || 'false') === 'true';
+// A leitura do ambiente vive em src/main/config.js — o unico lugar do sistema
+// que toca process.env.
+const config = require('./src/main/config').carregar();
+const {
+    OPENAI_API_KEY,
+    CC_PUSH_URL,
+    WEBHOOK_SECRET,
+    EQUIPE_NUMERO,
+    IA_ALLOWED_CONTACTS,
+    PORT,
+    ADMIN_KEY,
+    IGNORAR_GRUPOS,
+    IA_SO_PENDENTES,
+    RATE_LIMIT_MSGS,
+    RATE_LIMIT_JANELA,
+    LOOP_MAX_TURNOS,
+    LOOP_JANELA_MS,
+    MAX_RESPOSTAS_POS_HANDOFF,
+    AGRUPAR_MS,
+    RESET_INATIVIDADE,
+    TRANSFERIR_DEPARTAMENTO,
+    TRANSFERIR_FECHANDO
+} = config;
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
 
 // Os adapters da OpenAI vivem em src/infrastructure/openai. Recebem o cliente
 // por injecao e NAO tratam erro: quem chama e que decide entre cair em
@@ -93,7 +71,7 @@ const gerarRespostaPosEncaminhamento = (lead, msg, hist) => conversaComIA.redigi
 // do Whisper espera multipart, montado a mao. Por isso a chave entra separada.
 const transcritorIA = require('./src/infrastructure/openai/TranscritorWhisper').criar({
     http: axios,
-    apiKey: process.env.OPENAI_API_KEY
+    apiKey: OPENAI_API_KEY
 });
 const baixadorDeMidia = require('./src/infrastructure/midia/BaixadorHttp').criar({ http: axios });
 
@@ -535,7 +513,7 @@ function iniciar() {
 // Falha RÁPIDO e claro se faltar a chave da OpenAI: antes era checado dentro do
 // callback do listen, ou seja, a porta abria, o healthcheck passava e só então o
 // processo morria — virando crash-loop difícil de ler no log do container.
-if (!process.env.OPENAI_API_KEY) {
+if (!OPENAI_API_KEY) {
     console.error('❌ OPENAI_API_KEY não configurada — a IA não sobe. Defina a variável de ambiente e faça o deploy de novo.');
     process.exit(1);
 }
