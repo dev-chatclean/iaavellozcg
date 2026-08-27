@@ -383,7 +383,11 @@ async function varrerFollowUps() {
         console.error('Erro no varredor de follow-up:', e.message);
     }
 }
-setInterval(varrerFollowUps, FOLLOWUP_SWEEP).unref?.();
+// O varredor de follow-up é disparado por iniciar(), no fim deste arquivo, e não
+// no carregamento do módulo — senão a suíte, que só importa o arquivo, passaria
+// a agendar timers reais. ATENÇÃO: existe UMA chamada de setInterval para o
+// varredor no projeto inteiro. Duas fariam o cliente receber a mensagem de
+// reativação em dobro.
 
 // =============================================================
 //  IA — EXTRAÇÃO DE INFORMAÇÕES (gpt-4o-mini, temperatura 0)
@@ -1301,7 +1305,17 @@ app.get('/leads', async (req, res) => {
 
 // =============================================================
 //  INICIALIZAÇÃO
+//
+//  Tudo que tem efeito colateral no processo — abrir a porta, agendar o
+//  varredor de follow-up, registrar handlers de sinal, encerrar por falta de
+//  chave — vive dentro de iniciar(), chamada só quando o arquivo é executado
+//  direto (`node index.js`). Assim a suíte consegue importar o módulo para
+//  testar o turno SEM subir servidor nem disparar timer.
+//
+//  Em produção o comportamento é idêntico: a ordem das operações é a mesma, e
+//  a linha de base confirma isso rodando o servidor de verdade.
 // =============================================================
+function iniciar() {
 // Falha RÁPIDO e claro se faltar a chave da OpenAI: antes era checado dentro do
 // callback do listen, ou seja, a porta abria, o healthcheck passava e só então o
 // processo morria — virando crash-loop difícil de ler no log do container.
@@ -1309,6 +1323,8 @@ if (!process.env.OPENAI_API_KEY) {
     console.error('❌ OPENAI_API_KEY não configurada — a IA não sobe. Defina a variável de ambiente e faça o deploy de novo.');
     process.exit(1);
 }
+
+setInterval(varrerFollowUps, FOLLOWUP_SWEEP).unref?.();
 
 let servidorPronto = false;
 const server = app.listen(PORT, () => {
@@ -1374,3 +1390,30 @@ process.on('uncaughtException', (erro) => {
 process.on('SIGINT',  () => shutdown('SIGINT'));
 process.on('SIGTERM', () => shutdown('SIGTERM'));
 process.on('SIGUSR2', () => shutdown('SIGUSR2'));
+
+return server;
+}
+
+if (require.main === module) iniciar();
+
+// Exportado para a suíte de testes. Em produção nada consome este objeto — o
+// servidor sobe pelo iniciar() acima.
+module.exports = {
+    app,
+    iniciar,
+    parsePayload,
+    ehGrupo,
+    deveResponderTicket,
+    ticketStatus,
+    webhookAutorizado,
+    dentroDoLimite,
+    montarResumo,
+    departamentoLead,
+    transferirDepartamento,
+    processarMensagem,
+    montarMsgReativacao,
+    agendarFollowUpReativacao,
+    varrerFollowUps,
+    enviarMensagensQuebradas,
+    handleWebhook
+};

@@ -111,7 +111,20 @@ Três campos mudam a cada execução e são normalizados antes da gravação:
 2. o campo `expediente` do `/diag` (depende da hora da coleta);
 3. `uptime` e `timestamp` do `/health`.
 
-Duas coletas independentes do mesmo código produzem arquivos **idênticos**. Foi verificado.
+Com isso, duas coletas independentes do mesmo código produzem arquivos `-requisicoes.log`
+**idênticos**. Foi verificado.
+
+### O `-servidor.log` NÃO é determinístico, e não deve ser usado como critério
+
+A **ordem** das linhas do log varia entre execuções do mesmo código. As chamadas à OpenAI vão de
+verdade à rede (e voltam 401 de propósito), com latência variável, então os turnos se intercalam de
+um jeito diferente a cada vez.
+
+Isso foi medido: duas coletas seguidas, mesmo commit, sem alteração nenhuma, produzem
+`-servidor.log` diferentes — sempre as mesmas linhas, em ordem trocada.
+
+O `-servidor.log` serve para **leitura humana** (quais avisos de boot apareceram, qual foi o motivo
+de descarte). O critério automático é o `-requisicoes.log`.
 
 ## Critério de regressão
 
@@ -123,3 +136,9 @@ Antes de integrar qualquer fatia:
    **declarada na spec** como mudança de comportamento intencional e aprovada.
 
 Diff vazio significa que a borda HTTP e o boot continuam se comportando como a produção.
+
+Para o `-servidor.log`, compare o **conjunto** de linhas, não a ordem:
+
+```bash
+diff <(sort test/baseline/producao-develop-servidor.log) <(sort test/baseline/<rotulo>-servidor.log)
+```
