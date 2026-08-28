@@ -6,5 +6,7 @@ npm-debug.log*
 database.json
 
 # A linha de base e evidencia versionada (docs/12-linha-de-base.md)
-!test/baseline/*.log
+# So a linha de base de REFERENCIA e versionada. As coletas de conferencia
+# (feitas a cada fatia) sao transitorias e nao entram no repositorio.
+!test/baseline/producao-develop-*.log
 coverage/
