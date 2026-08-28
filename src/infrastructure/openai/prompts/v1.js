@@ -1,4 +1,16 @@
 // =============================================================
+//  PROMPTS — VERSAO 1
+//
+//  Esta e a versao EM PRODUCAO. Prompts sao comportamento: mudar uma frase
+//  aqui muda o que o cliente ouve, e nenhum teste unitario pega isso. Por
+//  isso vivem numa pasta versionada — uma v2 nasce ao lado, e a suite de
+//  evals compara as duas antes de trocar.
+//
+//  O SYSTEM_SDR e estatico de proposito: identico em toda chamada, o que
+//  permite cache de prompt no provedor e corta custo.
+// =============================================================
+
+// =============================================================
 //  PROMPTS DE IA — SDR Virtual Avelloz Campina
 //  - SYSTEM_SDR: prompt-mestre ULTRABLOQUEADO (persona + regras +
 //    conhecimento). Estático, idêntico em toda chamada (bom p/ cache).
@@ -8,7 +20,8 @@
 //  - promptExtracao: extração de campos (gpt-4o-mini, temp 0).
 // =============================================================
 
-const { MODELOS, FORMAS_PAGAMENTO, LOJAS, PERFIS, OBJECOES, OFICINA, INDICACAO } = require('./data');
+const PoliticaDeDiagnostico = require('../../../domain/atendimento/politicas/PoliticaDeDiagnostico');
+const { MODELOS, FORMAS_PAGAMENTO, LOJAS, PERFIS, OBJECOES, OFICINA, INDICACAO } = require('../../../domain/catalogo/Catalogo');
 
 // Blocos montados a partir do data.js (mantém números/endereços em sincronia).
 const CATALOGO_TXT = Object.values(MODELOS).map(m =>
@@ -169,6 +182,11 @@ Responda APENAS com JSON válido, sem comentários e sem crases.`;
 //  Rodapé DINÂMICO da resposta (turno do usuário; muda a cada msg)
 //  As regras/persona/conhecimento vêm do SYSTEM_SDR (role system).
 // -------------------------------------------------------------
+// CONGELA (D-36): `expediente` faz parte da assinatura mas o corpo NAO o usa.
+// O modo plantao chega ao resumo interno, mas nunca ao prompt da resposta —
+// entao o bot pode prometer atendimento imediato as 2h da manha. Corrigir e
+// mudanca de comportamento (era a D-28 da primeira passada).
+// eslint-disable-next-line no-unused-vars
 function promptResposta({ isInicioConversa, mensagemSanitizada, proximoCampo, leadData, expediente }) {
     const perfil = leadData.perfilKey && PERFIS[leadData.perfilKey];
     const objecaoAtiva = leadData.objecaoAtiva && OBJECOES[leadData.objecaoAtiva];
@@ -183,6 +201,12 @@ function promptResposta({ isInicioConversa, mensagemSanitizada, proximoCampo, le
     const ultimasAssist = falasBot.slice(-2);
     const usouNomeRecente = primeiroNome.length > 1 && ultimasAssist.some(h => (h.content || '').toLowerCase().includes(primeiroNome));
 
+    // CONGELA: a classe abaixo mistura faixas de emoji com o seletor de
+    // variacao (FE0F), que e um caractere COMPOSITOR, nao um emoji. Sequencias
+    // compostas casam de forma imprevisivel — a contagem de emoji da RN-022
+    // pode errar para mais ou para menos. Corrigir muda quantos emoji o bot
+    // usa; fica como divida.
+    // eslint-disable-next-line no-misleading-character-class
     const RE_EMOJI = /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{FE0F}]/u;
     const RE_PRECO = /11\.?390|14\.?190|19\.?990/;
     // Emoji: proíbe se qualquer uma das 2 últimas mensagens já teve — na prática
@@ -192,9 +216,10 @@ function promptResposta({ isInicioConversa, mensagemSanitizada, proximoCampo, le
     const jaInformouPreco = falasBot.some(h => RE_PRECO.test(h.content || ''));
     const jaFezConta = falasBot.some(h => /por ano|no ano|anual/i.test(h.content || ''));
 
-    // Diagnóstico mínimo: transporte + gasto + situação de moto. Enquanto isso
-    // não fecha, NÃO libere preço/modelo — redirecione com naturalidade.
-    const diagnosticoCompleto = !!(leadData.transporteAtual && leadData.gastoMensal && leadData.situacaoMoto);
+    // RN-001 vive em src/domain/atendimento/politicas/PoliticaDeDiagnostico.js.
+    // Enquanto o diagnostico nao fecha, NAO libere preco/modelo — redirecione
+    // com naturalidade.
+    const diagnosticoCompleto = PoliticaDeDiagnostico.podeRevelarProduto(leadData);
 
     const coletados = [
         leadData.nome ? 'Nome: ' + leadData.nome : null,
@@ -242,4 +267,36 @@ ${emojiRecente
 Escreva UMA única mensagem de WhatsApp, curta, sem markdown, seguindo todas as regras do sistema e SEMPRE terminando com uma pergunta. Não escreva rótulos nem coloque o próximo passo entre colchetes.`;
 }
 
-module.exports = { SYSTEM_SDR, promptExtracao, promptResposta };
+
+// =============================================================
+//  VISAO — instrucao para a IA descrever a imagem que o cliente enviou
+//
+//  Curta de proposito: a descricao entra no prompt da resposta, e um texto
+//  longo aqui empurra o contexto util para fora da janela.
+// =============================================================
+function promptVisao() {
+    return `Você é atendente da Avelloz Campina (concessionária de motos). O cliente enviou esta imagem no WhatsApp durante o atendimento. Descreva de forma curta e útil (1 a 3 frases, tom natural, SEM markdown) o que é e o que há de relevante para entender a necessidade dele:
+- Se for uma foto de moto (dele ou de um modelo), diga o que dá pra entender (modelo/estado/cor, se dá pra saber).
+- Se for um PRINT de conversa, anúncio ou simulação, resuma do que se trata.
+- Se for um documento (CNH, comprovante, print de dados), diga o que é sem transcrever dados sensíveis.
+Não invente o que não dá pra ver.`;
+}
+
+// =============================================================
+//  POS-ENCAMINHAMENTO — o lead JA foi entregue ao consultor humano
+//
+//  A regra central aqui e NAO puxar conversa: quem conduz o atendimento
+//  agora e a pessoa, e a IA ficar perguntando atropela o trabalho dela.
+// =============================================================
+function promptPosEncaminhamento({ mensagemCliente }) {
+    return `Este lead já foi ENCAMINHADO a um consultor humano da Avelloz Campina. Ele acabou de dizer: "${String(mensagemCliente).replace(/[<>]/g, '').substring(0, 600)}".
+Responda de forma breve, calorosa e útil (registro de WhatsApp, sem markdown, no máximo 1 emoji).
+NÃO puxe conversa. Só faça uma pergunta se ela for REALMENTE necessária para responder o que ele perguntou. É PROIBIDO terminar com "tem mais alguma dúvida?", "posso ajudar em algo mais?" ou qualquer variação: quem conduz o atendimento agora é o consultor humano, e ficar puxando assunto atropela o trabalho dele.
+- Se for uma dúvida simples sobre as motos/condições, responda com o que você sabe e PARE.
+- Se depender do consultor (valor de parcela, aprovação de crédito, prazo de entrega, negociação), diga que ele já vai continuar o atendimento pra resolver.
+- Se for sobre ${OFICINA.assuntos}, passe o telefone da nossa oficina: ${OFICINA.telefone}. Não diagnostique defeito nem cote peça/serviço.
+- Se for sobre INDICAÇÃO: ele passa o nome e o telefone do possível comprador pra um vendedor ANTES da compra; se o indicado fechar, ganha AZ1 R$ 50,00, AZ125 R$ 100,00, AZX160 R$ 150,00. Indicação reivindicada depois da compra fechada não é paga — diga isso com gentileza se for o caso.
+Nunca informe valor de parcela nem prometa prazo. Não refaça a qualificação e não repita o resumo.`;
+}
+
+module.exports = { SYSTEM_SDR, promptExtracao, promptResposta, promptVisao, promptPosEncaminhamento };

@@ -24,8 +24,6 @@
 //    PIPELINE_VALOR          = valor padrão da oportunidade (padrão 1)
 // =============================================================
 
-const axios = require('axios');
-
 const CC_PUSH_URL     = process.env.CC_PUSH_URL || '';
 const STEP_ID         = parseInt(process.env.PIPELINE_STEP_ID || '5', 10);
 const STEP_NOME       = process.env.PIPELINE_STEP_NOME || 'REUNIÃO MARCADA';
@@ -58,39 +56,19 @@ function configurado() {
     return !!(d && Number.isFinite(USER_ID) && Number.isFinite(RESPONSIBLE_ID) && Number.isFinite(STEP_ID));
 }
 
-// Cria a oportunidade no CRM. NUNCA lança — retorna o objeto criado ou null.
-// A criação é best-effort: se falhar, o agendamento em si não é afetado.
-async function criarOportunidade({ contactId, descricao, nome, valor } = {}) {
-    if (!configurado()) {
-        console.warn('⚠️ Pipeline não configurado (falta CC_PUSH_URL / PIPELINE_USER_ID / PIPELINE_RESPONSIBLE_ID) — oportunidade não criada.');
-        return null;
-    }
-    if (!contactId) {
-        console.warn('⚠️ Sem contactId no lead — não dá pra criar a oportunidade no CRM.');
-        return null;
-    }
-    const { base, token } = derivar();
-    const payload = {
-        name:           nome || OPP_NOME,
-        contactId:      Number(contactId),
-        pipelineStepId: STEP_ID,
-        userId:         USER_ID,
-        responsibleId:  RESPONSIBLE_ID,
-        value:          Number.isFinite(valor) ? valor : VALOR,
-        description:    descricao || ''
-    };
-    try {
-        const { data } = await axios.post(`${base}/opportunities?token=${token}`, payload, {
-            headers: { 'Content-Type': 'application/json' }, timeout: 20000
-        });
-        const opp = data?.data || data;
-        console.log(`💼 Oportunidade criada no CRM (id ${opp?.id}) — etapa "${STEP_NOME}" p/ contato ${contactId}`);
-        return opp;
-    } catch (e) {
-        console.error('❌ Erro ao criar oportunidade no CRM:', e.response?.data || e.message);
-        return null;
-    }
-}
+// =============================================================
+//  CODIGO MORTO — o que sobrou aqui SO alimenta o /diag
+//
+//  A funcao que criava a oportunidade no CRM (criarOportunidade) foi
+//  REMOVIDA: nao era chamada de lugar nenhum. Os vendedores nao usam o funil
+//  de Oportunidades — o fechamento deste projeto e transferir o ticket para
+//  o departamento da loja, nao criar card num pipeline.
+//
+//  O que ficou (derivar, configurado, diag) existe apenas para o /diag
+//  continuar reportando a configuracao de um recurso que nao roda mais.
+//  Remover isso muda a resposta do /diag — e mudanca de comportamento num
+//  endpoint administrativo, entao depende de decisao, nao de refatoracao.
+// =============================================================
 
 // Diagnóstico da config (sem expor token) — usado pelo /diag.
 function diag() {
@@ -108,4 +86,4 @@ function diag() {
     };
 }
 
-module.exports = { configurado, criarOportunidade, diag };
+module.exports = { configurado, diag };

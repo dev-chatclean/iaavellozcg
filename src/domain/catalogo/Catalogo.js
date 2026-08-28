@@ -1,15 +1,17 @@
 // =============================================================
-//  DADOS DE NEGÓCIO — IA Avelloz Campina
-//  Todo o conhecimento comercial e operacional que a IA usa.
-//  A lógica (state machine, chamadas OpenAI) fica no index.js;
-//  os prompts em prompts.js. Aqui só CONTEÚDO.
+//  CATALOGO — o conhecimento de negocio da Avelloz Campina
 //
-//  Fonte: PROMPT-MESTRE ULTRABLOQUEADO — SDR Virtual Avelloz Campina (V2).
+//  Empresa, modelos, precos, formas de pagamento, lojas, oficina, programa
+//  de indicacao, perfis de dor, objecoes e departamentos. Tudo o que a IA
+//  precisa saber sobre O QUE se vende e ONDE se atende.
+//
+//  Modulo puro. Os IDs de departamento no CRM entram por PARAMETRO: eles sao
+//  configuracao de uma instalacao do ChatClean, nao regra de negocio — se a
+//  operacao recriar os departamentos, os numeros mudam sem que nada aqui
+//  mude.
+//
+//  NOTA DE LEITURA: o conteudo foi movido verbatim do data.js.
 // =============================================================
-
-// -------------------------------------------------------------
-//  A EMPRESA
-// -------------------------------------------------------------
 const EMPRESA_INFO = {
     nome: 'Avelloz Campina - Realliza Motos',
     tagline: 'Motos econômicas com facilidade de pagamento',
@@ -182,27 +184,42 @@ const DEPARTAMENTOS = {
     posvenda: 'Pós-venda'
 };
 
-// Lê um ID de departamento do .env, caindo no padrão quando não definido.
-function idEnv(nomeVar, padrao) {
-    const v = parseInt(process.env[nomeVar] || '', 10);
-    return Number.isFinite(v) ? v : padrao;
+
+// -------------------------------------------------------------
+//  IDs DOS DEPARTAMENTOS NO CRM
+//
+//  null = sem ID conhecido: nao transfere, so deixa a nota interna para o
+//  atendente encaminhar a mao.
+// -------------------------------------------------------------
+const IDS_PADRAO = Object.freeze({
+    [DEPARTAMENTOS.matriz]: 228,
+    [DEPARTAMENTOS.malvinas]: 230,
+    [DEPARTAMENTOS.monteiro]: 231,
+    [DEPARTAMENTOS.entrada]: null,
+    [DEPARTAMENTOS.posvenda]: null
+});
+
+/**
+ * @param {{ids?: Record<string, number|null>}} [opcoes]
+ *   Sobrescreve os padroes por NOME de departamento. Valor invalido cai no
+ *   padrao, para uma variavel mal digitada nao derrubar a transferencia.
+ */
+function criarDepartamentos({ ids = {} } = {}) {
+    const DEPARTAMENTO_IDS = {};
+    for (const [nome, padrao] of Object.entries(IDS_PADRAO)) {
+        const informado = parseInt(ids[nome], 10);
+        DEPARTAMENTO_IDS[nome] = Number.isFinite(informado) ? informado : padrao;
+    }
+
+    /** ID do departamento a partir do nome (null quando nao cadastrado). */
+    function departamentoId(departamento) {
+        const id = DEPARTAMENTO_IDS[departamento];
+        return Number.isFinite(id) ? id : null;
+    }
+
+    return { DEPARTAMENTO_IDS, departamentoId };
 }
 
-// ID de cada departamento no CRM (null = sem ID conhecido → não transfere,
-// só deixa a nota interna para o atendente encaminhar à mão).
-const DEPARTAMENTO_IDS = {
-    [DEPARTAMENTOS.matriz]:   idEnv('DEPT_ID_MATRIZ',    228),
-    [DEPARTAMENTOS.malvinas]: idEnv('DEPT_ID_MALVINAS',  230),
-    [DEPARTAMENTOS.monteiro]: idEnv('DEPT_ID_MONTEIRO',  231),
-    [DEPARTAMENTOS.entrada]:  idEnv('DEPT_ID_AGENTE_IA', null),
-    [DEPARTAMENTOS.posvenda]: idEnv('DEPT_ID_POSVENDA',  null)
-};
-
-// ID do departamento a partir do nome (null quando não cadastrado).
-function departamentoId(departamento) {
-    const id = DEPARTAMENTO_IDS[departamento];
-    return Number.isFinite(id) ? id : null;
-}
 
 // Mapeia o texto da loja escolhida pelo cliente para o departamento do CRM.
 function lojaParaDepartamento(lojaTexto) {
@@ -236,8 +253,8 @@ module.exports = {
     PERFIS,
     OBJECOES,
     DEPARTAMENTOS,
-    DEPARTAMENTO_IDS,
-    departamentoId,
+    IDS_PADRAO,
+    criarDepartamentos,
     lojaParaDepartamento,
     CAMPOS_QUALIFICACAO,
     CAMPOS_SIMULACAO

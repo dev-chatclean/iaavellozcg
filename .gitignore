@@ -4,3 +4,9 @@ node_modules/
 npm-debug.log*
 .DS_Store
 database.json
+
+# A linha de base e evidencia versionada (docs/12-linha-de-base.md)
+# So a linha de base de REFERENCIA e versionada. As coletas de conferencia
+# (feitas a cada fatia) sao transitorias e nao entram no repositorio.
+!test/baseline/producao-develop-*.log
+coverage/

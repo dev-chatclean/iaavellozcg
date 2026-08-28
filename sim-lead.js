@@ -1,140 +1,115 @@
 // =============================================================
-//  SIMULAÇÃO — roda uma conversa de qualificação COMPLETA no mesmo
-//  cérebro do bot (prompts + flow), sequencialmente, e imprime o
-//  resumo que iria para a equipe. Sem WhatsApp/ChatClean.
+//  SIMULACAO — um lead percorrendo o funil inteiro, sem interacao
 //
-//  Rodar:  node sim-lead.js   (ou: npm run sim)
-//  Precisa de OPENAI_API_KEY no .env.
+//  Roda o ATENDIMENTO DE PRODUCAO de ponta a ponta com um roteiro fixo, e
+//  mostra o que o cliente leria, o que a equipe receberia e para qual fila o
+//  ticket iria. Serve para conferir uma mudanca de prompt ou de funil sem
+//  precisar digitar a conversa toda.
+//
+//  Como o test-chat.js, troca APENAS o canal de saida. Antes da refatoracao
+//  este arquivo tinha a propria copia do turno, que ja havia divergido da
+//  producao.
+//
+//  Rodar:  npm run sim
+//  ATENCAO: gasta credito real da OpenAI (uma chamada de extracao e uma de
+//  redacao por mensagem do roteiro).
 // =============================================================
 
 require('dotenv').config();
-const OpenAI = require('openai');
-const { SYSTEM_SDR, promptExtracao, promptResposta } = require('./prompts');
-const { PERFIS, DEPARTAMENTOS, lojaParaDepartamento } = require('./data');
-const { determinarProximoCampo, aplicarCampos, detectarPerfil } = require('./flow');
-const { estaEmExpediente } = require('./horario');
 
-// Força um horário para testar o modo plantão: SIM_DATA="2026-07-25T21:00:00-03:00"
-const exp = process.env.SIM_DATA ? estaEmExpediente(new Date(process.env.SIM_DATA)) : estaEmExpediente();
+const carregarConfig = require('./src/main/config').carregar;
+const CanalDeTerminal = require('./src/infrastructure/terminal/CanalDeTerminal');
+const { PERFIS } = require('./src/domain/catalogo/Catalogo');
 
-if (!process.env.OPENAI_API_KEY) { console.error('❌ Defina OPENAI_API_KEY no .env'); process.exit(1); }
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+if (!process.env.OPENAI_API_KEY) {
+    console.error('❌ Defina OPENAI_API_KEY no .env antes de rodar a simulacao.');
+    process.exit(1);
+}
 
-const chatId = '5583999990000';
-const leadData = { conversationHistory: [] };
-let tokensEntrada = 0, tokensSaida = 0;
-
-// Roteiro do "cliente" (motoboy que roda de moto alugada). Pede preço no começo
-// (deve ser REDIRECIONADO pro diagnóstico antes de liberar modelo/preço).
+// Motoboy que aluga moto: o perfil de maior conversao, e o que exercita a
+// conta da economia (o argumento central da venda).
 const ROTEIRO = [
-    'oi',
-    'quanto custa a AZ1?',                                  // <- preço cedo: deve REDIRECIONAR
-    'primeira vez que ouço falar de vocês',
+    'oi, vi o anuncio de voces',
     'quero uma moto pra trabalhar de aplicativo',
-    'hoje eu rodo de moto alugada',                         // transporte + situação
-    'pago 250 por semana de aluguel, a moto não é minha',  // gasto + situação de moto
-    'perco um tempão quando a alugada dá problema',
-    'qual moto vocês indicam pra mim?',                     // <- diagnóstico OK: pode apresentar
-    'gostei da AZ125',                                      // modeloInteresse
-    'seria no financiamento',                               // formaPagamento
-    'meu nome é Rafael, CPF 12345678900, nasci 10/05/1995, telefone 83999998888, tenho CNH, quero a AZ125 vermelha', // dados
-    'pode ser na loja Malvinas'                             // loja
+    'hoje eu alugo uma moto',
+    'pago 250 por semana no aluguel',
+    'a moto alugada vive quebrando, ja gastei muito com manutencao',
+    'quanto custa a AZ125?',
+    'gostei da AZ125',
+    'queria financiar',
+    'pode ser na Malvinas',
+    'meu nome e Rafael Souza, CPF 123.456.789-00, nasci em 10/05/1995'
 ];
 
-async function extrair(mensagem, campoAtual, hist) {
-    const prompt = promptExtracao({ mensagemSanitizada: mensagem.substring(0, 1000), campoAtual });
-    const c = await openai.chat.completions.create({
-        model: 'gpt-4o-mini', temperature: 0,
-        messages: [...hist, { role: 'user', content: prompt }],
-        response_format: { type: 'json_object' }
-    });
-    tokensEntrada += c.usage.prompt_tokens; tokensSaida += c.usage.completion_tokens;
-    let res = c.choices[0].message.content.trim();
-    if (res.includes('```')) res = res.replace(/```json?/g, '').replace(/```/g, '').trim();
-    try { return JSON.parse(res); } catch { return null; }
-}
+const CHAT = '5583999990000';
 
-async function responder(mensagem, proximoCampo, hist) {
-    const isInicioConversa = leadData.conversationHistory.length === 0;
-    const prompt = promptResposta({ isInicioConversa, mensagemSanitizada: mensagem.substring(0, 1000), proximoCampo, leadData, expediente: exp });
-    const c = await openai.chat.completions.create({
-        model: 'gpt-4o-mini', temperature: 0.7,
-        messages: [{ role: 'system', content: SYSTEM_SDR }, ...hist, { role: 'user', content: prompt }]
-    });
-    tokensEntrada += c.usage.prompt_tokens; tokensSaida += c.usage.completion_tokens;
-    return c.choices[0].message.content.trim();
-}
+const config = carregarConfig({ ...process.env, CC_PUSH_URL: '', REDIS_URL: '', AGRUPAR_MENSAGENS_MS: '0' });
+const canal = CanalDeTerminal.criar({ mostrarInterno: false });
+const container = require('./src/main/container').criar(config, { canal });
+const { processarMensagem, store } = container;
 
-function resumoEquipe() {
-    const perfilNome = leadData.perfilKey && PERFIS[leadData.perfilKey] ? PERFIS[leadData.perfilKey].nome : 'Não informado';
-    const departamento = lojaParaDepartamento(leadData.loja) || DEPARTAMENTOS.geral;
-    return [
-        '🏍️ LEAD QUALIFICADO — Avelloz Campina',
-        '',
-        `Contato: ${leadData.nome || 'Lead'} (${chatId})`,
-        `Perfil: ${perfilNome}`,
-        `Finalidade: ${leadData.finalidade || 'Não informado'}`,
-        `Transporte hoje: ${leadData.transporteAtual || 'Não informado'}`,
-        `Gasto atual: ${leadData.gastoMensal || 'Não informado'}`,
-        `Situação de moto: ${leadData.situacaoMoto || 'Não informado'}`,
-        `Modelo de interesse: ${leadData.modeloInteresse || 'Não informado'}`,
-        `Forma de pagamento: ${leadData.formaPagamento || 'Não informado'}`,
-        `Loja escolhida: ${leadData.loja || 'Não informada'}`,
-        '',
-        'Dados p/ simulação:',
-        `  Nome completo: ${leadData.nomeCompleto || 'Não informado'}`,
-        `  CPF: ${leadData.cpf || 'Não informado'}`,
-        `  Nascimento: ${leadData.dataNascimento || 'Não informado'}`,
-        `  Telefone: ${leadData.telefone || 'Não informado'}`,
-        `  CNH: ${leadData.cnh || 'Não informado'}`,
-        `  Cor/modelo: ${leadData.corModelo || 'Não informado'}`,
-        '',
-        `➡️ Transferir para o departamento ${departamento}${exp.aberto ? '' : ' [FORA DE EXPEDIENTE — AGENDAR RETORNO]'}`
-    ].filter(l => l !== null).join('\n');
-}
-
-async function turno(texto) {
-    const proximoAntes = determinarProximoCampo(leadData);
-    const hist = leadData.conversationHistory.slice(-10).map(h => ({ role: h.role === 'user' ? 'user' : 'assistant', content: h.content }));
-    const extraido = await extrair(texto, proximoAntes?.campo, hist.slice(-4));
-    leadData.objecaoAtiva = null;
-    leadData.perguntouAgora = null;
-    if (extraido) {
-        aplicarCampos(leadData, extraido);
-        if (extraido.objecao) leadData.objecaoAtiva = extraido.objecao;
-        if (extraido.perguntou) leadData.perguntouAgora = true;
-        if (!leadData.perfilKey) {
-            leadData.perfilKey = detectarPerfil([extraido.finalidade, extraido.transporteAtual, extraido.situacaoMoto, texto].filter(Boolean).join(' '));
-        }
-    }
-    const proximoDepois = determinarProximoCampo(leadData);
-    const resposta = await responder(texto, proximoDepois, hist);
-    leadData.conversationHistory.push({ role: 'user', content: texto });
-    leadData.conversationHistory.push({ role: 'assistant', content: resposta });
-    return resposta;
-}
+const mensagem = (texto, i) => ({
+    chatId: CHAT,
+    contactId: null,
+    texto,
+    tipo: 'text',
+    msgId: 'SIM-' + i,
+    nomeContato: '',
+    quotedText: null,
+    mediaBase64: null,
+    mediaUrl: null,
+    mediaMimetype: null
+});
 
 (async () => {
-    console.log('\n════════ SIMULAÇÃO — Qualificação de lead (motoboy / moto alugada) ════════');
-    console.log(exp.aberto
-        ? '   Modo: EXPEDIENTE — transfere ao vivo\n'
-        : `   Modo: PLANTÃO (${exp.motivo}) — encaminha e sugere retorno para ${exp.proximoExpediente}\n`);
-    for (const msg of ROTEIRO) {
-        console.log('CLIENTE > ' + msg);
-        const resp = await turno(msg);
-        console.log('BOT     > ' + resp + '\n');
-        // Finaliza quando a qualificação está completa (loja identificada)
-        if (leadData.qualificacaoCompleta && !leadData.finalizado) {
-            leadData.finalizado = true;
+    console.log('\nSIMULACAO — lead percorrendo o funil (atendimento de producao)\n');
+
+    for (const [i, texto] of ROTEIRO.entries()) {
+        console.log(`você > ${texto}`);
+        const antes = canal.mensagens().length;
+        try {
+            await processarMensagem(mensagem(texto, i));
+        } catch (e) {
+            console.error('  ❌ turno falhou:', e.message);
         }
-        if (leadData.finalizado) {
-            console.log('──────── ✅ FINALIZADO — resumo enviado à equipe ────────\n');
-            console.log(resumoEquipe());
-            console.log('\n(no CRM: nota interna no ticket + WhatsApp p/ EQUIPE_NUMERO)\n');
-            break;
-        }
+        for (const resposta of canal.mensagens().slice(antes)) console.log('bot  > ' + resposta);
+        console.log('');
     }
-    const custo = (tokensEntrada * 0.15 / 1e6) + (tokensSaida * 0.60 / 1e6);
-    console.log('──────── custo desta conversa ────────');
-    console.log(`tokens: ${tokensEntrada} entrada + ${tokensSaida} saída | ~US$ ${custo.toFixed(4)}`);
-})().catch(e => console.error('ERR', e.message));
+
+    const lead = (await store.getLead(CHAT)) || {};
+    const perfil = lead.perfilKey && PERFIS[lead.perfilKey] ? PERFIS[lead.perfilKey].nome : 'não detectado';
+
+    console.log('='.repeat(60));
+    console.log('ESTADO FINAL DO LEAD');
+    console.log('='.repeat(60));
+    for (const k of [
+        'nome', 'finalidade', 'transporteAtual', 'gastoMensal', 'situacaoMoto',
+        'modeloInteresse', 'formaPagamento', 'loja',
+        'nomeCompleto', 'cpf', 'dataNascimento', 'telefone', 'cnh', 'corModelo'
+    ]) {
+        if (lead[k]) console.log(`  ${k}: ${lead[k]}`);
+    }
+    console.log(`  perfil: ${perfil}`);
+    console.log(`  qualificado: ${!!lead.qualificacaoCompleta} | finalizado: ${!!lead.finalizado}`);
+
+    const notas = canal.notas();
+    if (notas.length) {
+        console.log('\n' + '='.repeat(60));
+        console.log('O QUE A EQUIPE RECEBE');
+        console.log('='.repeat(60));
+        console.log(notas[0]);
+    } else {
+        console.log('\n(o funil nao fechou: a equipe nao recebeu resumo)');
+    }
+
+    const transferencias = canal.transferencias();
+    console.log('\n' + '='.repeat(60));
+    console.log(
+        transferencias.length
+            ? `TICKET TRANSFERIDO para a fila #${transferencias[0].queueId}`
+            : 'TICKET NAO TRANSFERIDO — permanece na fila de entrada'
+    );
+    console.log('='.repeat(60) + '\n');
+
+    process.exit(0);
+})();

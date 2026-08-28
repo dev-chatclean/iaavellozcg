@@ -1,14 +1,19 @@
 // =============================================================
-//  FLOW — lógica PURA do fluxo de qualificação do SDR Avelloz.
-//  Compartilhada entre o servidor (index.js) e o tester local
-//  (test-chat.js / sim-lead.js) para não haver drift. Sem I/O, sem OpenAI.
+//  FUNIL — a ordem em que o atendimento avanca
 //
-//  O fluxo é um GUIA: o diagnóstico da realidade atual (transporte + gasto +
-//  situação de moto) vem ANTES de liberar modelo/preço. A ordem forte está no
-//  SYSTEM (prompts.js); aqui só ditamos a próxima "dica" de campo a coletar.
+//  Decide qual e a PROXIMA informacao a coletar, e devolve junto a instrucao
+//  que o modelo recebe para pedi-la. Uma pergunta por vez, sempre: perguntas
+//  duplas ("quanto gasta E quanto tempo perde?") fazem o cliente responder so
+//  a segunda parte, o campo continua vazio, a IA repete e ele se irrita.
+//
+//  A ordem nao e arbitraria — e o metodo de venda. O DIAGNOSTICO da realidade
+//  atual vem antes de qualquer produto, porque quem ouve o preco antes de
+//  fazer a conta do que ja gasta compara a moto com zero.
+//
+//  Modulo puro: recebe o estado, devolve a etapa. Nao faz I/O.
+//
+//  NOTA DE LEITURA: o corpo foi movido verbatim do flow.js.
 // =============================================================
-
-// Ordem oficial do fluxo Avelloz (diagnóstico → modelo → pagamento → loja).
 const CAMPOS = ['finalidade', 'transporteAtual', 'gastoMensal', 'situacaoMoto', 'modeloInteresse', 'formaPagamento', 'loja'];
 
 // Dados coletados EM BLOCO para a simulação (capturados oportunamente, não

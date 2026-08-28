@@ -1,124 +1,48 @@
 // =============================================================
-//  STORE — estado da conversa persistido em Redis
-//  Fallback automático para memória se REDIS_URL não estiver definido
-//  (mantém o comportamento em dev/local, sem quebrar nada).
+//  STORE — costura entre o index.js e os repositorios
+//
+//  A implementacao vive em src/infrastructure: RepositorioRedis (durável,
+//  compartilhado) e RepositorioMemoria (processo local, e fallback do Redis).
+//
+//  Este arquivo faz só a montagem: le o ambiente, escolhe o adapter e expoe a
+//  mesma superficie de sempre. Some quando o composition root nascer.
 //
 //  Env:
 //    REDIS_URL     = redis://:senha@host:6379  (ex.: instância da Hostinger)
 //    REDIS_PREFIX  = namespace das chaves (padrão: avellozcg)
 // =============================================================
 
-const REDIS_URL    = process.env.REDIS_URL || '';
-const PREFIX       = process.env.REDIS_PREFIX || 'avellozcg';
-const LEAD_TTL_SEG = 60 * 60 * 24 * 30;   // 30 dias — conversas paradas expiram sozinhas
+const RepositorioMemoria = require('./src/infrastructure/memoria/RepositorioMemoria');
+const RepositorioRedis = require('./src/infrastructure/redis/RepositorioRedis');
 
-let redis = null;
-let usingRedis = false;
-const mem = new Map();   // fallback: estado das conversas
-const memLeads = [];     // fallback: leads qualificados (histórico)
+const REDIS_URL = process.env.REDIS_URL || '';
+const PREFIX = process.env.REDIS_PREFIX || 'avellozcg';
 
-if (REDIS_URL) {
+const memoria = RepositorioMemoria.criar();
+
+function montar() {
+    if (!REDIS_URL) return memoria;
     try {
         const Redis = require('ioredis');
-        redis = new Redis(REDIS_URL, { maxRetriesPerRequest: 3 });
+        const redis = new Redis(REDIS_URL, { maxRetriesPerRequest: 3 });
         redis.on('connect', () => console.log('🗄️  Redis conectado'));
         redis.on('error', (e) => console.error('❌ Redis:', e.message));
-        usingRedis = true;
+        return RepositorioRedis.criar({ redis, fallback: memoria, prefixo: PREFIX });
     } catch (e) {
         console.error('❌ Falha ao iniciar o Redis, usando memória:', e.message);
-        usingRedis = false;
+        return memoria;
     }
 }
 
-const leadKey      = (chatId) => `${PREFIX}:lead:${chatId}`;
-const leadsListKey = `${PREFIX}:leads`;
-const lockKey      = (chatId) => `${PREFIX}:lock:${chatId}`;
+const repositorio = montar();
 
-function isRedis() { return usingRedis; }
-
-// Lock de processamento CROSS-INSTÂNCIA (Redis SET NX PX). Garante que, se
-// houver mais de um container, o mesmo lead não seja processado em paralelo.
-// Sem Redis, retorna true (o lock em memória do index.js já basta numa instância).
-// Fail-open: se o Redis falhar, não trava o atendimento.
-async function acquireLock(chatId, ttlMs = 60000) {
-    if (!usingRedis) return true;
-    try {
-        const r = await redis.set(lockKey(chatId), '1', 'PX', ttlMs, 'NX');
-        return r === 'OK';
-    } catch (e) {
-        console.error('❌ acquireLock:', e.message);
-        return true; // fail-open
-    }
-}
-async function releaseLock(chatId) {
-    if (!usingRedis) return;
-    try { await redis.del(lockKey(chatId)); }
-    catch (e) { console.error('❌ releaseLock:', e.message); }
-}
-
-// Estado da conversa (leadData) por número
-async function getLead(chatId) {
-    if (usingRedis) {
-        try {
-            const s = await redis.get(leadKey(chatId));
-            return s ? JSON.parse(s) : null;
-        } catch (e) {
-            console.error('❌ getLead:', e.message);
-            return mem.get(chatId) || null;
-        }
-    }
-    return mem.get(chatId) || null;
-}
-
-async function saveLead(chatId, leadData) {
-    if (usingRedis) {
-        try {
-            await redis.set(leadKey(chatId), JSON.stringify(leadData), 'EX', LEAD_TTL_SEG);
-            return;
-        } catch (e) {
-            console.error('❌ saveLead:', e.message);
-        }
-    }
-    mem.set(chatId, leadData);
-}
-
-async function deleteLead(chatId) {
-    if (usingRedis) {
-        try { await redis.del(leadKey(chatId)); return; }
-        catch (e) { console.error('❌ deleteLead:', e.message); }
-    }
-    mem.delete(chatId);
-}
-
-// Lista os chatIds com estado ativo (para o varredor de follow-up).
-// Redis: SCAN por prefixo. Memória: chaves do Map.
-async function scanLeadIds() {
-    if (usingRedis) {
-        try {
-            const ids = [];
-            const prefixo = `${PREFIX}:lead:`;
-            let cursor = '0';
-            do {
-                const [next, keys] = await redis.scan(cursor, 'MATCH', `${prefixo}*`, 'COUNT', 200);
-                cursor = next;
-                for (const k of keys) ids.push(k.slice(prefixo.length));
-            } while (cursor !== '0');
-            return ids;
-        } catch (e) {
-            console.error('❌ scanLeadIds:', e.message);
-            return [...mem.keys()];
-        }
-    }
-    return [...mem.keys()];
-}
-
-// Leads qualificados (histórico append-only)
-async function appendLeadFinalizado(registro) {
-    if (usingRedis) {
-        try { await redis.rpush(leadsListKey, JSON.stringify(registro)); return; }
-        catch (e) { console.error('❌ appendLeadFinalizado:', e.message); }
-    }
-    memLeads.push(registro);
-}
-
-module.exports = { isRedis, getLead, saveLead, deleteLead, appendLeadFinalizado, scanLeadIds, acquireLock, releaseLock };
+module.exports = {
+    isRedis: () => repositorio.isRedis(),
+    getLead: (chatId) => repositorio.getLead(chatId),
+    saveLead: (chatId, leadData) => repositorio.saveLead(chatId, leadData),
+    deleteLead: (chatId) => repositorio.deleteLead(chatId),
+    appendLeadFinalizado: (registro) => repositorio.appendLeadFinalizado(registro),
+    scanLeadIds: () => repositorio.scanLeadIds(),
+    acquireLock: (chatId, ttlMs) => repositorio.acquireLock(chatId, ttlMs),
+    releaseLock: (chatId) => repositorio.releaseLock(chatId)
+};

@@ -7,7 +7,13 @@
     "start": "node index.js",
     "dev": "nodemon index.js",
     "chat": "node test-chat.js",
-    "sim": "node sim-lead.js"
+    "sim": "node sim-lead.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "coverage": "vitest run --coverage",
+    "lint": "eslint .",
+    "format": "prettier --write \"**/*.{js,json,md}\"",
+    "format:check": "prettier --check \"**/*.{js,json,md}\""
   },
   "keywords": [
     "whatsapp",
@@ -30,6 +36,12 @@
     "openai": "^4.104.0"
   },
   "devDependencies": {
-    "nodemon": "^3.0.2"
+    "@eslint/js": "^9.39.5",
+    "@vitest/coverage-v8": "^3.2.7",
+    "eslint": "^9.39.5",
+    "globals": "^17.9.0",
+    "nodemon": "^3.0.2",
+    "prettier": "^3.9.6",
+    "vitest": "^3.2.7"
   }
 }
