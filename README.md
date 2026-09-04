@@ -19,7 +19,7 @@ O ChatClean cuida só do transporte. Toda a inteligência (persona, diagnóstico
 - **Persona oficial Avelloz:** consultor humano, tom de WhatsApp, sem markdown, no máximo 1 emoji, SEMPRE termina com uma pergunta, anti-jailbreak, nunca revela que é IA.
 - **Diagnóstico ANTES do produto (regra inegociável):** não revela preço, modelo nem condição antes de entender transporte atual + gasto mensal + situação de moto. Se o cliente pede preço cedo, redireciona com naturalidade.
 - **Vende liberdade e economia:** mostra a conta do que o cliente já gasta hoje (Uber/ônibus/combustível/aluguel de moto) projetada no ano. Trata o perfil especial de quem roda de aplicativo (aluga / começando / quer trocar).
-- **Preços liberados** (após o diagnóstico): AZ1, AZ125, AZX160 — sempre como preço promocional já com emplacamento. **Nunca informa valor de parcela** (transfere pro humano).
+- **Preços liberados** (após o diagnóstico): AZ1 e AZ125 como preço promocional já com emplacamento; a AZX160 é exceção — emplacamento cobrado à parte, informa os dois valores (sem e com). **Nunca informa valor de parcela** (transfere pro humano).
 - **Fechamento:** identifica a loja (Matriz, Malvinas ou Monteiro — obrigatório), coleta os dados de simulação (CPF, nascimento, nome, telefone, CNH, cor/modelo) e **transfere o ticket para o departamento da loja escolhida** (ver abaixo).
 - **Peças, revisão e manutenção:** assunto da oficina — a IA passa o contato direto **(83) 98207-3221** e não tenta diagnosticar defeito nem cotar serviço.
 - **Programa de indicação ("Indicou, comprou, ganhou!"):** quem indica passa nome e telefone do possível comprador a um vendedor **antes** da compra; fechando, ganha R$ 50 (AZ1), R$ 100 (AZ125) ou R$ 150 (AZX160). Indicação reivindicada **depois** da compra não é paga.
@@ -43,13 +43,13 @@ O ChatClean cuida só do transporte. Toda a inteligência (persona, diagnóstico
 
 Acolher (conhece a marca?) → interesse (pra que quer a moto) → **diagnóstico** (transporte hoje → gasto mensal → situação de moto) → tocar na dor / mostrar a conta → recomendar modelo + preço → forma de pagamento → coletar dados de simulação → **identificar a loja** → transferir pro consultor.
 
-## Modelos (preços promocionais, com emplacamento)
+## Modelos (preços promocionais)
 
-| Modelo | Cilindrada | Preço |
-|---|---|---|
-| AZ1 | 50cc | R$ 11.390,00 |
-| AZ125 | 125cc (Alfa) | R$ 14.190,00 |
-| AZX160 | 160cc | R$ 19.990,00 |
+| Modelo | Cilindrada | Sem emplacamento | Com emplacamento |
+|---|---|---|---|
+| AZ1 | 50cc | — | R$ 11.390,00 (incluso) |
+| AZ125 | 125cc (Alfa) | — | R$ 14.190,00 (incluso) |
+| AZX160 | 160cc | R$ 19.990,00 | R$ 20.990,00 |
 
 ## Unidades
 

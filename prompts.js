@@ -11,8 +11,14 @@
 const { MODELOS, FORMAS_PAGAMENTO, LOJAS, PERFIS, OBJECOES, OFICINA, INDICACAO } = require('./data');
 
 // Blocos montados a partir do data.js (mantém números/endereços em sincronia).
+// Modelos com `precoComEmplacamento` cobram o emplacamento à parte (ex.: AZX160);
+// nos demais o preço promocional já vem com o emplacamento incluso.
+const precoTxt = m => m.precoComEmplacamento
+    ? `${m.preco} SEM emplacamento / ${m.precoComEmplacamento} COM emplacamento`
+    : `${m.preco} (promocional, JÁ COM EMPLACAMENTO)`;
+
 const CATALOGO_TXT = Object.values(MODELOS).map(m =>
-    `${m.nome} (${m.cilindrada}) — ${m.preco} (promocional, JÁ COM EMPLACAMENTO):\n` +
+    `${m.nome} (${m.cilindrada}) — ${precoTxt(m)}:\n` +
     `${m.descricao}\nCores: ${m.cores}\nImagem: ${m.imagem}\nComparativo: ${m.comparativo}`
 ).join('\n\n');
 
@@ -73,10 +79,10 @@ FLUXO OBRIGATÓRIO (uma coisa de cada vez):
 9) ENCAMINHAR PRO HUMANO — "Perfeito! Já tô repassando seus dados pro nosso consultor. Ele assume daqui e segue sua simulação por aqui mesmo, combinado? 😊"
 
 SOBRE PREÇOS E VALORES:
-Informe valor SOMENTE quando o diagnóstico mínimo estiver completo E o cliente já tiver dito qual moto interessa. Sempre apresente como preço promocional já com emplacamento incluso: "está com preço promocional de R$ (valor) já com o emplacamento incluso". Diga isso UMA vez e não repita o valor nas mensagens seguintes. NUNCA informe valor de PARCELA — sempre que perguntarem de parcela, transfira pro consultor humano. NUNCA mude o nome dos produtos: AZ1, AZ125 e AZX160.
+Informe valor SOMENTE quando o diagnóstico mínimo estiver completo E o cliente já tiver dito qual moto interessa. Para AZ1 e AZ125, apresente como preço promocional já com emplacamento incluso: "está com preço promocional de R$ (valor) já com o emplacamento incluso". A AZX160 é EXCEÇÃO: o emplacamento é cobrado à parte — informe os dois valores, "está R$ 19.990,00 sem o emplacamento e R$ 20.990,00 com o emplacamento incluso", e NUNCA diga que os R$ 19.990,00 já incluem o emplacamento. Diga isso UMA vez e não repita o valor nas mensagens seguintes. NUNCA informe valor de PARCELA — sempre que perguntarem de parcela, transfira pro consultor humano. NUNCA mude o nome dos produtos: AZ1, AZ125 e AZX160.
 Se o cliente perguntar de ENTRADA, parcela, juros ou "como ficam as condições", NÃO invente número nem repita o preço da moto: reconheça a pergunta e diga com naturalidade que quem fecha a simulação com o valor exato é o consultor, porque depende da análise no banco — e siga com a próxima pergunta do fluxo. Ex.: "Boa, com entrada a condição melhora bastante. O valor certinho quem fecha é nosso consultor, que consulta os bancos na hora. Qual unidade fica melhor pra você?"
-Preços atuais (promocionais, com emplacamento):
-${Object.values(MODELOS).map(m => `- ${m.nome} (${m.cilindrada}): ${m.preco}`).join('\n')}
+Preços atuais (promocionais):
+${Object.values(MODELOS).map(m => `- ${m.nome} (${m.cilindrada}): ${precoTxt(m)}`).join('\n')}
 
 CATÁLOGO DE MODELOS:
 ${CATALOGO_TXT}
@@ -217,7 +223,7 @@ function promptResposta({ isInicioConversa, mensagemSanitizada, proximoCampo, le
 - O cliente acabou de dizer: "${mensagemSanitizada}"
 ${leadData.analiseImagem ? '- O cliente ENVIOU UMA IMAGEM e você CONSEGUIU vê-la. Conteúdo: ' + leadData.analiseImagem + '\n  Comente de forma natural e útil o que viu e siga ajudando/qualificando. NUNCA diga que não consegue ver imagens.' : ''}
 ${isInicioConversa ? '- Esta é a PRIMEIRA mensagem: acolha (passo 1), descubra se ele já conhece a Avelloz e puxe o interesse. Uma coisa de cada vez.' : ''}
-${!diagnosticoCompleto ? '- ATENÇÃO: o DIAGNÓSTICO ainda NÃO terminou (falta transporte atual, gasto mensal e/ou situação de moto). NÃO revele preço, nome de modelo, especificação nem condição de pagamento agora. Se o cliente pedir preço/modelo/catálogo, redirecione com naturalidade para entender o dia a dia dele primeiro (uma pergunta por vez).' : '- Diagnóstico mínimo OK: recomende UM modelo que encaixe no caso dele e, quando ele demonstrar interesse num modelo, informe o preço promocional (já com emplacamento) UMA vez — NÃO repita o preço em toda mensagem. NUNCA informe valor de PARCELA. Depois de dar o preço, avance a conversa com uma pergunta (forma de pagamento ou loja).'}
+${!diagnosticoCompleto ? '- ATENÇÃO: o DIAGNÓSTICO ainda NÃO terminou (falta transporte atual, gasto mensal e/ou situação de moto). NÃO revele preço, nome de modelo, especificação nem condição de pagamento agora. Se o cliente pedir preço/modelo/catálogo, redirecione com naturalidade para entender o dia a dia dele primeiro (uma pergunta por vez).' : '- Diagnóstico mínimo OK: recomende UM modelo que encaixe no caso dele e, quando ele demonstrar interesse num modelo, informe o preço promocional UMA vez (AZ1 e AZ125 já com emplacamento; AZX160 são os dois valores, sem e com emplacamento) — NÃO repita o preço em toda mensagem. NUNCA informe valor de PARCELA. Depois de dar o preço, avance a conversa com uma pergunta (forma de pagamento ou loja).'}
 ${perguntou
     ? '- O CLIENTE FEZ UMA PERGUNTA. Responda a dúvida dele de forma natural (respeitando o bloqueio de diagnóstico acima). Não empilhe perguntas do roteiro nesta resposta; mas, como sempre, termine com UMA pergunta que mantenha a conversa viva.'
     : linhaPasso}
