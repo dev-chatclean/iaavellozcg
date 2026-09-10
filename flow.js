@@ -57,9 +57,9 @@ function determinarProximoCampo(leadData) {
     // UMA pergunta por vez, sempre. Perguntas duplas ("quanto gasta E quanto tempo
     // perde?") fazem o cliente responder só a segunda parte: o campo continua vazio,
     // a IA repete a pergunta e ele se irrita — foi o que travou o atendimento no print.
-    if (!leadData.finalidade)      return { campo: 'finalidade',      pergunta: 'Pergunte APENAS pra que ele quer a moto (trabalhar, economizar, passear, pra esposa) — passo 2, interesse. Não emende nenhuma outra pergunta na mesma mensagem.' };
-    if (!leadData.transporteAtual) return { campo: 'transporteAtual', pergunta: 'Pergunte APENAS como ele se locomove HOJE: carro, Uber, ônibus, carona ou moto alugada (passo 3 — diagnóstico). Uma coisa de cada vez.' };
-    if (!leadData.gastoMensal)     return { campo: 'gastoMensal',     pergunta: 'Pergunte APENAS quanto ele gasta por mês nesse transporte, fazendo ele dizer o número em reais. NÃO pergunte junto sobre tempo perdido no trânsito nem qualquer outra coisa — só o valor.' };
+    if (!leadData.finalidade)      return { campo: 'finalidade',      pergunta: 'Pergunte APENAS pra que ele quer a moto (trabalhar, economizar, passear, pra esposa). Esse é o passo 2, interesse. Não emende nenhuma outra pergunta na mesma mensagem.' };
+    if (!leadData.transporteAtual) return { campo: 'transporteAtual', pergunta: 'Pergunte APENAS como ele se locomove HOJE: carro, Uber, ônibus, carona ou moto alugada (passo 3, diagnóstico). Uma coisa de cada vez.' };
+    if (!leadData.gastoMensal)     return { campo: 'gastoMensal',     pergunta: 'Pergunte APENAS quanto ele gasta por mês nesse transporte, fazendo ele dizer o número em reais. NÃO pergunte junto sobre tempo perdido no trânsito nem qualquer outra coisa: só o valor.' };
     if (!leadData.situacaoMoto)    return { campo: 'situacaoMoto',    pergunta: 'Descubra se ele já tem moto e a situação (própria, alugada, velha, manutenção cara). Se roda de app, pergunte quanto paga de aluguel por semana/mês.' };
     if (!leadData.modeloInteresse) return { campo: 'modeloInteresse', pergunta: leadData.modeloApresentado
         ? `Você JÁ recomendou a ${leadData.modeloApresentado} e JÁ mostrou a conta do gasto anual. NÃO recomende outro modelo, NÃO repita o preço e NÃO refaça o cálculo: apenas confirme, numa pergunta curta, se é essa mesma que ele quer levar.`
@@ -68,7 +68,7 @@ function determinarProximoCampo(leadData) {
     // a unidade: quem fecha a condição é o consultor da loja. Insistir aqui fazia a
     // IA voltar atrás e reperguntar pagamento depois de o cliente já ter decidido
     // onde comprar — que foi o que travou o atendimento no print.
-    if (!leadData.formaPagamento && !leadData.loja) return { campo: 'formaPagamento',  pergunta: 'Pergunte qual forma de pagamento faz mais sentido: cartão (até 21x), financiamento (entrada zero em até 48x dependendo do CPF), consórcio ou à vista.' };
+    if (!leadData.formaPagamento && !leadData.loja) return { campo: 'formaPagamento',  pergunta: 'Pergunte qual forma de pagamento faz mais sentido: cartão (até 21x), financiamento (até 48x, podendo sair com entrada zero dependendo da análise do CPF), consórcio ou à vista.' };
     if (!leadData.loja)            return { campo: 'loja',            pergunta: 'Pergunte qual unidade fica melhor pra ele, citando SEMPRE as TRÊS: Matriz e Malvinas (Campina Grande) e Monteiro. Nunca ofereça só duas. Identificar a loja é OBRIGATÓRIO antes de transferir.' };
     leadData.qualificacaoCompleta = true;
     return null;

@@ -13,7 +13,7 @@
 const EMPRESA_INFO = {
     nome: 'Avelloz Campina - Realliza Motos',
     tagline: 'Motos econômicas com facilidade de pagamento',
-    descricao: 'Concessionária Avelloz em Campina Grande e Monteiro — PB. Referência em moto econômica, emplacamento incluso e facilidade de pagamento (cartão, financiamento, consórcio e à vista).',
+    descricao: 'Concessionária Avelloz em Campina Grande e Monteiro, PB. Referência em moto econômica, emplacamento incluso e facilidade de pagamento (cartão, financiamento, consórcio e à vista).',
     localizacao: 'Campina Grande–PB (Matriz e Malvinas) e Monteiro–PB. Atendimento pelo WhatsApp e presencial nas lojas.',
     horarioSuporte: 'Segunda a sábado, em horário comercial.',
     site: ''
@@ -56,7 +56,7 @@ const MODELOS = {
         precoNum: 19990,
         precoComEmplacamento: 'R$ 20.990,00',
         precoComEmplacamentoNum: 20990,
-        perfil: 'Potência, conforto e estilo — cidade e estrada.',
+        perfil: 'Potência, conforto e estilo para cidade e estrada.',
         descricao: 'Alta potência, confortável, econômica, já vem com proteção de carenagem e muito estilo. Entrada USB e Tipo C, farol full LED, pneus aro 19 dianteiro e 17 traseiro, painel digital, injeção eletrônica e freio CBS.',
         cores: 'Preta, Vermelha e Azul',
         comparativo: 'Moto trail de 160cc que concorre com Bros 160 e Crosser 150. Motor 161,9 cm³ com injeção eletrônica, 12,3 cv, câmbio de 5 marchas, consumo médio de ~35 km/L. Design aventureiro com rodas raiadas, protetores e bolha frontal, painel digital, iluminação full LED e entradas USB. Suspensão de longo curso, freios a disco com CBS, tanque de 13 litros. Garantia de 6 meses.',
@@ -70,7 +70,7 @@ const MODELOS = {
 // -------------------------------------------------------------
 const FORMAS_PAGAMENTO = {
     cartao: 'Cartão de crédito em até 21x.',
-    financiamento: 'Financiamento com entrada ZERO em até 48x, dependendo do CPF. A gente consulta em 3 bancos; banco aprovou, sai com a moto no mesmo dia.',
+    financiamento: 'Financiamento em até 48x, com consulta em 3 bancos. Dependendo da análise do CPF, o banco pode liberar até com entrada ZERO. É possibilidade, não garantia. Banco aprovou, sai com a moto no mesmo dia.',
     consorcio: 'Consórcio.',
     avista: 'À vista.'
 };
@@ -134,13 +134,13 @@ const INDICACAO = {
 //  (No código antigo isso era "segmento"; aqui vira "perfil".)
 // -------------------------------------------------------------
 const PERFIS = {
-    app_aluga:      { nome: 'Roda de app — moto alugada', gancho: 'Descobrir quanto paga de aluguel por semana/mês: costuma ser maior que uma parcela, e ele paga sem nunca ficar com a moto. Mostrar que a parcela tende a ser menor e no fim a moto é DELE.' },
-    app_comecando:  { nome: 'Roda de app — começando', gancho: 'Custo de oportunidade: cada dia sem moto é entrega que ele deixa de fazer. A moto se paga rodando.' },
-    app_trocar:     { nome: 'Roda de app — quer trocar', gancho: 'Foco em economia e confiabilidade: perguntar quanto gasta de manutenção e quanto a moto vive parada. Uma zero sem oficina compensa.' },
-    depende_uber:   { nome: 'Depende de Uber/99', gancho: 'Somar o gasto diário/semanal de Uber e projetar no ano: o valor já daria pra ter a própria moto — e sem ficar com nada na mão.' },
+    app_aluga:      { nome: 'Roda de app com moto alugada', gancho: 'Descobrir quanto paga de aluguel por semana/mês: costuma ser maior que uma parcela, e ele paga sem nunca ficar com a moto. Mostrar que a parcela tende a ser menor e no fim a moto é DELE.' },
+    app_comecando:  { nome: 'Roda de app e está começando', gancho: 'Custo de oportunidade: cada dia sem moto é entrega que ele deixa de fazer. A moto se paga rodando.' },
+    app_trocar:     { nome: 'Roda de app e quer trocar', gancho: 'Foco em economia e confiabilidade: perguntar quanto gasta de manutenção e quanto a moto vive parada. Uma zero sem oficina compensa.' },
+    depende_uber:   { nome: 'Depende de Uber/99', gancho: 'Somar o gasto diário/semanal de Uber e projetar no ano: o valor já daria pra ter a própria moto, e mesmo assim ele não fica com nada na mão.' },
     depende_onibus: { nome: 'Depende de ônibus', gancho: 'Somar a passagem mensal e o tempo perdido no ponto/lotado: liberdade de sair na hora que quiser.' },
     tem_carro:      { nome: 'Tem carro', gancho: 'Deixar o carro em casa no dia a dia e economizar combustível e estacionamento, usando a moto pra correria.' },
-    esposa:         { nome: 'Compra pra esposa/família', gancho: 'Autonomia pra ela não depender de ninguém nem de Uber pra sair — muda a rotina de casa.' },
+    esposa:         { nome: 'Compra pra esposa/família', gancho: 'Autonomia pra ela não depender de ninguém nem de Uber pra sair. Isso muda a rotina de casa.' },
     primeira_moto:  { nome: 'Primeira moto', gancho: 'Realizar o sonho da própria moto com facilidade de pagamento e emplacamento incluso.' }
 };
 
@@ -150,13 +150,13 @@ const PERFIS = {
 // -------------------------------------------------------------
 const OBJECOES = {
     juros_financiamento: 'Reconheça o juros com honestidade, mas vire a chave: hoje ele já paga Uber/ônibus/aluguel todo mês e não fica com nada; na moto ele paga a parcela e a moto é DELE. Melhor pagar por algo que fica.',
-    ta_caro:            'Ancore no que ele já gasta hoje com transporte (o número que ELE deu) projetado no ano. O preço é promocional e já inclui o emplacamento. Nunca informar valor de parcela — transferir para o consultor.',
+    ta_caro:            'Ancore no que ele já gasta hoje com transporte (o número que ELE deu) projetado no ano. O preço é promocional e já inclui o emplacamento. Nunca informar valor de parcela: transferir para o consultor.',
     preciso_pensar:     'Faça sentido, sem pressão. Reforce a economia do dia a dia e convide a conhecer a moto pessoalmente na loja. Termine com uma pergunta que mantenha a conversa viva.',
-    medo_credito:       'Tranquilize: a consulta é em 3 bancos e existe chance de entrada ZERO em até 48x, dependendo do CPF. Só coletar os dados pra simulação — quem confirma a aprovação é o consultor.',
+    medo_credito:       'Tranquilize: a consulta é em 3 bancos e, dependendo da análise do CPF, o banco pode liberar até com entrada ZERO em até 48x. Apresente como possibilidade, nunca como garantia. Só coletar os dados pra simulação: quem confirma a aprovação é o consultor.',
     sem_cnh:            'CNH NUNCA é obrigatório pra comprar a moto. Tranquilize e siga normalmente com a simulação.',
     moto_usada_troca:   'A Avelloz NÃO trabalha com troca/aceite de moto usada. Conduza com simpatia para as formas de pagamento (cartão, financiamento, consórcio, à vista).',
     test_drive:         'A Avelloz NÃO oferece test drive. Convide o cliente a conhecer a moto pessoalmente na loja.',
-    moto_eletrica:      'A Avelloz NÃO vende moto elétrica — todos os modelos (AZ1, AZ125, AZX160) são a combustão (gasolina). Seja direto e honesto: não trabalhamos com elétrica. Não confunda com "partida elétrica" ou "injeção eletrônica", que são apenas itens de série das motos a combustão. Redirecione com naturalidade pra economia de combustível dos modelos que temos (alto rendimento km/L).',
+    moto_eletrica:      'A Avelloz NÃO vende moto elétrica: todos os modelos (AZ1, AZ125, AZX160) são a combustão (gasolina). Seja direto e honesto: não trabalhamos com elétrica. Não confunda com "partida elétrica" ou "injeção eletrônica", que são apenas itens de série das motos a combustão. Redirecione com naturalidade pra economia de combustível dos modelos que temos (alto rendimento km/L).',
     prazo_entrega:      'NUNCA prometa prazo de entrega. Diga que o consultor humano confirma os prazos certinhos.',
     marca_desconhecida: 'A Avelloz é referência em moto econômica e com facilidade de pagamento. Valorize a economia (km/L), o emplacamento incluso e as condições, e já puxe a próxima pergunta.'
 };
