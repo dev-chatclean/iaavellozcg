@@ -109,6 +109,12 @@ const PROMETE_TRANSFERENCIA = /transferi|transferindo|repassando|repassei|encami
 // Pedidos INEQUÍVOCOS de transferência. De propósito não inclui "quero falar com
 // humano": essa frase aparece negada com frequência ("não quero falar com humano")
 // e o julgamento de intenção nesse caso fica com a IA, na extração.
+// Pergunta fixa da unidade. Fixa e fora do modelo de proposito: quem pediu
+// atendimento ou objetividade nao pode receber mais um paragrafo gerado. Sem a
+// loja o destino vira "Agente IA", que nao tem ID, e o ticket fica parado na
+// mesma fila com o cliente achando que foi transferido.
+const PERGUNTA_UNIDADE = 'Claro! Só preciso de uma informação pra te passar pro consultor: você prefere ser atendido na Matriz, na Malvinas (Campina Grande) ou em Monteiro?';
+
 const PEDE_TRANSFERENCIA = /\b(me\s+transfir\w*|pode(m)?\s+transferir|quero\s+ser\s+transferid\w*|me\s+passa\s+(pro|para\s+o?)\s*(vendedor|consultor|atendente)|chama\s+(um\s+)?(vendedor|consultor|atendente))\b/i;
 
 // IMPACIÊNCIA: o cliente não pediu ninguém, mas quer que o atendimento ANDE.
@@ -800,6 +806,18 @@ async function processarMensagem({ chatId, contactId, texto, tipo, mediaBase64, 
             // humano, me transfira" a negação confunde o modelo e ele devolve false,
             // deixando o cliente falando sozinho. Só padrões inequívocos entram aqui.
             if ((extraido.querFalarComHumano || PEDE_TRANSFERENCIA.test(texto)) && !leadData.finalizado) {
+                // Sem loja, encaminhar() cairia em DEPARTAMENTOS.entrada (Agente IA) e
+                // o ticket ficaria parado onde já está. Pergunta a unidade UMA vez e
+                // transfere na resposta seguinte, igual ao atalho de pressa.
+                if (!leadData.loja && !leadData.atalhoPerguntado) {
+                    if (!usuarioNoHistorico) leadData.conversationHistory.push({ role: 'user', content: texto });
+                    leadData.modoAtalho = true;
+                    leadData.atalhoPerguntado = true;
+                    await enviarMensagem(chatId, PERGUNTA_UNIDADE);
+                    leadData.conversationHistory.push({ role: 'assistant', content: PERGUNTA_UNIDADE });
+                    console.log(`⏩ ${chatId}: pediu atendimento sem escolher loja, perguntando a unidade.`);
+                    return;
+                }
                 const hist = leadData.conversationHistory.slice(-8).map(h => ({ role: h.role === 'user' ? 'user' : 'assistant', content: h.content }));
                 if (!usuarioNoHistorico) leadData.conversationHistory.push({ role: 'user', content: texto });
                 await encaminhar(chatId, leadData, departamentoLead(leadData), texto, hist, exp);
@@ -825,9 +843,8 @@ async function processarMensagem({ chatId, contactId, texto, tipo, mediaBase64, 
                 // Na 2ª vez cai no fluxo normal, que com modoAtalho já pede só a loja.
                 if (!leadData.atalhoPerguntado) {
                     leadData.atalhoPerguntado = true;
-                    const msg = 'Claro! Só preciso de uma informação pra te passar pro consultor: você prefere ser atendido na Matriz, na Malvinas (Campina Grande) ou em Monteiro?';
-                    await enviarMensagem(chatId, msg);
-                    leadData.conversationHistory.push({ role: 'assistant', content: msg });
+                    await enviarMensagem(chatId, PERGUNTA_UNIDADE);
+                    leadData.conversationHistory.push({ role: 'assistant', content: PERGUNTA_UNIDADE });
                     console.log(`⏩ ${chatId}: pressa detectada — funil pulado, pedindo só a loja.`);
                     return;
                 }
