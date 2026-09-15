@@ -55,7 +55,8 @@ const MAX_RESPOSTAS_POS_HANDOFF = parseInt(process.env.MAX_RESPOSTAS_POS_HANDOFF
 // Janela (ms) para AGRUPAR mensagens rápidas do mesmo cliente antes de responder.
 // No WhatsApp o cliente costuma mandar várias mensagens seguidas; juntamos tudo
 // num único turno em vez de responder só a primeira e ignorar o resto.
-const AGRUPAR_MS     = parseInt(process.env.AGRUPAR_MENSAGENS_MS || '2000', 10);
+const AGRUPAR_MS     = parseInt(process.env.AGRUPAR_MENSAGENS_MS || '4000', 10);
+const AGRUPAR_MAX_MS = parseInt(process.env.AGRUPAR_MENSAGENS_MAX_MS || '12000', 10);
 // Reinicia o atendimento após N horas sem interação do cliente (padrão: 24h).
 const RESET_INATIVIDADE = parseInt(process.env.RESET_INATIVIDADE_HORAS || '24', 10) * 3600 * 1000;
 // Transferência REAL do ticket para o departamento da loja escolhida (fila do
@@ -858,6 +859,8 @@ async function processarMensagem({ chatId, contactId, texto, tipo, mediaBase64, 
         // desconversa ("sei lá", "acho bom"), o campo continua vazio e a IA
         // repetiria a mesma pergunta indefinidamente — o prompt usa este número
         // para reformular na 2ª vez e desistir do assunto na 3ª.
+        const campoAntes = leadData.ultimoCampoPerguntado;
+        const vezesAntes = leadData.vezesMesmoCampo;
         if (proximoCampoDepois && leadData.ultimoCampoPerguntado === proximoCampoDepois.campo) {
             leadData.vezesMesmoCampo = (leadData.vezesMesmoCampo || 1) + 1;
         } else {
@@ -877,6 +880,18 @@ async function processarMensagem({ chatId, contactId, texto, tipo, mediaBase64, 
             // a próxima mensagem retoma a qualificação de onde parou).
             console.error(`❌ Erro ao gerar resposta IA para ${chatId}:`, e.message);
             await enviarMensagem(chatId, 'Opa, tive uma instabilidade rapidinha por aqui 😅 Pode me mandar de novo o que você disse?');
+            if (!usuarioNoHistorico) leadData.conversationHistory.push({ role: 'user', content: texto });
+            return;
+        }
+
+        // Chegou texto novo enquanto a IA gerava: a resposta já nasceu velha. Nada
+        // foi enviado nem transferido até aqui, então descartar é seguro. A fala do
+        // cliente fica no histórico e o próximo turno responde à rajada inteira de
+        // uma vez, em vez de mandar duas respostas para a mesma sequência.
+        if (chegouTextoNovo(chatId)) {
+            console.log(`\u{1F504} ${chatId}: mensagem nova durante a geração, descartando a resposta e reprocessando.`);
+            leadData.ultimoCampoPerguntado = campoAntes;
+            leadData.vezesMesmoCampo = vezesAntes;
             if (!usuarioNoHistorico) leadData.conversationHistory.push({ role: 'user', content: texto });
             return;
         }
@@ -948,11 +963,51 @@ async function processarMensagem({ chatId, contactId, texto, tipo, mediaBase64, 
 //  No WhatsApp o cliente manda várias mensagens seguidas. Em vez de
 //  processar a primeira e DESCARTAR as demais (o lock antigo fazia isso),
 //  enfileiramos tudo por número e processamos em série. Mensagens de TEXTO
-//  em sequência são agrupadas num só turno (debounce AGRUPAR_MS); mídia é
-//  processada assim que chega (mas ainda em série, nunca descartada).
+//  em sequência são agrupadas num só turno (debounce adaptativo, ver
+//  agendarDrenagem); mídia é processada assim que chega (mas ainda em série,
+//  nunca descartada).
 // =============================================================
-const filaPorChat   = new Map(); // chatId -> [parsed, ...] aguardando processamento
+const filaPorChat    = new Map(); // chatId -> [parsed, ...] aguardando processamento
 const debounceTimers = new Map(); // chatId -> timer de agrupamento de texto
+const rajadaInicio   = new Map(); // chatId -> quando começou a rajada atual
+
+// Fragmento que provavelmente TEM continuação. Não dá pra usar só a ausência de
+// ponto final: no zap quase ninguém fecha frase com pontuação, e aí TODA mensagem
+// pareceria inacabada e sempre esperaríamos o teto. Por isso só sinais fortes
+// contam: parou na vírgula, terminou em conector, ou é fragmento muito curto do
+// tipo "bom dia", que quase sempre vem seguido do assunto de verdade.
+const CONECTOR_FINAL = /(?:^|\s)(?:e|ou|mas|a[ií]|ent[aã]o|que|de|da|do|no|na|pra|para|com|sem|tipo|porque|por|se|quando|meu|minha|um|uma)$/i;
+
+function pareceInacabado(texto) {
+    const t = String(texto || '').trim();
+    if (!t) return true;
+    if (/[,;:]$/.test(t) || /\.{3}$/.test(t) || t.endsWith('…')) return true;
+    if (CONECTOR_FINAL.test(t)) return true;
+    if (t.length <= 12 && !/[?!.]$/.test(t)) return true;
+    return false;
+}
+
+// Agenda a drenagem. A espera estica quando o último fragmento parece inacabado,
+// mas NUNCA passa de AGRUPAR_MAX_MS contados da primeira mensagem da rajada: sem
+// esse teto, quem escreve sem parar jamais receberia resposta.
+function agendarDrenagem(chatId, textoUltimo) {
+    if (debounceTimers.has(chatId)) clearTimeout(debounceTimers.get(chatId));
+    if (!rajadaInicio.has(chatId)) rajadaInicio.set(chatId, Date.now());
+    const base = pareceInacabado(textoUltimo) ? Math.round(AGRUPAR_MS * 1.5) : AGRUPAR_MS;
+    const ateOTeto = Math.max(0, rajadaInicio.get(chatId) + AGRUPAR_MAX_MS - Date.now());
+    const espera = Math.min(base, ateOTeto);
+    debounceTimers.set(chatId, setTimeout(() => {
+        debounceTimers.delete(chatId);
+        drenarFila(chatId);
+    }, espera));
+}
+
+// Existe texto NOVO esperando na fila? Usado por processarMensagem para descobrir
+// que a resposta que acabou de gerar já nasceu velha.
+function chegouTextoNovo(chatId) {
+    const fila = filaPorChat.get(chatId);
+    return !!(fila && fila.some(m => m.tipo === 'text'));
+}
 
 function enfileirar(parsed) {
     const { chatId } = parsed;
@@ -961,12 +1016,7 @@ function enfileirar(parsed) {
     filaPorChat.set(chatId, fila);
 
     if (parsed.tipo === 'text') {
-        // Espera um instante juntando mensagens rápidas antes de drenar.
-        if (debounceTimers.has(chatId)) clearTimeout(debounceTimers.get(chatId));
-        debounceTimers.set(chatId, setTimeout(() => {
-            debounceTimers.delete(chatId);
-            drenarFila(chatId);
-        }, AGRUPAR_MS));
+        agendarDrenagem(chatId, parsed.texto);
     } else {
         // Mídia não espera: cancela o debounce pendente e drena já.
         if (debounceTimers.has(chatId)) { clearTimeout(debounceTimers.get(chatId)); debounceTimers.delete(chatId); }
@@ -1007,16 +1057,26 @@ async function drenarFila(chatId) {
 
     const unidade = proximaUnidade(fila);
     unidade.chatId = chatId;
+    rajadaInicio.delete(chatId); // o que sobrar na fila começa uma rajada nova
     try {
         await processarMensagem(unidade);
     } catch (e) {
         console.error(`❌ Erro ao drenar fila de ${chatId}:`, e.message);
     }
 
-    // Limpa a fila vazia; se algo chegou durante o processamento, drena de novo.
+    // Se algo chegou durante o processamento, REAPLICA a janela em vez de drenar
+    // na hora. Drenar imediato era o que fazia a IA responder duas vezes à mesma
+    // rajada: a chamada da OpenAI leva segundos e tudo que o cliente digitava
+    // nesse intervalo virava um turno separado.
     const restante = filaPorChat.get(chatId);
-    if (restante && restante.length) drenarFila(chatId);
-    else filaPorChat.delete(chatId);
+    if (restante && restante.length) {
+        const ultimo = restante[restante.length - 1];
+        if (ultimo.tipo === 'text') agendarDrenagem(chatId, ultimo.texto);
+        else drenarFila(chatId);
+    } else {
+        filaPorChat.delete(chatId);
+        rajadaInicio.delete(chatId);
+    }
 }
 
 // Detecta se a mensagem veio de um GRUPO. O whatsmeow expõe Info.IsGroup e
