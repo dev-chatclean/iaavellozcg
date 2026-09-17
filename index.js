@@ -71,7 +71,7 @@ const TRANSFERIR_FECHANDO = (process.env.TRANSFERIR_FECHANDO || 'false') === 'tr
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-const { EMPRESA_INFO, PERFIS, DEPARTAMENTOS, DEPARTAMENTO_IDS, departamentoId, lojaParaDepartamento, OFICINA } = require('./data');
+const { EMPRESA_INFO, PERFIS, DEPARTAMENTOS, DEPARTAMENTO_IDS, departamentoId, lojaParaDepartamento, lojaCanonica, OFICINA } = require('./data');
 const { SYSTEM_SDR, promptExtracao, promptResposta } = require('./prompts');
 const { determinarProximoCampo, aplicarCampos, detectarPerfil, detectarModeloMencionado } = require('./flow');
 
@@ -103,19 +103,33 @@ function normalizarPhone(phone) {
     return String(phone).split('@')[0].split(':')[0].replace(/\D/g, '');
 }
 
-// Frases em que a IA AFIRMA que já passou o atendimento adiante. Usado para não
-// deixar essa promessa sair quando a transferência de fato não aconteceu.
-const PROMETE_TRANSFERENCIA = /transferi|transferindo|repassando|repassei|encaminhando|encaminhei|j[áa] (vou )?(te )?pass|consultor (j[áa]|vai) (assumir|continuar|dar sequ)/i;
-
-// Pedidos INEQUÍVOCOS de transferência. De propósito não inclui "quero falar com
-// humano": essa frase aparece negada com frequência ("não quero falar com humano")
-// e o julgamento de intenção nesse caso fica com a IA, na extração.
 // Pergunta fixa da unidade. Fixa e fora do modelo de proposito: quem pediu
 // atendimento ou objetividade nao pode receber mais um paragrafo gerado. Sem a
 // loja o destino vira "Agente IA", que nao tem ID, e o ticket fica parado na
 // mesma fila com o cliente achando que foi transferido.
 const PERGUNTA_UNIDADE = 'Claro! Só preciso de uma informação pra te passar pro consultor: você prefere ser atendido na Matriz, na Malvinas (Campina Grande) ou em Monteiro?';
+const PERGUNTA_UNIDADE_DE_NOVO = 'Pra te passar pro consultor certo eu preciso só da unidade: Matriz ou Malvinas, em Campina Grande, ou Monteiro. Qual fica melhor pra você?';
 
+// Quantas vezes a IA pede a unidade a quem pediu atendimento antes de desistir e
+// encaminhar sem loja (com alerta para a equipe). Antes era uma vez só: se o
+// cliente respondesse "tanto faz", o ticket ficava no Agente IA e a IA dizia que
+// o consultor ia dar sequência.
+const MAX_PERGUNTAS_UNIDADE = 2;
+
+// Tentativas extras de transferência depois do encaminhamento: quando o CRM
+// falhou, quando o cliente só informa a loja depois, ou quando troca de loja.
+const MAX_RETENTATIVAS_TRANSFERENCIA = 3;
+const LOJA_NO_TEXTO = /malvina|monteiro|matriz|rocha\s+cavalcante|jo[aã]o\s+suassuna/i;
+// Troca de unidade DEPOIS de já transferido precisa de verbo de escolha: "Monteiro"
+// sozinho pode ser sobrenome ou só uma menção, e não justifica mexer no ticket.
+const TROCA_LOJA = /(prefir|prefer|melhor|mud|troc|na verdade|pode ser|quero ser atendid).{0,40}(malvina|monteiro|matriz)/i;
+// Mensagem repetida pedindo gente de verdade não é loop de bot: é cliente
+// irritado porque ninguém atendeu. Nesse caso a blindagem anti-loop não silencia.
+const PEDE_ATENDIMENTO_SOLTO = /atendente|humano|vendedor|consultor|pessoa|algu[eé]m|transfer/i;
+
+// Pedidos INEQUÍVOCOS de transferência. De propósito não inclui "quero falar com
+// humano": essa frase aparece negada com frequência ("não quero falar com humano")
+// e o julgamento de intenção nesse caso fica com a IA, na extração.
 const PEDE_TRANSFERENCIA = /\b(me\s+transfir\w*|pode(m)?\s+transferir|quero\s+ser\s+transferid\w*|me\s+passa\s+(pro|para\s+o?)\s*(vendedor|consultor|atendente)|chama\s+(um\s+)?(vendedor|consultor|atendente))\b/i;
 
 // IMPACIÊNCIA: o cliente não pediu ninguém, mas quer que o atendimento ANDE.
@@ -240,6 +254,11 @@ async function transferirDepartamento(chatId, departamento) {
     // Log da resposta CRUA do CRM: é o que permite descobrir por que um ticket
     // não mudou de fila sem precisar reproduzir a conversa inteira.
     console.log(`🔀 transferência ${chatId} → ${departamento} (#${id}): ${r.ok ? 'aceita' : 'RECUSADA'} | status ${r.status || '-'} | resposta: ${JSON.stringify(r.data || r.erro || null).slice(0, 400)}`);
+    // HTTP 2xx não garante que o ticket mudou de fila: foi exatamente com 200 e
+    // corpo vazio que a API descartou o campo errado em silêncio. Deixa rastro.
+    if (r.ok && (r.data === undefined || r.data === null || r.data === '' || (typeof r.data === 'object' && !Object.keys(r.data).length))) {
+        console.warn(`⚠️ transferência ${chatId}: CRM respondeu ${r.status} com corpo VAZIO — confirme no painel se o ticket mudou de fila (se não, teste TRANSFERIR_FECHANDO=true).`);
+    }
     return {
         ok: r.ok, id, departamento,
         motivo: r.ok ? null : (r.erro || 'o CRM recusou o push de transferência'),
@@ -299,6 +318,24 @@ function montarResumo(leadData, chatId, opcoes = {}) {
             : `\n➡️ Sem loja escolhida — o ticket permanece em ${departamento} para a equipe direcionar`);
 }
 
+// Nota interna no ticket do cliente avisando o vendedor que a transferência
+// automática NÃO aconteceu. O resumo do lead já está no ticket, mas não diz que
+// o cliente ficou esperando na fila errada; sem esta nota, quem abre o ticket
+// não sabe que precisa encaminhar na mão. Não cobre falha do próprio Push (URL
+// inválida, CRM fora do ar): aí a nota também não chega, e o aviso fica só no
+// WhatsApp da equipe e no log.
+async function notaFalhaTransferencia(chatId, leadData, transferencia, opcoes = {}) {
+    // Com a transferência automática desligada, encaminhar na mão é o fluxo
+    // normal e o resumo já diz para onde vai: não há falha a avisar.
+    if (!TRANSFERIR_DEPARTAMENTO) return;
+    const { departamento, motivo, permanece } = transferencia;
+    const nota = permanece
+        ? `⚠️ TRANSFERÊNCIA NÃO REALIZADA\n\nO cliente foi encaminhado para atendimento, mas não escolheu uma unidade (Matriz, Malvinas ou Monteiro). O ticket continua em ${departamento}.\n\n👉 Ação: confirme a unidade com o cliente e encaminhe o ticket manualmente.`
+        : `⚠️ TRANSFERÊNCIA NÃO REALIZADA\n\nA IA tentou transferir este ticket para ${departamento}${departamentoId(departamento) ? ` (#${departamentoId(departamento)})` : ''}, mas o CRM não concluiu${opcoes.esgotou ? ` nem depois de ${MAX_RETENTATIVAS_TRANSFERENCIA} novas tentativas` : ''}.\nMotivo: ${motivo || 'não informado'}\n\nO cliente NÃO recebeu confirmação de transferência e está aguardando atendimento.\n\n👉 Ação: encaminhe este ticket manualmente para ${departamento}.`;
+    const r = await ccPush(chatId, { body: nota, onlyNote: true, note: { body: nota } });
+    if (!r.ok) console.error(`❌ ${chatId}: não foi possível gravar a nota de falha de transferência — ${r.erro}`);
+}
+
 async function notificarEquipe(leadData, chatId, opcoes = {}) {
     const departamento = opcoes.departamento || departamentoLead(leadData);
     const perfilNome = leadData.perfilKey && PERFIS[leadData.perfilKey]
@@ -310,11 +347,16 @@ async function notificarEquipe(leadData, chatId, opcoes = {}) {
     // Transferência REAL para a fila da unidade escolhida (depois da nota, para
     // que o contexto já esteja no ticket quando ele chegar no departamento).
     const transferencia = await transferirDepartamento(chatId, departamento);
+    if (!transferencia.ok) await notaFalhaTransferencia(chatId, leadData, transferencia);
     // Resumo também por WhatsApp interno, se houver número da equipe. Quando a
     // transferência falha, a equipe precisa saber para encaminhar na mão.
     if (EQUIPE_NUMERO) {
-        const aviso = (transferencia.ok || transferencia.permanece) ? '' :
-            `\n\n⚠️ ATENÇÃO: a transferência automática para ${departamento} NÃO foi concluída (${transferencia.motivo}). Encaminhe este ticket manualmente.`;
+        // Sem loja também alerta: notificarEquipe só é chamada quando o cliente
+        // foi encaminhado, então um ticket parado no Agente IA aqui é alguém
+        // esperando consultor — antes ele ficava lá sem ninguém saber.
+        const aviso = transferencia.ok ? '' : transferencia.permanece
+            ? `\n\n⚠️ ATENÇÃO: o cliente não escolheu uma unidade, então o ticket continua em ${departamento}. Direcione manualmente.`
+            : `\n\n⚠️ ATENÇÃO: a transferência automática para ${departamento} NÃO foi concluída (${transferencia.motivo}). Encaminhe este ticket manualmente.`;
         await ccPush(EQUIPE_NUMERO, { body: resumo + aviso });
     }
 
@@ -465,9 +507,17 @@ Não invente o que não dá pra ver.`;
 // Resposta quando o lead JÁ foi encaminhado ao especialista: tira dúvidas
 // pontuais de forma natural, sem refazer a qualificação nem repetir o resumo.
 async function gerarRespostaPosEncaminhamento(leadData, mensagemCliente, historicoRecente = []) {
-    const fallback = 'Já repassei tudo pro nosso consultor, ele continua seu atendimento aqui rapidinho 😊';
+    // Só afirma que passou pro consultor quando a transferência foi confirmada.
+    // Antes a resposta dizia "já repassei" mesmo com o ticket parado no Agente IA.
+    const passou = !!leadData.transferidoOk;
+    const fallback = passou
+        ? 'Já repassei tudo pro nosso consultor, ele continua seu atendimento aqui rapidinho 😊'
+        : 'Deixei tudo anotado pra nossa equipe, eles dão sequência no seu atendimento por aqui.';
+    const situacao = passou
+        ? 'Este lead já foi ENCAMINHADO a um consultor humano da Avelloz Campina.'
+        : `O resumo deste lead já foi registrado para a equipe da Avelloz Campina, mas ele AINDA NÃO foi transferido para um consultor. NUNCA diga que já passou, repassou, transferiu ou encaminhou o atendimento.${leadData.loja ? '' : ' Se couber na resposta, pergunte em qual unidade ele prefere ser atendido: Matriz, Malvinas (Campina Grande) ou Monteiro.'}`;
     try {
-        const prompt = `Este lead já foi ENCAMINHADO a um consultor humano da Avelloz Campina. Ele acabou de dizer: "${String(mensagemCliente).replace(/[<>]/g, '').substring(0, 600)}".
+        const prompt = `${situacao} Ele acabou de dizer: "${String(mensagemCliente).replace(/[<>]/g, '').substring(0, 600)}".
 Responda de forma breve, calorosa e útil (registro de WhatsApp, sem markdown, no máximo 1 emoji).
 NÃO puxe conversa. Só faça uma pergunta se ela for REALMENTE necessária para responder o que ele perguntou. É PROIBIDO terminar com "tem mais alguma dúvida?", "posso ajudar em algo mais?" ou qualquer variação: quem conduz o atendimento agora é o consultor humano, e ficar puxando assunto atropela o trabalho dele.
 - Se for uma dúvida simples sobre as motos/condições, responda com o que você sabe e PARE.
@@ -506,7 +556,7 @@ async function encaminhar(chatId, leadData, departamento, mensagemCliente, histo
     // consultor recebe o resumo quase vazio e precisa saber que foi de propósito.
     const tags = [
         leadData.modoAtalho ? 'PEDIU AGILIDADE — SEM DIAGNÓSTICO' : null,
-        exp.aberto ? null : 'FORA DE EXPEDIENTE'
+        exp.aberto ? null : 'FORA DE EXPEDIENTE — AGENDAR RETORNO'
     ].filter(Boolean);
     const transferencia = await notificarEquipe(leadData, chatId, {
         departamento,
@@ -524,18 +574,77 @@ async function encaminhar(chatId, leadData, departamento, mensagemCliente, histo
                 ? 'Perfeito! Já tô repassando tudo pro nosso consultor. Ele assume seu atendimento aqui rapidinho, combinado?'
                 : `Perfeito, deixei tudo registrado! Nosso consultor te retorna ${exp.proximoExpediente}. Enquanto isso, ficou alguma dúvida sobre a moto?`;
         }
+    } else if (transferencia.permanece) {
+        // Sem loja: pede a unidade mais uma vez. Se ele responder, a próxima
+        // mensagem cai em retentarTransferencia e o ticket é transferido.
+        console.warn(`⚠️ ${chatId}: encaminhado sem loja — ticket permanece em ${departamento}.`);
+        msg = 'Perfeito, anotei tudo aqui! Pra eu te passar pro consultor certo, só me confirma a unidade: Matriz ou Malvinas (Campina Grande), ou Monteiro?';
     } else {
-        // Sem transferência confirmada: NÃO prometa que já passou pro consultor.
+        // CRM recusou: NÃO prometa que já passou pro consultor. A equipe recebeu o
+        // alerta e a próxima mensagem do cliente tenta transferir de novo.
         console.warn(`⚠️ ${chatId}: confirmação de transferência suprimida — ${transferencia.motivo}`);
         msg = exp.aberto
-            ? 'Perfeito, anotei tudo aqui! Nosso consultor já vai dar sequência no seu atendimento por aqui mesmo. Enquanto isso, ficou alguma dúvida sobre a moto?'
-            : `Perfeito, deixei tudo registrado! Nosso consultor dá sequência ${exp.proximoExpediente}. Enquanto isso, ficou alguma dúvida sobre a moto?`;
+            ? 'Perfeito, anotei tudo aqui e deixei registrado pra nossa equipe dar sequência no seu atendimento por aqui mesmo.'
+            : `Perfeito, deixei tudo registrado! Nossa equipe dá sequência no seu atendimento ${exp.proximoExpediente}.`;
     }
     await enviarMensagem(chatId, msg);
     leadData.conversationHistory.push({ role: 'assistant', content: msg });
     leadData.transferidoOk = transferencia.ok;
+    if (transferencia.ok) leadData.departamentoTransferido = transferencia.departamento;
     leadData.finalizado = true;
     leadData.followUpDueAt = null;
+}
+
+// Quantas vezes a pergunta fixa da unidade já foi feita. Lê também o antigo
+// atalhoPerguntado (booleano) para conversas que já estavam salvas no Redis.
+function vezesPerguntouUnidade(leadData) {
+    return leadData.perguntasUnidade || (leadData.atalhoPerguntado ? 1 : 0);
+}
+
+// Nova tentativa de transferência para lead JÁ encaminhado. Cobre três casos que
+// antes ficavam sem saída, porque depois de finalizado a IA nunca mais tentava:
+// - o CRM recusou a transferência (rede, timeout, instabilidade);
+// - o cliente foi encaminhado sem loja e só agora disse a unidade;
+// - o cliente já transferido pediu para trocar de unidade.
+// Retorna true quando transferiu e já respondeu ao cliente.
+async function retentarTransferencia(chatId, leadData, texto) {
+    if (!TRANSFERIR_DEPARTAMENTO) return false;
+    if ((leadData.retentativasTransferencia || 0) >= MAX_RETENTATIVAS_TRANSFERENCIA) return false;
+
+    const lojaNoTexto = LOJA_NO_TEXTO.test(texto) ? lojaCanonica(texto) : null;
+    const lojaNova = !!lojaNoTexto && lojaNoTexto !== leadData.loja && (!leadData.loja || TROCA_LOJA.test(texto));
+    if (leadData.transferidoOk && !lojaNova) return false;
+    if (lojaNova) leadData.loja = lojaNoTexto;
+
+    const departamento = leadData.posVenda ? departamentoPosVenda(leadData) : departamentoLead(leadData);
+    if (!departamentoId(departamento)) return false; // continua sem loja: nada a tentar
+    if (leadData.transferidoOk && departamento === leadData.departamentoTransferido) return false;
+
+    leadData.retentativasTransferencia = (leadData.retentativasTransferencia || 0) + 1;
+    const t = await transferirDepartamento(chatId, departamento);
+    if (!t.ok) {
+        console.warn(`⚠️ ${chatId}: nova tentativa de transferência falhou (${leadData.retentativasTransferencia}/${MAX_RETENTATIVAS_TRANSFERENCIA}) — ${t.motivo}`);
+        // Só avisa no ticket quando a IA desiste: uma nota por tentativa
+        // poluiria o histórico que o vendedor vai ler.
+        if (leadData.retentativasTransferencia >= MAX_RETENTATIVAS_TRANSFERENCIA) {
+            await notaFalhaTransferencia(chatId, leadData, t, { esgotou: true });
+        }
+        return false;
+    }
+
+    leadData.transferidoOk = true;
+    leadData.departamentoTransferido = departamento;
+    leadData.conversaEncerrada = false;
+    leadData.respostasPosHandoff = 0;
+    const msg = `Perfeito! Já passei seu atendimento pro consultor da ${departamento}, ele continua com você por aqui 😊`;
+    await enviarMensagem(chatId, msg);
+    leadData.conversationHistory.push({ role: 'user', content: texto });
+    leadData.conversationHistory.push({ role: 'assistant', content: msg });
+    if (EQUIPE_NUMERO) {
+        await ccPush(EQUIPE_NUMERO, { body: `✅ Ticket de ${leadData.nome || 'Lead'} (${chatId}) transferido para ${departamento} (#${t.id}) ${lojaNova ? 'depois que o cliente informou a unidade' : 'na nova tentativa'}.` });
+    }
+    console.log(`🔁 ${chatId}: transferido para ${departamento} na nova tentativa.`);
+    return true;
 }
 
 // =============================================================
@@ -604,7 +713,10 @@ async function processarMensagem({ chatId, contactId, texto, tipo, mediaBase64, 
             if (leadData.turnosTs.length <= 2) leadData.loopAvisado = false; // conversa normalizou
             const textoNorm = String(texto || '').toLowerCase().replace(/\s+/g, ' ').trim().slice(0, 200);
             leadData.ultimasMsgs = leadData.ultimasMsgs || [];
-            const repetida = textoNorm.length > 1 && leadData.ultimasMsgs.filter(t => t === textoNorm).length >= 2;
+            // Cliente repetindo "quero falar com atendente" não é bot: silenciar
+            // justamente ele deixava o pedido de transferência sem resposta.
+            const pedindoAtendimento = PEDE_ATENDIMENTO_SOLTO.test(textoNorm) && !(leadData.finalizado && leadData.transferidoOk);
+            const repetida = !pedindoAtendimento && textoNorm.length > 1 && leadData.ultimasMsgs.filter(t => t === textoNorm).length >= 2;
             leadData.ultimasMsgs.push(textoNorm);
             if (leadData.ultimasMsgs.length > 6) leadData.ultimasMsgs.shift();
 
@@ -625,6 +737,10 @@ async function processarMensagem({ chatId, contactId, texto, tipo, mediaBase64, 
         // perguntava de novo, indefinidamente, ainda por cima falando por cima do
         // consultor humano que já tinha assumido o ticket.
         if (leadData.finalizado) {
+            // Antes de tudo (inclusive do silêncio): se a transferência não saiu,
+            // ou o cliente só agora disse a loja / pediu outra unidade, tenta de novo.
+            if (await retentarTransferencia(chatId, leadData, texto)) return;
+
             // Já se despediu: silêncio absoluto. Só registra a mensagem no histórico
             // para o consultor ter o contexto completo no ticket.
             if (leadData.conversaEncerrada) {
@@ -639,7 +755,9 @@ async function processarMensagem({ chatId, contactId, texto, tipo, mediaBase64, 
 
             if (sinalFim || estourouTeto) {
                 leadData.conversaEncerrada = true;
-                const despedida = 'Combinado! Nosso consultor assume o seu atendimento daqui 😊';
+                const despedida = leadData.transferidoOk
+                    ? 'Combinado! Nosso consultor assume o seu atendimento daqui 😊'
+                    : 'Combinado! Nossa equipe dá sequência no seu atendimento por aqui.';
                 await enviarMensagem(chatId, despedida);
                 leadData.conversationHistory.push({ role: 'user', content: texto });
                 leadData.conversationHistory.push({ role: 'assistant', content: despedida });
@@ -791,13 +909,37 @@ async function processarMensagem({ chatId, contactId, texto, tipo, mediaBase64, 
             // Cliente ATUAL pedindo pós-venda/assistência → encaminha para Pós-venda.
             // Se o assunto for peças/revisão, já entrega o contato da oficina junto
             // (é quem realmente resolve) para o cliente não ficar esperando.
-            if (extraido.tipoContato === 'cliente' && !leadData.finalizado) {
+            //
+            // A unidade é perguntada ANTES de encaminhar. Antes a IA perguntava e já
+            // finalizava no mesmo turno, sem loja: o ticket ficava no Agente IA e a
+            // resposta do cliente ("comprei na Malvinas") nunca virava transferência.
+            if ((extraido.tipoContato === 'cliente' || leadData.posVenda) && !leadData.finalizado) {
                 if (!usuarioNoHistorico) leadData.conversationHistory.push({ role: 'user', content: texto });
-                const msgCliente = extraido.assunto === 'pecas_revisao'
-                    ? `Entendi! Pra ${OFICINA.assuntos} quem te atende direitinho é a nossa oficina, no ${OFICINA.telefone} 😊 Já vou avisar nosso time de pós-venda aqui também. Você comprou em qual unidade (Matriz, Malvinas ou Monteiro)?`
-                    : 'Entendi! Vou te encaminhar pro nosso time de pós-venda, que já cuida disso com você. Pode me dizer qual unidade você comprou (Matriz, Malvinas ou Monteiro)?';
+                const primeiraVez = !leadData.posVenda;
+                leadData.posVenda = true;
+                const oficina = extraido.assunto === 'pecas_revisao'
+                    ? `Pra ${OFICINA.assuntos} quem te atende direitinho é a nossa oficina, no ${OFICINA.telefone}. `
+                    : '';
+                const departamento = departamentoPosVenda(leadData);
+
+                // Primeira vez e sem destino conhecido: só pergunta a unidade.
+                if (primeiraVez && !departamentoId(departamento)) {
+                    const pergunta = `Entendi! ${oficina}Pra eu te encaminhar pro nosso time, me diz em qual unidade você comprou: Matriz, Malvinas ou Monteiro?`;
+                    await enviarMensagem(chatId, pergunta);
+                    leadData.conversationHistory.push({ role: 'assistant', content: pergunta });
+                    return;
+                }
+
+                // Destino conhecido, ou já perguntamos uma vez: encaminha (sem loja,
+                // a equipe recebe o alerta para direcionar).
+                const t = await notificarEquipe(leadData, chatId, { departamento, tagExtra: 'CLIENTE ATUAL' });
+                const msgCliente = oficina + (t.ok
+                    ? `Perfeito! Já passei seu atendimento pro nosso time da ${departamento}, eles continuam com você por aqui 😊`
+                    : 'Certo! Deixei tudo anotado pra nossa equipe dar sequência no seu atendimento por aqui.');
                 await enviarMensagem(chatId, msgCliente);
-                await notificarEquipe(leadData, chatId, { departamento: departamentoPosVenda(leadData), tagExtra: 'CLIENTE ATUAL' });
+                leadData.conversationHistory.push({ role: 'assistant', content: msgCliente });
+                leadData.transferidoOk = t.ok;
+                if (t.ok) leadData.departamentoTransferido = departamento;
                 leadData.finalizado = true;
                 return;
             }
@@ -808,15 +950,18 @@ async function processarMensagem({ chatId, contactId, texto, tipo, mediaBase64, 
             // deixando o cliente falando sozinho. Só padrões inequívocos entram aqui.
             if ((extraido.querFalarComHumano || PEDE_TRANSFERENCIA.test(texto)) && !leadData.finalizado) {
                 // Sem loja, encaminhar() cairia em DEPARTAMENTOS.entrada (Agente IA) e
-                // o ticket ficaria parado onde já está. Pergunta a unidade UMA vez e
-                // transfere na resposta seguinte, igual ao atalho de pressa.
-                if (!leadData.loja && !leadData.atalhoPerguntado) {
+                // o ticket ficaria parado onde já está. Pergunta a unidade até
+                // MAX_PERGUNTAS_UNIDADE vezes; só depois encaminha sem loja, com
+                // alerta para a equipe (e a IA segue tentando se ele disser a loja).
+                const perguntasUnidade = vezesPerguntouUnidade(leadData);
+                if (!leadData.loja && perguntasUnidade < MAX_PERGUNTAS_UNIDADE) {
                     if (!usuarioNoHistorico) leadData.conversationHistory.push({ role: 'user', content: texto });
                     leadData.modoAtalho = true;
-                    leadData.atalhoPerguntado = true;
-                    await enviarMensagem(chatId, PERGUNTA_UNIDADE);
-                    leadData.conversationHistory.push({ role: 'assistant', content: PERGUNTA_UNIDADE });
-                    console.log(`⏩ ${chatId}: pediu atendimento sem escolher loja, perguntando a unidade.`);
+                    leadData.perguntasUnidade = perguntasUnidade + 1;
+                    const pergunta = perguntasUnidade === 0 ? PERGUNTA_UNIDADE : PERGUNTA_UNIDADE_DE_NOVO;
+                    await enviarMensagem(chatId, pergunta);
+                    leadData.conversationHistory.push({ role: 'assistant', content: pergunta });
+                    console.log(`⏩ ${chatId}: pediu atendimento sem escolher loja, perguntando a unidade (${leadData.perguntasUnidade}/${MAX_PERGUNTAS_UNIDADE}).`);
                     return;
                 }
                 const hist = leadData.conversationHistory.slice(-8).map(h => ({ role: h.role === 'user' ? 'user' : 'assistant', content: h.content }));
@@ -842,8 +987,8 @@ async function processarMensagem({ chatId, contactId, texto, tipo, mediaBase64, 
                 // Pergunta FIXA e única, sem passar pelo modelo: quem pediu
                 // objetividade não pode receber mais um parágrafo de qualificação.
                 // Na 2ª vez cai no fluxo normal, que com modoAtalho já pede só a loja.
-                if (!leadData.atalhoPerguntado) {
-                    leadData.atalhoPerguntado = true;
+                if (!vezesPerguntouUnidade(leadData)) {
+                    leadData.perguntasUnidade = 1;
                     await enviarMensagem(chatId, PERGUNTA_UNIDADE);
                     leadData.conversationHistory.push({ role: 'assistant', content: PERGUNTA_UNIDADE });
                     console.log(`⏩ ${chatId}: pressa detectada — funil pulado, pedindo só a loja.`);
@@ -853,20 +998,52 @@ async function processarMensagem({ chatId, contactId, texto, tipo, mediaBase64, 
         }
 
         // --- Próximo passo + resposta ---
-        const proximoCampoDepois = determinarProximoCampo(leadData);
+        let proximoCampoDepois = determinarProximoCampo(leadData);
 
         // Quantas vezes seguidas estamos pedindo o MESMO dado. Quando o cliente
         // desconversa ("sei lá", "acho bom"), o campo continua vazio e a IA
         // repetiria a mesma pergunta indefinidamente — o prompt usa este número
-        // para reformular na 2ª vez e desistir do assunto na 3ª.
+        // para reformular na 2ª vez.
         const campoAntes = leadData.ultimoCampoPerguntado;
         const vezesAntes = leadData.vezesMesmoCampo;
-        if (proximoCampoDepois && leadData.ultimoCampoPerguntado === proximoCampoDepois.campo) {
-            leadData.vezesMesmoCampo = (leadData.vezesMesmoCampo || 1) + 1;
-        } else {
-            leadData.vezesMesmoCampo = 1;
+        const contarVezes = () => {
+            if (proximoCampoDepois && leadData.ultimoCampoPerguntado === proximoCampoDepois.campo) {
+                leadData.vezesMesmoCampo = (leadData.vezesMesmoCampo || 1) + 1;
+            } else {
+                leadData.vezesMesmoCampo = 1;
+            }
+            leadData.ultimoCampoPerguntado = proximoCampoDepois ? proximoCampoDepois.campo : null;
+        };
+        contarVezes();
+        // Na 3ª vez sem resposta o dado do diagnóstico é PULADO de verdade (não só
+        // no prompt): antes a state machine seguia exigindo o campo, a qualificação
+        // nunca fechava e o lead nunca era transferido.
+        while (proximoCampoDepois && proximoCampoDepois.campo !== 'loja' && leadData.vezesMesmoCampo >= 3) {
+            console.log(`⏭️ ${chatId}: ${proximoCampoDepois.campo} sem resposta após ${leadData.vezesMesmoCampo - 1} perguntas — pulando.`);
+            leadData.camposPulados = [...(leadData.camposPulados || []), proximoCampoDepois.campo];
+            proximoCampoDepois = determinarProximoCampo(leadData);
+            contarVezes();
         }
-        leadData.ultimoCampoPerguntado = proximoCampoDepois ? proximoCampoDepois.campo : null;
+
+        // A loja é o único dado sem o qual não há transferência, então ela não é
+        // pulada: depois de insistir, encaminha SEM loja (a equipe recebe alerta e
+        // a IA transfere assim que o cliente disser a unidade). No atalho a pergunta
+        // fixa já contou como uma tentativa, por isso o limite é menor.
+        const limiteLoja = leadData.modoAtalho ? 3 : 4;
+        const desistiuDaLoja = proximoCampoDepois?.campo === 'loja' && leadData.vezesMesmoCampo >= limiteLoja;
+
+        // Qualificação completa → TRANSFERE primeiro, responde depois (encaminhar).
+        // Antes a resposta era gerada ANTES da transferência, já prometendo o
+        // repasse, e uma falha na OpenAI nesse ponto adiava a transferência até o
+        // cliente mandar outra mensagem.
+        if (!proximoCampoDepois || desistiuDaLoja) {
+            if (desistiuDaLoja) console.warn(`⚠️ ${chatId}: loja não informada após ${leadData.vezesMesmoCampo - 1} perguntas — encaminhando sem loja.`);
+            const hist = leadData.conversationHistory.slice(-10).map(h => ({ role: h.role === 'user' ? 'user' : 'assistant', content: h.content }));
+            if (!usuarioNoHistorico) leadData.conversationHistory.push({ role: 'user', content: texto });
+            await encaminhar(chatId, leadData, departamentoLead(leadData), texto, hist, exp);
+            leadData.analiseImagem = null;
+            return;
+        }
 
         const respHist = leadData.conversationHistory.slice(-10).map(h => ({
             role: h.role === 'user' ? 'user' : 'assistant', content: h.content
@@ -885,7 +1062,7 @@ async function processarMensagem({ chatId, contactId, texto, tipo, mediaBase64, 
         }
 
         // Chegou texto novo enquanto a IA gerava: a resposta já nasceu velha. Nada
-        // foi enviado nem transferido até aqui, então descartar é seguro. A fala do
+        // foi enviado até aqui, então descartar é seguro. A fala do
         // cliente fica no histórico e o próximo turno responde à rajada inteira de
         // uma vez, em vez de mandar duas respostas para a mesma sequência.
         if (chegouTextoNovo(chatId)) {
@@ -905,36 +1082,6 @@ async function processarMensagem({ chatId, contactId, texto, tipo, mediaBase64, 
         // seguir quando o cliente aceita a recomendação sem dizer "quero a AZ1".
         const modeloNaResposta = detectarModeloMencionado(resposta);
         if (modeloNaResposta) leadData.modeloApresentado = modeloNaResposta;
-
-        // Qualificação completa → TRANSFERE primeiro, responde depois. A ordem é
-        // deliberada: a IA só pode confirmar a passagem para o cliente depois que
-        // o ticket realmente entrou na fila do departamento da loja escolhida.
-        let transferencia = null;
-        if (leadData.qualificacaoCompleta && !leadData.finalizado) {
-            // O lead que veio pelo ATALHO chega sem diagnóstico (ele pediu pressa e a
-            // IA pulou o funil). O consultor precisa saber disso na nota, senão recebe
-            // um resumo cheio de "Não informado" sem entender por quê.
-            const tags = [
-                leadData.modoAtalho ? 'PEDIU AGILIDADE — SEM DIAGNÓSTICO' : null,
-                exp.aberto ? null : 'FORA DE EXPEDIENTE — AGENDAR RETORNO'
-            ].filter(Boolean);
-            transferencia = await notificarEquipe(leadData, chatId, {
-                departamento: departamentoLead(leadData),
-                tagExtra: tags.length ? tags.join(' | ') : undefined,
-                proximoExpediente: exp.aberto ? null : exp.proximoExpediente
-            });
-            leadData.transferidoOk = transferencia.ok;
-            leadData.finalizado = true;
-        }
-
-        // A transferência não foi concluída, mas a IA escreveu que já repassou:
-        // troca por uma mensagem que não promete o que não aconteceu.
-        if (transferencia && !transferencia.ok && PROMETE_TRANSFERENCIA.test(resposta)) {
-            console.warn(`⚠️ ${chatId}: resposta prometia transferência que não ocorreu (${transferencia.motivo}) — texto substituído.`);
-            resposta = exp.aberto
-                ? 'Perfeito, anotei tudo aqui! Nosso consultor já vai dar sequência no seu atendimento por aqui mesmo. Ficou alguma dúvida sobre a moto?'
-                : `Perfeito, deixei tudo registrado! Nosso consultor dá sequência ${exp.proximoExpediente}. Ficou alguma dúvida sobre a moto?`;
-        }
 
         await enviarMensagensQuebradas(chatId, resposta);
         if (!usuarioNoHistorico) leadData.conversationHistory.push({ role: 'user', content: texto });
