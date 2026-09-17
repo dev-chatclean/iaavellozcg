@@ -211,10 +211,19 @@ function departamentoId(departamento) {
 // Mapeia o texto da loja escolhida pelo cliente para o departamento do CRM.
 function lojaParaDepartamento(lojaTexto) {
     const t = String(lojaTexto || '').toLowerCase();
-    if (/malvina/.test(t)) return DEPARTAMENTOS.malvinas;
+    if (/malvina|rocha cavalcante|francisco lopes/.test(t)) return DEPARTAMENTOS.malvinas;
     if (/monteiro/.test(t)) return DEPARTAMENTOS.monteiro;
     if (/matriz|centro|jo[aã]o suassuna/.test(t)) return DEPARTAMENTOS.matriz;
     return null;
+}
+
+// Nome curto e canônico da loja ("Matriz", "Malvinas", "Monteiro") ou null
+// quando o texto não aponta para nenhuma das três. Guardar só valores que
+// mapeiam para um departamento evita o lead "com loja" que não tem para onde ir
+// (ex.: o modelo anotando "Campina Grande") e fica parado no Agente IA.
+function lojaCanonica(lojaTexto) {
+    const dep = lojaParaDepartamento(lojaTexto);
+    return dep ? dep.replace(/^Loja\s+/, '') : null;
 }
 
 // -------------------------------------------------------------
@@ -243,6 +252,7 @@ module.exports = {
     DEPARTAMENTO_IDS,
     departamentoId,
     lojaParaDepartamento,
+    lojaCanonica,
     CAMPOS_QUALIFICACAO,
     CAMPOS_SIMULACAO
 };

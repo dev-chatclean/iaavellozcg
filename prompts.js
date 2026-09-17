@@ -203,7 +203,12 @@ function promptResposta({ isInicioConversa, mensagemSanitizada, proximoCampo, le
 
     // Diagnóstico mínimo: transporte + gasto + situação de moto. Enquanto isso
     // não fecha, NÃO libere preço/modelo — redirecione com naturalidade.
-    const diagnosticoCompleto = !!(leadData.transporteAtual && leadData.gastoMensal && leadData.situacaoMoto);
+    // Dado que o cliente não quis responder e foi pulado (camposPulados) conta
+    // como resolvido: senão a IA ficava proibida de falar de modelo/preço para
+    // sempre e a qualificação nunca chegava à loja.
+    const pulados = Array.isArray(leadData.camposPulados) ? leadData.camposPulados : [];
+    const resolvido = (c) => !!leadData[c] || pulados.includes(c);
+    const diagnosticoCompleto = resolvido('transporteAtual') && resolvido('gastoMensal') && resolvido('situacaoMoto');
 
     const coletados = [
         leadData.nome ? 'Nome: ' + leadData.nome : null,

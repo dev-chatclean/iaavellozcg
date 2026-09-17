@@ -8,6 +8,8 @@
 //  SYSTEM (prompts.js); aqui só ditamos a próxima "dica" de campo a coletar.
 // =============================================================
 
+const { lojaCanonica } = require('./data');
+
 // Ordem oficial do fluxo Avelloz (diagnóstico → modelo → pagamento → loja).
 const CAMPOS = ['finalidade', 'transporteAtual', 'gastoMensal', 'situacaoMoto', 'modeloInteresse', 'formaPagamento', 'loja'];
 
@@ -54,21 +56,29 @@ function determinarProximoCampo(leadData) {
             leadData.modeloInteresse = leadData.modeloApresentado;
         }
     }
+    // Campo que o cliente não respondeu depois de várias tentativas é PULADO
+    // (index.js preenche camposPulados). Sem isto o prompt mandava "deixar o
+    // assunto de lado", mas a state machine continuava exigindo o dado: a
+    // qualificação nunca fechava e o lead nunca era transferido, mesmo já tendo
+    // escolhido a loja. A loja não entra aqui: sem ela não há para onde transferir.
+    const pulados = Array.isArray(leadData.camposPulados) ? leadData.camposPulados : [];
+    const falta = (c) => !leadData[c] && !pulados.includes(c);
+
     // UMA pergunta por vez, sempre. Perguntas duplas ("quanto gasta E quanto tempo
     // perde?") fazem o cliente responder só a segunda parte: o campo continua vazio,
     // a IA repete a pergunta e ele se irrita — foi o que travou o atendimento no print.
-    if (!leadData.finalidade)      return { campo: 'finalidade',      pergunta: 'Pergunte APENAS pra que ele quer a moto (trabalhar, economizar, passear, pra esposa). Esse é o passo 2, interesse. Não emende nenhuma outra pergunta na mesma mensagem.' };
-    if (!leadData.transporteAtual) return { campo: 'transporteAtual', pergunta: 'Pergunte APENAS como ele se locomove HOJE: carro, Uber, ônibus, carona ou moto alugada (passo 3, diagnóstico). Uma coisa de cada vez.' };
-    if (!leadData.gastoMensal)     return { campo: 'gastoMensal',     pergunta: 'Pergunte APENAS quanto ele gasta por mês nesse transporte, fazendo ele dizer o número em reais. NÃO pergunte junto sobre tempo perdido no trânsito nem qualquer outra coisa: só o valor.' };
-    if (!leadData.situacaoMoto)    return { campo: 'situacaoMoto',    pergunta: 'Descubra se ele já tem moto e a situação (própria, alugada, velha, manutenção cara). Se roda de app, pergunte quanto paga de aluguel por semana/mês.' };
-    if (!leadData.modeloInteresse) return { campo: 'modeloInteresse', pergunta: leadData.modeloApresentado
+    if (falta('finalidade'))      return { campo: 'finalidade',      pergunta: 'Pergunte APENAS pra que ele quer a moto (trabalhar, economizar, passear, pra esposa). Esse é o passo 2, interesse. Não emende nenhuma outra pergunta na mesma mensagem.' };
+    if (falta('transporteAtual')) return { campo: 'transporteAtual', pergunta: 'Pergunte APENAS como ele se locomove HOJE: carro, Uber, ônibus, carona ou moto alugada (passo 3, diagnóstico). Uma coisa de cada vez.' };
+    if (falta('gastoMensal'))     return { campo: 'gastoMensal',     pergunta: 'Pergunte APENAS quanto ele gasta por mês nesse transporte, fazendo ele dizer o número em reais. NÃO pergunte junto sobre tempo perdido no trânsito nem qualquer outra coisa: só o valor.' };
+    if (falta('situacaoMoto'))    return { campo: 'situacaoMoto',    pergunta: 'Descubra se ele já tem moto e a situação (própria, alugada, velha, manutenção cara). Se roda de app, pergunte quanto paga de aluguel por semana/mês.' };
+    if (falta('modeloInteresse')) return { campo: 'modeloInteresse', pergunta: leadData.modeloApresentado
         ? `Você JÁ recomendou a ${leadData.modeloApresentado} e JÁ mostrou a conta do gasto anual. NÃO recomende outro modelo, NÃO repita o preço e NÃO refaça o cálculo: apenas confirme, numa pergunta curta, se é essa mesma que ele quer levar.`
         : 'Diagnóstico feito: mostre a conta (o gasto dele projetado no ano) UMA vez e recomende o modelo que encaixa (AZ1 economia, AZ125 equilíbrio, AZX160 potência). Confirme qual interessou.' };
     // A forma de pagamento NÃO bloqueia o fechamento depois que o cliente escolheu
     // a unidade: quem fecha a condição é o consultor da loja. Insistir aqui fazia a
     // IA voltar atrás e reperguntar pagamento depois de o cliente já ter decidido
     // onde comprar — que foi o que travou o atendimento no print.
-    if (!leadData.formaPagamento && !leadData.loja) return { campo: 'formaPagamento',  pergunta: 'Pergunte qual forma de pagamento faz mais sentido: cartão (até 21x), financiamento (até 48x, podendo sair com entrada zero dependendo da análise do CPF), consórcio ou à vista.' };
+    if (falta('formaPagamento') && !leadData.loja) return { campo: 'formaPagamento',  pergunta: 'Pergunte qual forma de pagamento faz mais sentido: cartão (até 21x), financiamento (até 48x, podendo sair com entrada zero dependendo da análise do CPF), consórcio ou à vista.' };
     if (!leadData.loja)            return { campo: 'loja',            pergunta: 'Pergunte qual unidade fica melhor pra ele, citando SEMPRE as TRÊS: Matriz e Malvinas (Campina Grande) e Monteiro. Nunca ofereça só duas. Identificar a loja é OBRIGATÓRIO antes de transferir.' };
     leadData.qualificacaoCompleta = true;
     return null;
@@ -86,7 +96,11 @@ function aplicarCampos(leadData, extraido) {
     if (!extraido) return;
     const correcoes = Array.isArray(extraido.correcao) ? extraido.correcao : [];
     for (const c of [...CAMPOS, ...CAMPOS_EXTRAS]) {
-        const v = extraido[c];
+        let v = extraido[c];
+        // Só aceita loja que aponta para um departamento de verdade. Um valor
+        // como "Campina Grande" antes fechava a qualificação sem destino: o
+        // ticket ficava no Agente IA e a equipe nem era alertada.
+        if (c === 'loja' && v) v = lojaCanonica(v);
         if (v === null || v === undefined || v === '') continue;
         if (!leadData[c] || correcoes.includes(c) || MUTAVEIS.includes(c)) {
             leadData[c] = v;
