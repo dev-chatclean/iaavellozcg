@@ -13,7 +13,7 @@ const readline = require('readline');
 const OpenAI = require('openai');
 const { SYSTEM_SDR, promptExtracao, promptResposta } = require('./prompts');
 const { PERFIS, DEPARTAMENTOS, lojaParaDepartamento } = require('./data');
-const { determinarProximoCampo, aplicarCampos, detectarPerfil } = require('./flow');
+const { determinarProximoCampo, aplicarCampos, detectarPerfil, registrarPedidoPreco } = require('./flow');
 
 if (!process.env.OPENAI_API_KEY) {
     console.error('❌ Defina OPENAI_API_KEY no .env antes de rodar o tester.');
@@ -56,6 +56,7 @@ async function turno(texto) {
     const extraido = await extrair(texto, proximoAntes?.campo, hist.slice(-4));
     leadData.objecaoAtiva = null;
     leadData.perguntouAgora = null;
+    registrarPedidoPreco(leadData, texto, extraido);
     if (extraido) {
         aplicarCampos(leadData, extraido);
         if (extraido.objecao) leadData.objecaoAtiva = extraido.objecao;

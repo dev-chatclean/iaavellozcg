@@ -73,7 +73,7 @@ const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 const { EMPRESA_INFO, PERFIS, DEPARTAMENTOS, DEPARTAMENTO_IDS, departamentoId, lojaParaDepartamento, lojaCanonica, OFICINA } = require('./data');
 const { SYSTEM_SDR, promptExtracao, promptResposta } = require('./prompts');
-const { determinarProximoCampo, aplicarCampos, detectarPerfil, detectarModeloMencionado } = require('./flow');
+const { determinarProximoCampo, aplicarCampos, detectarPerfil, detectarModeloMencionado, diagnosticoCompleto, registrarPedidoPreco } = require('./flow');
 
 // Departamento de transbordo do lead = a loja que ele escolheu (obrigatória
 // no fluxo). Sem loja identificada, permanece no Agente IA (a porta de entrada).
@@ -867,6 +867,9 @@ async function processarMensagem({ chatId, contactId, texto, tipo, mediaBase64, 
             }
         }
 
+        // Fala do cliente sem a citação: a mensagem citada pode ser da própria IA
+        // falando de preço e contaria como pedido de preço do cliente.
+        const textoCliente = texto;
         if (quotedText) {
             texto = `[RESPOSTA À MENSAGEM: "${quotedText}"]\n${texto}`;
         }
@@ -885,6 +888,12 @@ async function processarMensagem({ chatId, contactId, texto, tipo, mediaBase64, 
         leadData.objecaoAtiva = null;
         leadData.perguntouAgora = null;
         leadData.assuntoAgora = null;
+
+        // Guardado para desfazer a contagem se a resposta for descartada (a rajada
+        // é reprocessada inteira no próximo turno e contaria o pedido duas vezes).
+        const pedidosPrecoAntes = leadData.pedidosPreco;
+        const precoLiberadoAntes = leadData.precoLiberado;
+        registrarPedidoPreco(leadData, textoCliente, extraido);
 
         if (extraido) {
             aplicarCampos(leadData, extraido);
@@ -987,7 +996,9 @@ async function processarMensagem({ chatId, contactId, texto, tipo, mediaBase64, 
                 // Pergunta FIXA e única, sem passar pelo modelo: quem pediu
                 // objetividade não pode receber mais um parágrafo de qualificação.
                 // Na 2ª vez cai no fluxo normal, que com modoAtalho já pede só a loja.
-                if (!vezesPerguntouUnidade(leadData)) {
+                // Se o preço já foi liberado (insistiu), também cai no fluxo normal:
+                // a resposta dá o preço e pergunta a loja na mesma mensagem.
+                if (!vezesPerguntouUnidade(leadData) && !(leadData.precoLiberado && !diagnosticoCompleto(leadData))) {
                     leadData.perguntasUnidade = 1;
                     await enviarMensagem(chatId, PERGUNTA_UNIDADE);
                     leadData.conversationHistory.push({ role: 'assistant', content: PERGUNTA_UNIDADE });
@@ -1069,6 +1080,8 @@ async function processarMensagem({ chatId, contactId, texto, tipo, mediaBase64, 
             console.log(`\u{1F504} ${chatId}: mensagem nova durante a geração, descartando a resposta e reprocessando.`);
             leadData.ultimoCampoPerguntado = campoAntes;
             leadData.vezesMesmoCampo = vezesAntes;
+            leadData.pedidosPreco = pedidosPrecoAntes;
+            leadData.precoLiberado = precoLiberadoAntes;
             if (!usuarioNoHistorico) leadData.conversationHistory.push({ role: 'user', content: texto });
             return;
         }
