@@ -17,7 +17,7 @@ O ChatClean cuida só do transporte. Toda a inteligência (persona, diagnóstico
 ## O que o bot faz
 
 - **Persona oficial Avelloz:** consultor humano, tom de WhatsApp, sem markdown, no máximo 1 emoji, SEMPRE termina com uma pergunta, anti-jailbreak, nunca revela que é IA.
-- **Diagnóstico ANTES do produto (regra inegociável):** não revela preço, modelo nem condição antes de entender transporte atual + gasto mensal + situação de moto. Se o cliente pede preço cedo, redireciona com naturalidade.
+- **Diagnóstico ANTES do produto (regra inegociável):** não revela preço, modelo nem condição antes de entender transporte atual + gasto mensal + situação de moto. Se o cliente pede preço cedo, redireciona com naturalidade. **Exceção:** se ele insistir (2º pedido de preço, ou "só quero saber o preço"), a IA passa os valores dos três modelos e retoma a conversa, em vez de perder o lead (`registrarPedidoPreco` em `flow.js`, regressão em `npm run test:preco`).
 - **Vende liberdade e economia:** mostra a conta do que o cliente já gasta hoje (Uber/ônibus/combustível/aluguel de moto) projetada no ano. Trata o perfil especial de quem roda de aplicativo (aluga / começando / quer trocar).
 - **Preços liberados** (após o diagnóstico): AZ1 e AZ125 como preço promocional já com emplacamento; a AZX160 é exceção — emplacamento cobrado à parte, informa os dois valores (sem e com). **Nunca informa valor de parcela** (transfere pro humano).
 - **Fechamento:** identifica a loja (Matriz, Malvinas ou Monteiro — obrigatório), coleta os dados de simulação (CPF, nascimento, nome, telefone, CNH, cor/modelo) e **transfere o ticket para o departamento da loja escolhida** (ver abaixo).

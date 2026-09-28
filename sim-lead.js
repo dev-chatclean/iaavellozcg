@@ -11,7 +11,7 @@ require('dotenv').config();
 const OpenAI = require('openai');
 const { SYSTEM_SDR, promptExtracao, promptResposta } = require('./prompts');
 const { PERFIS, DEPARTAMENTOS, lojaParaDepartamento } = require('./data');
-const { determinarProximoCampo, aplicarCampos, detectarPerfil } = require('./flow');
+const { determinarProximoCampo, aplicarCampos, detectarPerfil, registrarPedidoPreco } = require('./flow');
 const { estaEmExpediente } = require('./horario');
 
 // Força um horário para testar o modo plantão: SIM_DATA="2026-07-25T21:00:00-03:00"
@@ -99,6 +99,7 @@ async function turno(texto) {
     const extraido = await extrair(texto, proximoAntes?.campo, hist.slice(-4));
     leadData.objecaoAtiva = null;
     leadData.perguntouAgora = null;
+    registrarPedidoPreco(leadData, texto, extraido);
     if (extraido) {
         aplicarCampos(leadData, extraido);
         if (extraido.objecao) leadData.objecaoAtiva = extraido.objecao;

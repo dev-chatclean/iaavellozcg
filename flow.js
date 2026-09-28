@@ -84,6 +84,34 @@ function determinarProximoCampo(leadData) {
     return null;
 }
 
+// Diagnóstico mínimo: transporte + gasto + situação de moto. Dado que o cliente
+// não quis responder e foi pulado (camposPulados) conta como resolvido.
+function diagnosticoCompleto(leadData) {
+    const pulados = Array.isArray(leadData.camposPulados) ? leadData.camposPulados : [];
+    const resolvido = (c) => !!leadData[c] || pulados.includes(c);
+    return resolvido('transporteAtual') && resolvido('gastoMensal') && resolvido('situacaoMoto');
+}
+
+// INSISTÊNCIA NO PREÇO. O bloqueio de diagnóstico vale só para o PRIMEIRO pedido:
+// no print, quem perguntou "qual é o preço?" duas vezes (ou disse "só quero saber
+// o preço") recebeu mais uma pergunta de diagnóstico e foi embora. A partir do
+// 2º pedido, ou de um "só quero o preço" logo de cara, o preço fica liberado.
+// Pergunta de parcela/entrada/juros não conta: essa quem responde é o consultor.
+const PEDE_PRECO = /(pre[çc]o|quanto\s+(custa|[ée]|t[áa]|sai|fica|vale)|\bvalor(es)?\b)/i;
+const NAO_E_PRECO_DA_MOTO = /parcela|entrada|juros|presta[çc]/i;
+const SO_QUER_PRECO = /(s[óo]|apenas|somente)\s+(quero\s+)?(saber\s+)?(o\s+|os\s+)?(pre[çc]o|valor)|quero\s+(s[óo]|apenas|somente)\s+(saber\s+)?(o\s+|os\s+)?(pre[çc]o|valor)/i;
+
+// `texto` é a fala do cliente SEM o trecho citado (a citação pode ser uma
+// mensagem da própria IA falando de preço). Liga leadData.precoLiberado, que
+// fica ligado: o prompt libera o valor enquanto ele ainda não foi informado.
+function registrarPedidoPreco(leadData, texto, extraido) {
+    const t = texto || '';
+    const pediu = (!!(extraido && extraido.pediuPreco) || PEDE_PRECO.test(t)) && !NAO_E_PRECO_DA_MOTO.test(t);
+    if (!pediu) return;
+    leadData.pedidosPreco = (leadData.pedidosPreco || 0) + 1;
+    if (leadData.pedidosPreco >= 2 || SO_QUER_PRECO.test(t)) leadData.precoLiberado = true;
+}
+
 // Campos de ESCOLHA que mudam ao longo da conversa: o último valor informado
 // vence (ex.: perguntou o preço da AZ1 mas depois escolheu a AZ125; trocou a
 // forma de pagamento ou a loja). Diferente dos fatos do diagnóstico, que ficam.
@@ -129,4 +157,4 @@ function detectarPerfil(texto) {
     return null;
 }
 
-module.exports = { CAMPOS, CAMPOS_EXTRAS, determinarProximoCampo, aplicarCampos, detectarPerfil, detectarModeloMencionado };
+module.exports = { CAMPOS, CAMPOS_EXTRAS, determinarProximoCampo, aplicarCampos, detectarPerfil, detectarModeloMencionado, diagnosticoCompleto, registrarPedidoPreco };

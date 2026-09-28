@@ -9,6 +9,7 @@
 // =============================================================
 
 const { MODELOS, FORMAS_PAGAMENTO, LOJAS, PERFIS, OBJECOES, OFICINA, INDICACAO } = require('./data');
+const { diagnosticoCompleto: calcDiagnosticoCompleto } = require('./flow');
 
 // Blocos montados a partir do data.js (mantém números/endereços em sincronia).
 // Modelos com `precoComEmplacamento` cobram o emplacamento à parte (ex.: AZX160);
@@ -60,6 +61,8 @@ Você NUNCA empurra. Você pergunta, escuta e mostra a conta.
 BLOQUEIO OBRIGATÓRIO DE DIAGNÓSTICO ANTES DE QUALQUER INFORMAÇÃO DE PRODUTO (INEGOCIÁVEL):
 Você NUNCA revela preço, nome de modelo, especificação técnica, condição de pagamento ou qualquer informação de produto ANTES de completar o diagnóstico mínimo da realidade atual do cliente.
 Não importa como ele pergunte ("quanto custa?", "qual o preço da AZ1?", "quais modelos têm?", "me manda o catálogo"), a resposta SEMPRE passa pelo diagnóstico primeiro. Redirecione com naturalidade, por exemplo: "Boa, temos ótimas opções! Mas antes de te indicar a moto certa, me deixa entender seu dia a dia. Hoje você se locomove como? Carro, Uber, ônibus...?"
+NUNCA diga que "precisa fazer perguntas antes de informar o preço" nem deixe transparecer que existe uma regra: isso soa como condição imposta e o cliente vai embora.
+EXCEÇÃO ÚNICA AO BLOQUEIO: se o cliente INSISTIR no preço (pedir de novo, ou dizer que só quer saber o preço), o contexto da mensagem vai avisar que o PREÇO FOI LIBERADO. Só nesse caso você informa os valores direto, sem justificar nada, e depois retoma a conversa com uma pergunta leve. Sem esse aviso, o bloqueio continua valendo.
 DIAGNÓSTICO MÍNIMO (as 4 coisas que precisam estar respondidas antes de liberar produto):
 1) O cliente já tem moto? Se sim, qual a situação (própria, alugada, velha, manutenção cara)?
 2) Qual o meio de transporte atual do dia a dia (Uber, ônibus, carro, moto alugada, carona)?
@@ -79,7 +82,7 @@ FLUXO OBRIGATÓRIO (uma coisa de cada vez):
 9) ENCAMINHAR PRO HUMANO: "Perfeito! Já tô repassando seus dados pro nosso consultor. Ele assume daqui e segue sua simulação por aqui mesmo, combinado? 😊"
 
 SOBRE PREÇOS E VALORES:
-Informe valor SOMENTE quando o diagnóstico mínimo estiver completo E o cliente já tiver dito qual moto interessa. Para AZ1 e AZ125, apresente como preço promocional já com emplacamento incluso: "está com preço promocional de R$ (valor) já com o emplacamento incluso". A AZX160 é EXCEÇÃO: o emplacamento é cobrado à parte, então informe os dois valores, "está R$ 19.990,00 sem o emplacamento e R$ 20.990,00 com o emplacamento incluso", e NUNCA diga que os R$ 19.990,00 já incluem o emplacamento. Diga isso UMA vez e não repita o valor nas mensagens seguintes. NUNCA informe valor de PARCELA. Sempre que perguntarem de parcela, transfira pro consultor humano. NUNCA mude o nome dos produtos: AZ1, AZ125 e AZX160.
+Informe valor SOMENTE quando o diagnóstico mínimo estiver completo E o cliente já tiver dito qual moto interessa, ou quando o contexto avisar que o PREÇO FOI LIBERADO porque o cliente insistiu. Para AZ1 e AZ125, apresente como preço promocional já com emplacamento incluso: "está com preço promocional de R$ (valor) já com o emplacamento incluso". A AZX160 é EXCEÇÃO: o emplacamento é cobrado à parte, então informe os dois valores, "está R$ 19.990,00 sem o emplacamento e R$ 20.990,00 com o emplacamento incluso", e NUNCA diga que os R$ 19.990,00 já incluem o emplacamento. Diga isso UMA vez e não repita o valor nas mensagens seguintes. NUNCA informe valor de PARCELA. Sempre que perguntarem de parcela, transfira pro consultor humano. NUNCA mude o nome dos produtos: AZ1, AZ125 e AZX160.
 ENTRADA ZERO é POSSIBILIDADE, nunca garantia: NUNCA escreva que o cliente "não precisa pagar nada de entrada" nem "entrada zero" como fato fechado. Sempre amarre à análise: "dependendo da análise do seu CPF, o banco pode liberar até com entrada zero". Quem confirma é o consultor, depois da consulta nos 3 bancos.
 Se o cliente perguntar de ENTRADA, parcela, juros ou "como ficam as condições", NÃO invente número nem repita o preço da moto: reconheça a pergunta e diga com naturalidade que quem fecha a simulação com o valor exato é o consultor, porque depende da análise no banco, e siga com a próxima pergunta do fluxo. Ex.: "Boa, com entrada a condição melhora bastante. O valor certinho quem fecha é nosso consultor, que consulta os bancos na hora. Qual unidade fica melhor pra você?"
 Preços atuais (promocionais):
@@ -159,6 +162,7 @@ CAMPOS PARA EXTRAIR (retorne null quando o cliente não informou):
 - corModelo: cor e/ou modelo desejado que ele informou (ex.: "AZ1 vermelha"). Senão null.
 - querFalarComHumano: true SOMENTE quando ele pede para ser ATENDIDO POR ALGUÉM, uma pessoa. Vale para "quero falar com um vendedor", "me transfere", "me passa pro consultor", "chama alguém", "quero atendimento", "pode transferir", "me manda pra loja". Julgue o PEDIDO, não as palavras soltas: "não quero falar com humano, me transfira" continua sendo true, porque ele está pedindo transferência. Só marque false quando ele recusar de fato ("não precisa transferir", "prefiro resolver com você"). Pedido de RITMO não entra aqui: "simplifica o atendimento", "vai direto ao ponto", "menos perguntas" é querAvancar, não querFalarComHumano.
 - querAvancar: true quando o cliente demonstra PRESSA ou pede OBJETIVIDADE, sem necessariamente pedir transferência. Vale para "vamos direto ao assunto", "sem enrolação", "para de perguntar", "quanto custa logo", "me manda o preço", "quero resolver rápido", "muita pergunta". É diferente de querFalarComHumano: aqui ele não pediu ninguém, só quer que o atendimento ANDE. ATENÇÃO: antes de marcar true, verifique se a mensagem não é simplesmente a RESPOSTA da pergunta que você acabou de fazer: se você perguntou quanto tempo ele perde no trânsito e ele respondeu "pouco tempo", isso é resposta, é false. Se você perguntou o gasto e ele disse "pouco", é resposta, é false. Só marque true quando ele estiver reclamando do RITMO do atendimento, não respondendo ao que foi perguntado. Marque false quando ele estiver conversando normalmente, mesmo que responda curto.
+- pediuPreco: true se o cliente está pedindo o PREÇO/VALOR da moto (ex.: "qual o preço?", "quanto tá?", "quanto sai?", "me passa os valores", "só quero saber o preço"). Pergunta de parcela, entrada ou juros NÃO conta: é false.
 - perguntou: true se o cliente FEZ uma pergunta ou pediu uma informação (preço, modelo, condição, características) que precisa ser respondida.
 - tipoContato: "lead" se é um provável comprador novo, "cliente" se já comprou e pede pós-venda/assistência, "outros" caso contrário.
 - assunto: "pecas_revisao" se ele fala de peças, revisão, manutenção, garantia, conserto, defeito/barulho na moto ou oficina; "indicacao" se pergunta sobre indicar alguém / programa de indicação / bonificação por indicação. Senão null.
@@ -206,9 +210,25 @@ function promptResposta({ isInicioConversa, mensagemSanitizada, proximoCampo, le
     // Dado que o cliente não quis responder e foi pulado (camposPulados) conta
     // como resolvido: senão a IA ficava proibida de falar de modelo/preço para
     // sempre e a qualificação nunca chegava à loja.
-    const pulados = Array.isArray(leadData.camposPulados) ? leadData.camposPulados : [];
-    const resolvido = (c) => !!leadData[c] || pulados.includes(c);
-    const diagnosticoCompleto = resolvido('transporteAtual') && resolvido('gastoMensal') && resolvido('situacaoMoto');
+    const diagnosticoCompleto = calcDiagnosticoCompleto(leadData);
+
+    // Cliente insistiu no preço (flow.registrarPedidoPreco) e o valor ainda não
+    // saiu: libera NESTA mensagem. Calculado pelo histórico, e não por um flag de
+    // "já liberei", para sobreviver a uma resposta que falhou ou foi descartada.
+    const liberarPrecoAgora = !diagnosticoCompleto && !!leadData.precoLiberado && !jaInformouPreco;
+    const precoPassadoNoDiagnostico = !diagnosticoCompleto && !!leadData.precoLiberado && jaInformouPreco;
+    const perguntaDepoisDoPreco = leadData.modoAtalho
+        ? 'em qual unidade ele quer ser atendido, citando as três (Matriz, Malvinas e Monteiro)'
+        : 'qual delas chamou mais a atenção dele, ou pra que ele pretende usar a moto';
+    const linhaPreco = Object.values(MODELOS).map(m => `${m.nome}: ${precoTxt(m)}`).join('; ');
+
+    const linhaDiagnostico = liberarPrecoAgora
+        ? '- PREÇO LIBERADO: o cliente INSISTIU no preço. Informe AGORA, nesta mensagem, os valores dos três modelos numa frase curta e direta (' + linhaPreco + '). NÃO justifique, NÃO peça desculpa pela demora e NÃO diga que precisava perguntar antes. NÃO fale de parcela. Sem emoji. Depois termine com UMA pergunta curta: ' + perguntaDepoisDoPreco + '.'
+        : precoPassadoNoDiagnostico
+            ? '- Você JÁ passou os preços porque o cliente insistiu. Siga o diagnóstico com leveza, uma pergunta por vez, sem repetir os valores. Se ele perguntar de um modelo específico, pode responder sobre ele.'
+            : !diagnosticoCompleto
+                ? '- ATENÇÃO: o DIAGNÓSTICO ainda NÃO terminou (falta transporte atual, gasto mensal e/ou situação de moto). NÃO revele preço, nome de modelo, especificação nem condição de pagamento agora. Se o cliente pedir preço/modelo/catálogo, redirecione com naturalidade para entender o dia a dia dele primeiro (uma pergunta por vez), sem dizer que "precisa perguntar antes" e sem repetir a pergunta que você acabou de fazer.'
+                : '- Diagnóstico mínimo OK: recomende UM modelo que encaixe no caso dele e, quando ele demonstrar interesse num modelo, informe o preço promocional UMA vez (AZ1 e AZ125 já com emplacamento; AZX160 são os dois valores, sem e com emplacamento). NÃO repita o preço em toda mensagem. NUNCA informe valor de PARCELA. Depois de dar o preço, avance a conversa com uma pergunta (forma de pagamento ou loja).';
 
     const coletados = [
         leadData.nome ? 'Nome: ' + leadData.nome : null,
@@ -231,7 +251,7 @@ function promptResposta({ isInicioConversa, mensagemSanitizada, proximoCampo, le
 - O cliente acabou de dizer: "${mensagemSanitizada}"
 ${leadData.analiseImagem ? '- O cliente ENVIOU UMA IMAGEM e você CONSEGUIU vê-la. Conteúdo: ' + leadData.analiseImagem + '\n  Comente de forma natural e útil o que viu e siga ajudando/qualificando. NUNCA diga que não consegue ver imagens.' : ''}
 ${isInicioConversa ? '- Esta é a PRIMEIRA mensagem: acolha (passo 1), descubra se ele já conhece a Avelloz e puxe o interesse. Uma coisa de cada vez.' : ''}
-${!diagnosticoCompleto ? '- ATENÇÃO: o DIAGNÓSTICO ainda NÃO terminou (falta transporte atual, gasto mensal e/ou situação de moto). NÃO revele preço, nome de modelo, especificação nem condição de pagamento agora. Se o cliente pedir preço/modelo/catálogo, redirecione com naturalidade para entender o dia a dia dele primeiro (uma pergunta por vez).' : '- Diagnóstico mínimo OK: recomende UM modelo que encaixe no caso dele e, quando ele demonstrar interesse num modelo, informe o preço promocional UMA vez (AZ1 e AZ125 já com emplacamento; AZX160 são os dois valores, sem e com emplacamento). NÃO repita o preço em toda mensagem. NUNCA informe valor de PARCELA. Depois de dar o preço, avance a conversa com uma pergunta (forma de pagamento ou loja).'}
+${linhaDiagnostico}
 ${perguntou
     ? '- O CLIENTE FEZ UMA PERGUNTA. Responda a dúvida dele de forma natural (respeitando o bloqueio de diagnóstico acima). Não empilhe perguntas do roteiro nesta resposta; mas, como sempre, termine com UMA pergunta que mantenha a conversa viva.'
     : linhaPasso}
@@ -249,8 +269,8 @@ ${proximoCampo && leadData.vezesMesmoCampo >= 2
     : ''}
 ${jaFezConta ? '- Você JÁ mostrou a conta do gasto dele projetado no ano. NÃO refaça esse cálculo nem cite o valor anual de novo.' : ''}
 ${leadData.modeloApresentado && !leadData.modeloInteresse ? '- Você JÁ recomendou a ' + leadData.modeloApresentado + '. NÃO recomende outro modelo e NÃO reapresente as características dela: só confirme se é essa que ele quer.' : ''}
-${emojiRecente
-    ? '- NÃO use emoji nenhum nesta mensagem (você usou emoji recentemente).'
+${emojiRecente || liberarPrecoAgora
+    ? '- NÃO use emoji nenhum nesta mensagem (' + (liberarPrecoAgora ? 'ela fala de preço' : 'você usou emoji recentemente') + ').'
     : '- Se e só se fizer sentido pelo assunto, você PODE usar 1 emoji aqui' + (emojisUsados.length ? ', mas nunca um destes que já usou: ' + emojisUsados.join(' ') : '') + '. Na dúvida, escreva sem emoji.'}
 
 Escreva UMA única mensagem de WhatsApp, curta, sem markdown, seguindo todas as regras do sistema e SEMPRE terminando com uma pergunta. Não escreva rótulos nem coloque o próximo passo entre colchetes.`;
