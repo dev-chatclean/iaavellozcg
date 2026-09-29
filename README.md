@@ -21,6 +21,8 @@ O ChatClean cuida só do transporte. Toda a inteligência (persona, diagnóstico
 - **Vende liberdade e economia:** mostra a conta do que o cliente já gasta hoje (Uber/ônibus/combustível/aluguel de moto) projetada no ano. Trata o perfil especial de quem roda de aplicativo (aluga / começando / quer trocar).
 - **Preços liberados** (após o diagnóstico): AZ1 e AZ125 como preço promocional já com emplacamento; a AZX160 é exceção — emplacamento cobrado à parte, informa os dois valores (sem e com). **Nunca informa valor de parcela** (transfere pro humano).
 - **Fechamento:** identifica a loja (Matriz, Malvinas ou Monteiro — obrigatório), coleta os dados de simulação (CPF, nascimento, nome, telefone, CNH, cor/modelo) e **transfere o ticket para o departamento da loja escolhida** (ver abaixo).
+- **Preço da AZX160 blindado:** ela é a única em que o emplacamento é cobrado à parte, e a IA anunciou "R$ 19.990,00 já com o emplacamento incluso" (R$ 1.000,00 a menos do que a moto emplacada custa). `corrigirPrecoEmplacamento` (`flow.js`) troca a frase errada pela versão com os dois valores, na geração e no envio. Regressão em `npm run test:nomes`.
+- **Nome dos modelos blindado:** o modelo de linguagem escrevia "AV1" puxado por "Avelloz" (o cliente chegou a receber "AV1 (50cc)"). Além da regra no prompt, `corrigirNomeModelo` (`flow.js`) conserta o texto na geração e no envio — AV1/AZ 1 → AZ1, AV125 → AZ125, AZ160/AVX160 → AZX160. Regressão em `npm run test:nomes`.
 - **Peças, revisão e manutenção:** assunto da oficina — a IA passa o contato direto **(83) 98207-3221** e não tenta diagnosticar defeito nem cotar serviço.
 - **Programa de indicação ("Indicou, comprou, ganhou!"):** quem indica passa nome e telefone do possível comprador a um vendedor **antes** da compra; fechando, ganha R$ 50 (AZ1), R$ 100 (AZ125) ou R$ 150 (AZX160). Indicação reivindicada **depois** da compra não é paga.
 - **Regras específicas:** não aceita moto usada na troca, não faz test drive, nunca promete prazo de entrega, CNH não é obrigatório pra comprar.
@@ -95,6 +97,8 @@ npm install
 cp .env.example .env      # preencher OPENAI_API_KEY (e CC_PUSH_URL p/ o servidor)
 npm run chat              # conversa interativa no terminal (só precisa da OpenAI)
 npm run sim               # simulação de qualificação completa (motoboy/moto alugada)
+npm run test:preco        # regressão: liberar o preço quando o cliente insiste
+npm run test:nomes        # regressão: nome dos modelos (AZ1/AZ125/AZX160)
 npm start                 # sobe o servidor (webhook/Push)
 ```
 

@@ -73,7 +73,14 @@ const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 const { EMPRESA_INFO, PERFIS, DEPARTAMENTOS, DEPARTAMENTO_IDS, departamentoId, lojaParaDepartamento, lojaCanonica, OFICINA } = require('./data');
 const { SYSTEM_SDR, promptExtracao, promptResposta } = require('./prompts');
-const { determinarProximoCampo, aplicarCampos, detectarPerfil, detectarModeloMencionado, diagnosticoCompleto, registrarPedidoPreco } = require('./flow');
+const { determinarProximoCampo, aplicarCampos, detectarPerfil, detectarModeloMencionado, corrigirNomeModelo, corrigirPrecoEmplacamento, diagnosticoCompleto, registrarPedidoPreco } = require('./flow');
+
+// Correções determinísticas no texto que a IA escreve. O prompt já proíbe os
+// dois erros, mas instrução não garante: ambos chegaram ao cliente em produção
+// (o nome "AV1" e o preço da AZX160 "já com emplacamento").
+function sanitizarResposta(texto) {
+    return corrigirPrecoEmplacamento(corrigirNomeModelo(texto));
+}
 
 // Departamento de transbordo do lead = a loja que ele escolheu (obrigatória
 // no fluxo). Sem loja identificada, permanece no Agente IA (a porta de entrada).
@@ -268,7 +275,9 @@ async function transferirDepartamento(chatId, departamento) {
 
 async function enviarMensagem(chatId, texto) {
     if (!texto || !String(texto).trim()) return false;
-    return (await ccPush(chatId, { body: texto })).ok;
+    // Última barreira contra o nome errado do produto ("AV1" em vez de AZ1):
+    // tudo que a IA fala com o cliente passa por aqui.
+    return (await ccPush(chatId, { body: sanitizarResposta(texto) })).ok;
 }
 
 // Quebra a resposta em mensagens curtas (registro de WhatsApp), a menos que
@@ -472,7 +481,9 @@ async function gerarRespostaIA(leadData, mensagemCliente, proximoCampo, historic
         ],
         temperature: 0.7
     });
-    return completion.choices[0].message.content.trim();
+    // Corrige aqui, e não só no envio, para o nome certo entrar no histórico da
+    // conversa (que volta como contexto e ensinaria o erro ao próprio modelo).
+    return sanitizarResposta(completion.choices[0].message.content.trim());
 }
 
 // A IA "enxerga" a imagem enviada pelo cliente (gpt-4o com visão) e descreve
@@ -534,7 +545,7 @@ Nunca informe valor de parcela nem prometa prazo. Não refaça a qualificação 
             ],
             temperature: 0.6
         });
-        return completion.choices[0].message.content.trim() || fallback;
+        return sanitizarResposta(completion.choices[0].message.content.trim()) || fallback;
     } catch (e) {
         console.error('❌ Erro na resposta pós-encaminhamento:', e.message);
         return fallback;
