@@ -8,7 +8,7 @@
 //  SYSTEM (prompts.js); aqui só ditamos a próxima "dica" de campo a coletar.
 // =============================================================
 
-const { lojaCanonica } = require('./data');
+const { lojaCanonica, MODELOS } = require('./data');
 
 // Ordem oficial do fluxo Avelloz (diagnóstico → modelo → pagamento → loja).
 const CAMPOS = ['finalidade', 'transporteAtual', 'gastoMensal', 'situacaoMoto', 'modeloInteresse', 'formaPagamento', 'loja'];
@@ -24,10 +24,64 @@ const CAMPOS_EXTRAS = ['nome', 'nomeCompleto', 'cpf', 'dataNascimento', 'telefon
 // casaria dentro de "AZ125".
 function detectarModeloMencionado(texto) {
     if (!texto) return null;
-    if (/\bAZX\s?-?\s?160\b/i.test(texto)) return 'AZX160';
-    if (/\bAZ\s?-?\s?125\b/i.test(texto)) return 'AZ125';
-    if (/\bAZ\s?-?\s?1\b/i.test(texto))   return 'AZ1';
+    const t = corrigirNomeModelo(texto); // "AV1" (erro da IA / do cliente) vira AZ1
+    if (/\bAZX\s?-?\s?160\b/i.test(t)) return 'AZX160';
+    if (/\bAZ\s?-?\s?125\b/i.test(t)) return 'AZ125';
+    if (/\bAZ\s?-?\s?1\b/i.test(t))   return 'AZ1';
     return null;
+}
+
+// Conserta o nome dos modelos no texto. O modelo de linguagem escreve "AV1"
+// puxado por "Avelloz" (aconteceu em produção: o cliente recebeu "AV1 (50cc)"),
+// e também troca AZX160 por AZ160/AVX160. O prompt já proíbe mudar o nome dos
+// produtos, mas instrução não garante nada: esta correção é determinística e
+// roda depois da geração, antes do texto chegar ao cliente.
+//
+// A ordem importa: os nomes mais longos primeiro, senão o padrão de "AZ1"
+// casaria dentro de "AZ125". Também normaliza "AZ 1" e "AZ-1" para a grafia
+// oficial, que é sem espaço nem hífen.
+function corrigirNomeModelo(texto) {
+    if (!texto) return texto;
+    return String(texto)
+        .replace(/\bA[VZ]X?\s?-?\s?160\b/gi, 'AZX160')
+        .replace(/\bA[VZ]Z?\s?-?\s?125\b/gi, 'AZ125')
+        .replace(/\bA[VZ]Z?\s?-?\s?1\b/gi,   'AZ1');
+}
+
+// Conserta a frase do preço da AZX160, o único modelo em que o emplacamento é
+// cobrado à parte. O modelo de linguagem copia o texto da AZ1/AZ125 ("preço
+// promocional de R$ X já com o emplacamento incluso") e aplica no valor SEM
+// emplacamento — foi o que o cliente recebeu em produção: "R$ 19.990,00 já com
+// o emplacamento incluso", R$ 1.000,00 a menos do que a moto emplacada custa.
+//
+// A frase inteira é trocada pela versão correta, com os dois valores. Trocar só
+// "já com" por "sem" deixaria a mensagem contraditória com o resto da frase.
+const AZX = MODELOS.az160;
+const PRECO_SEM = new RegExp(String(AZX.precoNum).replace(/^(\d+)(\d{3})$/, '$1\\.?$2') + '(?:,00)?');
+const PRECO_COM = new RegExp(String(AZX.precoComEmplacamentoNum).replace(/^(\d+)(\d{3})$/, '$1\\.?$2') + '(?:,00)?');
+const DIZ_INCLUSO = /(j[áa]\s+)?com\s+(o\s+)?emplacamento|emplacamento\s+(incluso|inclu[ií]d[oa])/i;
+const DIZ_SEM     = /sem\s+(o\s+)?emplacamento/i;
+const FRASE_CERTA = `A ${AZX.nome} está ${AZX.preco} sem o emplacamento e ${AZX.precoComEmplacamento} com o emplacamento incluso`;
+
+function corrigirPrecoEmplacamento(texto) {
+    if (!texto) return texto;
+    // Quebra em frases preservando a pontuação, para trocar só a frase errada.
+    // O (?!\d) evita quebrar dentro do próprio valor: o ponto de "19.990" é
+    // separador de milhar, não fim de frase.
+    return String(texto).split(/(?<=[.!?\n])(?!\d)/).map(frase => {
+        const temSem = PRECO_SEM.test(frase);
+        const temCom = PRECO_COM.test(frase);
+        if (temSem && temCom) return frase;                    // já cita os dois valores: correto
+        const erroNoSem = temSem && DIZ_INCLUSO.test(frase) && !DIZ_SEM.test(frase);
+        const erroNoCom = temCom && DIZ_SEM.test(frase) && !DIZ_INCLUSO.test(frase);
+        if (!erroNoSem && !erroNoCom) return frase;
+        // Preserva o espaço em volta: a frase trocada continua colada ao resto
+        // do texto do mesmo jeito que estava.
+        const espacoInicial = frase.match(/^(\s+)/)?.[1] || '';
+        const espacoFinal = frase.match(/(\s+)$/)?.[1] || '';
+        const pontuacao = frase.trimEnd().match(/([.!?]+)$/)?.[1] || '.';
+        return espacoInicial + FRASE_CERTA + pontuacao + espacoFinal;
+    }).join('');
 }
 
 function determinarProximoCampo(leadData) {
@@ -157,4 +211,4 @@ function detectarPerfil(texto) {
     return null;
 }
 
-module.exports = { CAMPOS, CAMPOS_EXTRAS, determinarProximoCampo, aplicarCampos, detectarPerfil, detectarModeloMencionado, diagnosticoCompleto, registrarPedidoPreco };
+module.exports = { CAMPOS, CAMPOS_EXTRAS, determinarProximoCampo, aplicarCampos, detectarPerfil, detectarModeloMencionado, corrigirNomeModelo, corrigirPrecoEmplacamento, diagnosticoCompleto, registrarPedidoPreco };
