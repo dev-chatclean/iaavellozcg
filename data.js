@@ -13,7 +13,7 @@
 const EMPRESA_INFO = {
     nome: 'Avelloz Campina - Realliza Motos',
     tagline: 'Motos econômicas com facilidade de pagamento',
-    descricao: 'Concessionária Avelloz em Campina Grande e Monteiro, PB. Referência em moto econômica, emplacamento incluso e facilidade de pagamento (cartão, financiamento, consórcio e à vista).',
+    descricao: 'Concessionária Avelloz em Campina Grande e Monteiro, PB. Referência em moto econômica, emplacamento incluso na AZ1 e na AZ125 e facilidade de pagamento (cartão, financiamento, consórcio e à vista).',
     localizacao: 'Campina Grande–PB (Matriz e Malvinas) e Monteiro–PB. Atendimento pelo WhatsApp e presencial nas lojas.',
     horarioSuporte: 'Segunda a sábado, em horário comercial.',
     site: ''
@@ -141,7 +141,7 @@ const PERFIS = {
     depende_onibus: { nome: 'Depende de ônibus', gancho: 'Somar a passagem mensal e o tempo perdido no ponto/lotado: liberdade de sair na hora que quiser.' },
     tem_carro:      { nome: 'Tem carro', gancho: 'Deixar o carro em casa no dia a dia e economizar combustível e estacionamento, usando a moto pra correria.' },
     esposa:         { nome: 'Compra pra esposa/família', gancho: 'Autonomia pra ela não depender de ninguém nem de Uber pra sair. Isso muda a rotina de casa.' },
-    primeira_moto:  { nome: 'Primeira moto', gancho: 'Realizar o sonho da própria moto com facilidade de pagamento e emplacamento incluso.' }
+    primeira_moto:  { nome: 'Primeira moto', gancho: 'Realizar o sonho da própria moto com facilidade de pagamento (na AZ1 e na AZ125 o emplacamento já vem incluso).' }
 };
 
 // -------------------------------------------------------------
@@ -150,7 +150,7 @@ const PERFIS = {
 // -------------------------------------------------------------
 const OBJECOES = {
     juros_financiamento: 'Reconheça o juros com honestidade, mas vire a chave: hoje ele já paga Uber/ônibus/aluguel todo mês e não fica com nada; na moto ele paga a parcela e a moto é DELE. Melhor pagar por algo que fica.',
-    ta_caro:            'Ancore no que ele já gasta hoje com transporte (o número que ELE deu) projetado no ano. O preço é promocional e já inclui o emplacamento. Nunca informar valor de parcela: transferir para o consultor.',
+    ta_caro:            'Ancore no que ele já gasta hoje com transporte (o número que ELE deu) projetado no ano. O preço é promocional; na AZ1 e na AZ125 já inclui o emplacamento, na AZX160 o emplacamento é à parte (R$ 19.990,00 sem, R$ 20.990,00 com). Nunca informar valor de parcela: transferir para o consultor.',
     preciso_pensar:     'Faça sentido, sem pressão. Reforce a economia do dia a dia e convide a conhecer a moto pessoalmente na loja. Termine com uma pergunta que mantenha a conversa viva.',
     medo_credito:       'Tranquilize: a consulta é em 3 bancos e, dependendo da análise do CPF, o banco pode liberar até com entrada ZERO em até 48x. Apresente como possibilidade, nunca como garantia. Só coletar os dados pra simulação: quem confirma a aprovação é o consultor.',
     sem_cnh:            'CNH NUNCA é obrigatório pra comprar a moto. Tranquilize e siga normalmente com a simulação.',
@@ -159,7 +159,7 @@ const OBJECOES = {
     loja_outra_cidade:  'A Avelloz Campina só tem TRÊS unidades: Matriz e Malvinas, em Campina Grande, e a de Monteiro. Se ele citou outra cidade, diga com honestidade e sem rodeio que ali não temos loja, cite as três que existem e pergunte qual fica melhor pra ele visitar. Nunca confirme nem dê esperança de unidade que não existe.',
     moto_eletrica:      'A Avelloz NÃO vende moto elétrica: todos os modelos (AZ1, AZ125, AZX160) são a combustão (gasolina). Seja direto e honesto: não trabalhamos com elétrica. Não confunda com "partida elétrica" ou "injeção eletrônica", que são apenas itens de série das motos a combustão. Redirecione com naturalidade pra economia de combustível dos modelos que temos (alto rendimento km/L).',
     prazo_entrega:      'NUNCA prometa prazo de entrega. Diga que o consultor humano confirma os prazos certinhos.',
-    marca_desconhecida: 'A Avelloz é referência em moto econômica e com facilidade de pagamento. Valorize a economia (km/L), o emplacamento incluso e as condições, e já puxe a próxima pergunta.'
+    marca_desconhecida: 'A Avelloz é referência em moto econômica e com facilidade de pagamento. Valorize a economia (km/L), o emplacamento incluso na AZ1 e na AZ125 e as condições, e já puxe a próxima pergunta.'
 };
 
 // -------------------------------------------------------------
