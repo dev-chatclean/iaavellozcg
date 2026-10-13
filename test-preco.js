@@ -33,7 +33,7 @@ caso('print 2: "Qual é o preço?" duas vezes libera no 2º pedido', () => {
     const [p1, p2] = conversa([{ texto: 'Qual é o preço?' }, { texto: 'Qual é o preço?' }]);
     assert.ok(p1.includes(BLOQUEADO) && !p1.includes(LIBERADO), '1º pedido deveria ficar bloqueado');
     assert.ok(p2.includes(LIBERADO), '2º pedido deveria liberar');
-    assert.ok(/11\.390/.test(p2) && /14\.190/.test(p2) && /19\.990/.test(p2) && /20\.990/.test(p2), 'deveria passar os valores dos 3 modelos');
+    assert.ok(/11\.390/.test(p2) && /14\.190/.test(p2) && /20\.990/.test(p2) && !/19\.990/.test(p2), 'deveria passar os valores dos 3 modelos');
 });
 
 caso('print 1: "Só quero saber o preço" libera de cara', () => {
@@ -57,7 +57,7 @@ caso('pergunta de parcela não conta como pedido de preço', () => {
 caso('depois de informado, não libera de novo e segue o diagnóstico', () => {
     const [, , p3] = conversa([
         { texto: 'qual o preço?' },
-        { texto: 'qual o preço?', bot: 'A AZ1 está R$ 11.390,00, a AZ125 R$ 14.190,00 e a AZX160 R$ 19.990,00 sem / R$ 20.990,00 com emplacamento. Pra que você pretende usar a moto?' },
+        { texto: 'qual o preço?', bot: 'A AZ1 está R$ 11.390,00, a AZ125 R$ 14.190,00 e a AZX160 R$ 20.990,00, todas já com emplacamento. Pra que você pretende usar a moto?' },
         { texto: 'pra trabalhar' }
     ]);
     assert.ok(!p3.includes(LIBERADO), 'não deveria liberar de novo');

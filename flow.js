@@ -8,7 +8,7 @@
 //  SYSTEM (prompts.js); aqui só ditamos a próxima "dica" de campo a coletar.
 // =============================================================
 
-const { lojaCanonica, MODELOS } = require('./data');
+const { lojaCanonica } = require('./data');
 
 // Ordem oficial do fluxo Avelloz (diagnóstico → modelo → pagamento → loja).
 const CAMPOS = ['finalidade', 'transporteAtual', 'gastoMensal', 'situacaoMoto', 'modeloInteresse', 'formaPagamento', 'loja'];
@@ -46,67 +46,6 @@ function corrigirNomeModelo(texto) {
         .replace(/\bA[VZ]X?\s?-?\s?160\b/gi, 'AZX160')
         .replace(/\bA[VZ]Z?\s?-?\s?125\b/gi, 'AZ125')
         .replace(/\bA[VZ]Z?\s?-?\s?1\b/gi,   'AZ1');
-}
-
-// Conserta a frase do preço da AZX160, o único modelo em que o emplacamento é
-// cobrado à parte. O modelo de linguagem copia o texto da AZ1/AZ125 ("preço
-// promocional de R$ X já com o emplacamento incluso") e aplica no valor SEM
-// emplacamento — foi o que o cliente recebeu em produção: "R$ 19.990,00 já com
-// o emplacamento incluso", R$ 1.000,00 a menos do que a moto emplacada custa.
-//
-// A primeira versão só olhava a frase que tinha o valor, e a IA escapava de
-// todo jeito: "R$ 19.990,00. E o melhor: já com emplacamento incluso!" (frase
-// separada), o mesmo em outra linha, "já emplacada", "19 mil e 990". Por isso a
-// regra agora vale para a mensagem inteira: se ela cita UM só dos dois valores
-// da AZX160, a frase do valor vira a versão certa com os dois, e as frases sem
-// valor que afirmam emplacamento incluso somem (senão contradizem a correção).
-// Citar só um valor já é proibido no prompt: sozinho, "R$ 19.990,00" é lido
-// como moto emplacada, igual à AZ1 e à AZ125.
-const AZX = MODELOS.az160;
-const valorRegex = n => String(n).replace(/^(\d+)(\d{3})$/, (_, mil, resto) =>
-    `(?:${mil}\\.?${resto}(?:,00)?|${mil}\\s*mil\\s*(?:e\\s*)?${resto})`);
-const PRECO_SEM = new RegExp(valorRegex(AZX.precoNum), 'i');
-const PRECO_COM = new RegExp(valorRegex(AZX.precoComEmplacamentoNum), 'i');
-// Preço de outro modelo na mesma mensagem: aí "emplacamento incluso" pode estar
-// falando dele, e a frase sem valor não é removida.
-const PRECO_OUTROS = new RegExp(Object.values(MODELOS).filter(m => m !== AZX).map(m => valorRegex(m.precoNum)).join('|'), 'i');
-const DIZ_INCLUSO = /emplacamento[^.!?\n]*inclu|inclu[^.!?\n]*emplacamento|com\s+(o\s+)?emplacamento|emplacad[ao]/i;
-const DIZ_SEM     = /sem\s+(o\s+)?emplacamento|emplacamento\s+(é\s+|e\s+)?(à|a)\s+parte/i;
-const FRASE_CERTA = `A ${AZX.nome} está ${AZX.preco} sem o emplacamento e ${AZX.precoComEmplacamento} com o emplacamento incluso`;
-
-const REMOVIDA = '\u0000'; // marca a frase apagada até o ajuste do espaçamento
-
-function corrigirPrecoEmplacamento(texto) {
-    if (!texto) return texto;
-    const t = String(texto);
-    const temSem = PRECO_SEM.test(t);
-    const temCom = PRECO_COM.test(t);
-    if (temSem === temCom) return t;       // nenhum valor, ou os dois: nada a corrigir
-    const falaDeOutro = PRECO_OUTROS.test(t);
-    // Quebra em frases preservando a pontuação. O (?!\d) evita quebrar dentro
-    // do próprio valor: o ponto de "19.990" é separador de milhar.
-    let trocou = false;
-    return t.split(/(?<=[.!?\n])(?!\d)/).map(frase => {
-        const espacoInicial = frase.match(/^(\s+)/)?.[1] || '';
-        const espacoFinal = frase.match(/(\s+)$/)?.[1] || '';
-        if (PRECO_SEM.test(frase) || PRECO_COM.test(frase)) {
-            if (trocou) return REMOVIDA + espacoFinal;  // o valor repetido some: a frase certa já foi dita
-            trocou = true;
-            const pontuacao = frase.trimEnd().match(/([.!?]+)$/)?.[1] || '.';
-            return espacoInicial + FRASE_CERTA + pontuacao + espacoFinal;
-        }
-        if (!falaDeOutro && DIZ_INCLUSO.test(frase) && !DIZ_SEM.test(frase)) return REMOVIDA + espacoFinal;
-        return frase;
-    }).join('')
-        // No lugar da frase removida fica UM separador: o maior entre o que vinha
-        // antes e o que vinha depois dela (quebra de linha vence espaço).
-        .replace(/(\s*)\u0000((?:\s*\u0000)*\s*)/g, (_, antes, depois) => {
-            depois = depois.replace(/\u0000/g, '');
-            const quebras = s => (s.match(/\n/g) || []).length;
-            const maior = quebras(depois) > quebras(antes) ? depois : antes;
-            return quebras(maior) ? maior : ' ';
-        })
-        .trim();
 }
 
 function determinarProximoCampo(leadData) {
@@ -236,4 +175,4 @@ function detectarPerfil(texto) {
     return null;
 }
 
-module.exports = { CAMPOS, CAMPOS_EXTRAS, determinarProximoCampo, aplicarCampos, detectarPerfil, detectarModeloMencionado, corrigirNomeModelo, corrigirPrecoEmplacamento, diagnosticoCompleto, registrarPedidoPreco };
+module.exports = { CAMPOS, CAMPOS_EXTRAS, determinarProximoCampo, aplicarCampos, detectarPerfil, detectarModeloMencionado, corrigirNomeModelo, diagnosticoCompleto, registrarPedidoPreco };

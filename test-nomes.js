@@ -8,7 +8,7 @@
 // =============================================================
 
 const assert = require('assert');
-const { corrigirNomeModelo, corrigirPrecoEmplacamento, detectarModeloMencionado } = require('./flow');
+const { corrigirNomeModelo, detectarModeloMencionado } = require('./flow');
 
 let passou = 0;
 function ok(titulo, fn) {
@@ -67,83 +67,4 @@ ok('detecção de modelo entende o nome errado', () => {
     assert.strictEqual(detectarModeloMencionado('nenhum modelo aqui'), null);
 });
 
-// -------------------------------------------------------------
-//  PREÇO DA AZX160 — o emplacamento é cobrado à parte. A IA mandou
-//  "R$ 19.990,00 já com o emplacamento incluso", R$ 1.000,00 a menos
-//  do que a moto emplacada custa.
-// -------------------------------------------------------------
-const CERTO = 'A AZX160 está R$ 19.990,00 sem o emplacamento e R$ 20.990,00 com o emplacamento incluso';
-
-ok('print: "19.990,00 já com o emplacamento incluso" é corrigido', () => {
-    const print = 'A AZX160 está com preço promocional de R$ 19.990,00 já com o emplacamento incluso. Agora, me passa os dados pra eu adiantar sua simulação com o consultor!';
-    assert.strictEqual(
-        corrigirPrecoEmplacamento(print),
-        `${CERTO}. Agora, me passa os dados pra eu adiantar sua simulação com o consultor!`
-    );
-});
-
-ok('erro invertido (20.990 sem emplacamento) também é corrigido', () => {
-    assert.strictEqual(corrigirPrecoEmplacamento('Ela sai por R$ 20.990,00 sem o emplacamento.'), `${CERTO}.`);
-});
-
-ok('frase certa com os dois valores não é tocada', () => {
-    const t = 'A AZX160 está R$ 19.990,00 sem o emplacamento e R$ 20.990,00 com o emplacamento incluso. Qual cor você prefere?';
-    assert.strictEqual(corrigirPrecoEmplacamento(t), t);
-});
-
-ok('preço da AZ1/AZ125 com emplacamento incluso continua igual', () => {
-    const t = 'A AZ1 está com preço promocional de R$ 11.390,00 já com o emplacamento incluso. Gostou?';
-    assert.strictEqual(corrigirPrecoEmplacamento(t), t);
-});
-
-ok('só um valor, sem falar de emplacamento, ganha os dois valores', () => {
-    const t = 'A AZX160 está R$ 19.990,00. Quer conhecer na loja?';
-    assert.strictEqual(corrigirPrecoEmplacamento(t), `${CERTO}. Quer conhecer na loja?`);
-});
-
-ok('corrige só a frase errada e preserva o resto da mensagem', () => {
-    const t = 'Boa escolha! A AZX160 sai por R$ 19.990,00 com emplacamento incluso. Qual unidade fica melhor pra você?';
-    assert.strictEqual(corrigirPrecoEmplacamento(t), `Boa escolha! ${CERTO}. Qual unidade fica melhor pra você?`);
-});
-
-// Escapes que a primeira versão deixava passar (a IA continuou mandando
-// "19.990 já com emplacamento" em produção depois do deploy).
-ok('print 2: markdown, "AZX 160" e "R$ 19.990" sem centavos', () => {
-    const print = 'A **AZX 160** está com preço promocional de **R$ 19.990**, já com emplacamento incluso.\n\nSe você quiser, posso te ajudar com mais informações ou transferir para um consultor! O que prefere?';
-    assert.strictEqual(
-        corrigirPrecoEmplacamento(print),
-        `${CERTO}.\n\nSe você quiser, posso te ajudar com mais informações ou transferir para um consultor! O que prefere?`
-    );
-});
-
-ok('"emplacamento incluso" em outra frase é removido', () => {
-    const t = 'A AZX160 está com preço promocional de R$ 19.990,00. E o melhor: já com emplacamento incluso! Qual loja fica melhor?';
-    assert.strictEqual(corrigirPrecoEmplacamento(t), `${CERTO}. Qual loja fica melhor?`);
-});
-
-ok('"emplacamento incluso" em outra linha é removido', () => {
-    const t = 'A AZX160 está com preço promocional de R$ 19.990,00 🏍️\nJá com emplacamento incluso!\nQual loja fica melhor?';
-    assert.strictEqual(corrigirPrecoEmplacamento(t), `${CERTO}.\nQual loja fica melhor?`);
-});
-
-ok('"já emplacada" e "19 mil e 990" são corrigidos', () => {
-    assert.strictEqual(corrigirPrecoEmplacamento('A AZX160 sai por 19 mil e 990, já emplacada.'), `${CERTO}.`);
-    assert.strictEqual(corrigirPrecoEmplacamento('A AZX160 está R$ 19.990,00, e o emplacamento já está incluso.'), `${CERTO}.`);
-});
-
-ok('duas frases seguidas removidas não deixam espaço duplo', () => {
-    const t = 'A AZX160 está R$ 19.990,00. Já vem emplacada! E o emplacamento está incluso. Qual loja?';
-    assert.strictEqual(corrigirPrecoEmplacamento(t), `${CERTO}. Qual loja?`);
-});
-
-ok('mensagem com AZ1 e AZX160 mantém o "incluso" da AZ1', () => {
-    const t = 'A AZ1 está R$ 11.390,00 já com o emplacamento incluso. A AZX160 está R$ 19.990,00.';
-    assert.strictEqual(corrigirPrecoEmplacamento(t), `A AZ1 está R$ 11.390,00 já com o emplacamento incluso. ${CERTO}.`);
-});
-
-ok('texto sem valor da AZX160 não é tocado', () => {
-    const t = 'Na AZ1 e na AZ125 o emplacamento já vem incluso. Qual te interessa?';
-    assert.strictEqual(corrigirPrecoEmplacamento(t), t);
-});
-
-console.log(`\n${passou}/22 passaram`);
+console.log(`\n${passou}/9 passaram`);

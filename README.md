@@ -19,9 +19,8 @@ O ChatClean cuida só do transporte. Toda a inteligência (persona, diagnóstico
 - **Persona oficial Avelloz:** consultor humano, tom de WhatsApp, sem markdown, no máximo 1 emoji, SEMPRE termina com uma pergunta, anti-jailbreak, nunca revela que é IA.
 - **Diagnóstico ANTES do produto (regra inegociável):** não revela preço, modelo nem condição antes de entender transporte atual + gasto mensal + situação de moto. Se o cliente pede preço cedo, redireciona com naturalidade. **Exceção:** se ele insistir (2º pedido de preço, ou "só quero saber o preço"), a IA passa os valores dos três modelos e retoma a conversa, em vez de perder o lead (`registrarPedidoPreco` em `flow.js`, regressão em `npm run test:preco`).
 - **Vende liberdade e economia:** mostra a conta do que o cliente já gasta hoje (Uber/ônibus/combustível/aluguel de moto) projetada no ano. Trata o perfil especial de quem roda de aplicativo (aluga / começando / quer trocar).
-- **Preços liberados** (após o diagnóstico): AZ1 e AZ125 como preço promocional já com emplacamento; a AZX160 é exceção — emplacamento cobrado à parte, informa os dois valores (sem e com). **Nunca informa valor de parcela** (transfere pro humano).
+- **Preços liberados** (após o diagnóstico): preço promocional já com emplacamento incluso nos três modelos. **Nunca informa valor de parcela** (transfere pro humano).
 - **Fechamento:** identifica a loja (Matriz, Malvinas ou Monteiro — obrigatório), coleta os dados de simulação (CPF, nascimento, nome, telefone, CNH, cor/modelo) e **transfere o ticket para o departamento da loja escolhida** (ver abaixo).
-- **Preço da AZX160 blindado:** ela é a única em que o emplacamento é cobrado à parte, e a IA anunciou "R$ 19.990,00 já com o emplacamento incluso" (R$ 1.000,00 a menos do que a moto emplacada custa). `corrigirPrecoEmplacamento` (`flow.js`) olha a mensagem inteira: se ela cita só um dos dois valores, a frase do valor vira a versão com os dois e as frases que afirmam "emplacamento incluso" somem, na geração e no envio. Os textos de apoio do `data.js` (objeções, perfis, descrição da empresa) também deixam claro que o emplacamento incluso vale só para AZ1 e AZ125. Regressão em `npm run test:nomes`.
 - **Nome dos modelos blindado:** o modelo de linguagem escrevia "AV1" puxado por "Avelloz" (o cliente chegou a receber "AV1 (50cc)"). Além da regra no prompt, `corrigirNomeModelo` (`flow.js`) conserta o texto na geração e no envio — AV1/AZ 1 → AZ1, AV125 → AZ125, AZ160/AVX160 → AZX160. Regressão em `npm run test:nomes`.
 - **Peças, revisão e manutenção:** assunto da oficina — a IA passa o contato direto **(83) 98207-3221** e não tenta diagnosticar defeito nem cotar serviço.
 - **Programa de indicação ("Indicou, comprou, ganhou!"):** quem indica passa nome e telefone do possível comprador a um vendedor **antes** da compra; fechando, ganha R$ 50 (AZ1), R$ 100 (AZ125) ou R$ 150 (AZX160). Indicação reivindicada **depois** da compra não é paga.
@@ -47,11 +46,11 @@ Acolher (conhece a marca?) → interesse (pra que quer a moto) → **diagnóstic
 
 ## Modelos (preços promocionais)
 
-| Modelo | Cilindrada | Sem emplacamento | Com emplacamento |
-|---|---|---|---|
-| AZ1 | 50cc | — | R$ 11.390,00 (incluso) |
-| AZ125 | 125cc (Alfa) | — | R$ 14.190,00 (incluso) |
-| AZX160 | 160cc | R$ 19.990,00 | R$ 20.990,00 |
+| Modelo | Cilindrada | Preço (emplacamento incluso) |
+|---|---|---|
+| AZ1 | 50cc | R$ 11.390,00 |
+| AZ125 | 125cc (Alfa) | R$ 14.190,00 |
+| AZX160 | 160cc | R$ 20.990,00 |
 
 ## Unidades
 

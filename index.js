@@ -73,13 +73,12 @@ const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 const { EMPRESA_INFO, PERFIS, DEPARTAMENTOS, DEPARTAMENTO_IDS, departamentoId, lojaParaDepartamento, lojaCanonica, OFICINA } = require('./data');
 const { SYSTEM_SDR, promptExtracao, promptResposta } = require('./prompts');
-const { determinarProximoCampo, aplicarCampos, detectarPerfil, detectarModeloMencionado, corrigirNomeModelo, corrigirPrecoEmplacamento, diagnosticoCompleto, registrarPedidoPreco } = require('./flow');
+const { determinarProximoCampo, aplicarCampos, detectarPerfil, detectarModeloMencionado, corrigirNomeModelo, diagnosticoCompleto, registrarPedidoPreco } = require('./flow');
 
-// Correções determinísticas no texto que a IA escreve. O prompt já proíbe os
-// dois erros, mas instrução não garante: ambos chegaram ao cliente em produção
-// (o nome "AV1" e o preço da AZX160 "já com emplacamento").
+// Correção determinística no texto que a IA escreve. O prompt já proíbe o
+// erro, mas instrução não garante: o nome "AV1" chegou ao cliente em produção.
 function sanitizarResposta(texto) {
-    return corrigirPrecoEmplacamento(corrigirNomeModelo(texto));
+    return corrigirNomeModelo(texto);
 }
 
 // Departamento de transbordo do lead = a loja que ele escolheu (obrigatória
