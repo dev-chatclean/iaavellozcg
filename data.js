@@ -67,7 +67,7 @@ const MODELOS = {
 // -------------------------------------------------------------
 const FORMAS_PAGAMENTO = {
     cartao: 'Cartão de crédito em até 21x.',
-    financiamento: 'Financiamento em até 48x, com consulta em 3 bancos. Dependendo da análise do CPF, o banco pode liberar até com entrada ZERO. É possibilidade, não garantia. Banco aprovou, sai com a moto no mesmo dia.',
+    financiamento: 'Financiamento em até 48x, com consulta em 3 bancos. Dependendo da análise do CPF, o banco pode liberar até com entrada ZERO. É possibilidade, não garantia. Banco aprovou, sai com a moto no mesmo dia. Um dos bancos parceiros é a Motrix, que tem condições especiais, com possibilidade de entrada zero (também dependendo da análise do CPF).',
     consorcio: 'Consórcio.',
     avista: 'À vista.'
 };

@@ -73,7 +73,7 @@ const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 const { EMPRESA_INFO, PERFIS, DEPARTAMENTOS, DEPARTAMENTO_IDS, departamentoId, lojaParaDepartamento, lojaCanonica, OFICINA } = require('./data');
 const { SYSTEM_SDR, promptExtracao, promptResposta } = require('./prompts');
-const { determinarProximoCampo, aplicarCampos, detectarPerfil, detectarModeloMencionado, corrigirNomeModelo, diagnosticoCompleto, registrarPedidoPreco } = require('./flow');
+const { determinarProximoCampo, aplicarCampos, detectarPerfil, detectarModeloMencionado, corrigirNomeModelo, diagnosticoCompleto, registrarPedidoPreco, etapaMotrix } = require('./flow');
 
 // Correção determinística no texto que a IA escreve. O prompt já proíbe o
 // erro, mas instrução não garante: o nome "AV1" chegou ao cliente em produção.
@@ -115,6 +115,13 @@ function normalizarPhone(phone) {
 // mesma fila com o cliente achando que foi transferido.
 const PERGUNTA_UNIDADE = 'Claro! Só preciso de uma informação pra te passar pro consultor: você prefere ser atendido na Matriz, na Malvinas (Campina Grande) ou em Monteiro?';
 const PERGUNTA_UNIDADE_DE_NOVO = 'Pra te passar pro consultor certo eu preciso só da unidade: Matriz ou Malvinas, em Campina Grande, ou Monteiro. Qual fica melhor pra você?';
+
+// Fluxo do FINANCIAMENTO MOTRIX (flow.etapaMotrix). Mensagens fixas: a IA
+// respondia "não consigo ajudar com isso" a quem chegava pelo anúncio. Sem
+// emoji, porque pedem dado pessoal.
+const MSG_MOTRIX = 'A Motrix é um dos bancos com que trabalhamos e tem condições especiais, com possibilidade de entrada zero. Me manda seu CPF pra gente fazer uma simulação?';
+const MSG_MOTRIX_CPF_INVALIDO = 'Acho que algum número do CPF ficou trocado ou faltando. Pode conferir e me mandar de novo?';
+const MSG_MOTRIX_UNIDADE = 'Recebi seu CPF! Pra eu já passar sua simulação pro consultor, qual unidade fica melhor pra você: Matriz ou Malvinas, em Campina Grande, ou Monteiro?';
 
 // Quantas vezes a IA pede a unidade a quem pediu atendimento antes de desistir e
 // encaminhar sem loja (com alerta para a equipe). Antes era uma vez só: se o
@@ -403,7 +410,8 @@ function montarMsgReativacao(leadData) {
     if (!proximo) return null;
     const nome = leadData.nome?.split(' ')[0] || '';
     const oi = nome ? `Oi ${nome}` : 'Oi';
-    if (proximo.campo === 'finalidade')      return `${oi}! Ainda por aí? Me conta pra que você quer a moto no dia a dia que eu te ajudo a achar a certa 😊`;
+    if (leadData.motrix && !leadData.cpf && !leadData.motrixEncerrado) return `${oi}, ainda por aí? Se me mandar seu CPF, eu já adianto sua simulação de financiamento na Motrix.`;
+    if (proximo.campo === 'finalidade')     return `${oi}! Ainda por aí? Me conta pra que você quer a moto no dia a dia que eu te ajudo a achar a certa 😊`;
     if (proximo.campo === 'transporteAtual') return `${oi}, ainda por aí? Como você tá se locomovendo hoje — Uber, ônibus, carro?`;
     if (proximo.campo === 'gastoMensal')     return `${oi}, seguindo de onde paramos: mais ou menos quanto você gasta por mês com transporte hoje?`;
     if (proximo.campo === 'modeloInteresse') return `${oi}, ainda por aí? Quer que eu te indique o modelo que mais encaixa no seu dia a dia?`;
@@ -561,11 +569,15 @@ Nunca informe valor de parcela nem prometa prazo. Não refaça a qualificação 
 async function encaminhar(chatId, leadData, departamento, mensagemCliente, historico, expediente = null) {
     const exp = expediente || estaEmExpediente();
     leadData.qualificacaoCompleta = true;
+    leadData.pedirCpfMotrix = false; // a mensagem de handoff não pede CPF
 
     // Sinaliza na nota quando o lead pulou o funil por ter pedido pressa — o
     // consultor recebe o resumo quase vazio e precisa saber que foi de propósito.
+    // O lead Motrix também pula o diagnóstico, mas o motivo é outro: veio simular.
+    const motrixComCpf = leadData.motrix && !!leadData.cpf;
     const tags = [
-        leadData.modoAtalho ? 'PEDIU AGILIDADE — SEM DIAGNÓSTICO' : null,
+        motrixComCpf ? 'FINANCIAMENTO MOTRIX — SIMULAR' : null,
+        leadData.modoAtalho && !motrixComCpf ? 'PEDIU AGILIDADE — SEM DIAGNÓSTICO' : null,
         exp.aberto ? null : 'FORA DE EXPEDIENTE — AGENDAR RETORNO'
     ].filter(Boolean);
     const transferencia = await notificarEquipe(leadData, chatId, {
@@ -575,7 +587,13 @@ async function encaminhar(chatId, leadData, departamento, mensagemCliente, histo
     });
 
     let msg;
-    if (transferencia.ok) {
+    if (transferencia.ok && motrixComCpf) {
+        // Mensagem fixa: a IA tenderia a pedir os outros dados da simulação, e
+        // quem fecha a simulação na Motrix é o consultor.
+        msg = exp.aberto
+            ? `Perfeito! Já passei seu CPF pro consultor da ${transferencia.departamento || departamento}. Ele faz sua simulação na Motrix e te responde por aqui mesmo, combinado?`
+            : `Perfeito, deixei tudo registrado! O consultor da ${transferencia.departamento || departamento} faz sua simulação na Motrix e te responde ${exp.proximoExpediente}, combinado?`;
+    } else if (transferencia.ok) {
         // Deixa a IA escrever o handoff de forma calorosa (branch de qualificação completa)
         try {
             msg = await gerarRespostaIA(leadData, mensagemCliente, null, historico, exp);
@@ -887,6 +905,31 @@ async function processarMensagem({ chatId, contactId, texto, tipo, mediaBase64, 
         // Expediente do time: define modo normal (transfere ao vivo) x plantão (agenda retorno)
         const exp = estaEmExpediente();
 
+        // --- Financiamento Motrix (regra fixa, antes da extração) ---
+        // Lê só a fala do cliente: a citação pode ser a própria mensagem da IA
+        // falando da Motrix.
+        const motrixPedidosAntes = leadData.motrixPedidosCpf;
+        const motrix = etapaMotrix(leadData, textoCliente);
+        if (motrix && motrix.acao !== 'responderEPedirCpf') {
+            const hist = leadData.conversationHistory.slice(-8).map(h => ({ role: h.role === 'user' ? 'user' : 'assistant', content: h.content }));
+            if (!usuarioNoHistorico) leadData.conversationHistory.push({ role: 'user', content: texto });
+            if (motrix.acao === 'encaminhar') {
+                await encaminhar(chatId, leadData, departamentoLead(leadData), texto, hist, exp);
+                return;
+            }
+            const msg = motrix.acao === 'apresentar' ? MSG_MOTRIX
+                : motrix.acao === 'cpfInvalido' ? MSG_MOTRIX_CPF_INVALIDO
+                : MSG_MOTRIX_UNIDADE;
+            if (motrix.acao === 'pedirUnidade') leadData.perguntasUnidade = vezesPerguntouUnidade(leadData) + 1;
+            await enviarMensagem(chatId, msg);
+            leadData.conversationHistory.push({ role: 'assistant', content: msg });
+            agendarFollowUpReativacao(leadData);
+            console.log(`🏦 ${chatId}: fluxo Motrix — ${motrix.acao}.`);
+            return;
+        }
+        // Falou de outra coisa sem mandar o CPF: a IA responde e pede de novo.
+        leadData.pedirCpfMotrix = motrix?.acao === 'responderEPedirCpf';
+
         // --- Extração ---
         const proximoCampoAntes = determinarProximoCampo(leadData);
         const historicoRecente = leadData.conversationHistory.slice(-6).map(h => ({
@@ -1092,6 +1135,7 @@ async function processarMensagem({ chatId, contactId, texto, tipo, mediaBase64, 
             leadData.vezesMesmoCampo = vezesAntes;
             leadData.pedidosPreco = pedidosPrecoAntes;
             leadData.precoLiberado = precoLiberadoAntes;
+            leadData.motrixPedidosCpf = motrixPedidosAntes;
             if (!usuarioNoHistorico) leadData.conversationHistory.push({ role: 'user', content: texto });
             return;
         }

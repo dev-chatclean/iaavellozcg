@@ -22,6 +22,7 @@ O ChatClean cuida só do transporte. Toda a inteligência (persona, diagnóstico
 - **Preços liberados** (após o diagnóstico): preço promocional já com emplacamento incluso nos três modelos. **Nunca informa valor de parcela** (transfere pro humano).
 - **Fechamento:** identifica a loja (Matriz, Malvinas ou Monteiro — obrigatório), coleta os dados de simulação (CPF, nascimento, nome, telefone, CNH, cor/modelo) e **transfere o ticket para o departamento da loja escolhida** (ver abaixo).
 - **Nome dos modelos blindado:** o modelo de linguagem escrevia "AV1" puxado por "Avelloz" (o cliente chegou a receber "AV1 (50cc)"). Além da regra no prompt, `corrigirNomeModelo` (`flow.js`) conserta o texto na geração e no envio — AV1/AZ 1 → AZ1, AV125 → AZ125, AZ160/AVX160 → AZX160. Regressão em `npm run test:nomes`.
+- **Financiamento Motrix:** a Motrix é um dos bancos parceiros. Quem cita "Motrix" (ex.: a pergunta do anúncio, "Como funciona o financiamento Motrix?") recebe uma mensagem fixa apresentando o banco e pedindo o CPF; com o CPF (validado pelos dígitos verificadores, para não confundir com telefone), a IA pergunta só a unidade e transfere, com a nota marcada **FINANCIAMENTO MOTRIX — SIMULAR**. Sem CPF, pede mais uma vez e volta ao fluxo normal (`etapaMotrix` em `flow.js`, regressão em `npm run test:motrix`).
 - **Peças, revisão e manutenção:** assunto da oficina — a IA passa o contato direto **(83) 98207-3221** e não tenta diagnosticar defeito nem cotar serviço.
 - **Programa de indicação ("Indicou, comprou, ganhou!"):** quem indica passa nome e telefone do possível comprador a um vendedor **antes** da compra; fechando, ganha R$ 50 (AZ1), R$ 100 (AZ125) ou R$ 150 (AZX160). Indicação reivindicada **depois** da compra não é paga.
 - **Regras específicas:** não aceita moto usada na troca, não faz test drive, nunca promete prazo de entrega, CNH não é obrigatório pra comprar.
@@ -98,6 +99,7 @@ npm run chat              # conversa interativa no terminal (só precisa da Open
 npm run sim               # simulação de qualificação completa (motoboy/moto alugada)
 npm run test:preco        # regressão: liberar o preço quando o cliente insiste
 npm run test:nomes        # regressão: nome dos modelos (AZ1/AZ125/AZX160)
+npm run test:motrix       # regressão: fluxo do financiamento Motrix
 npm start                 # sobe o servidor (webhook/Push)
 ```
 

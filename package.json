@@ -9,7 +9,8 @@
     "chat": "node test-chat.js",
     "sim": "node sim-lead.js",
     "test:preco": "node test-preco.js",
-    "test:nomes": "node test-nomes.js"
+    "test:nomes": "node test-nomes.js",
+    "test:motrix": "node test-motrix.js"
   },
   "keywords": [
     "whatsapp",

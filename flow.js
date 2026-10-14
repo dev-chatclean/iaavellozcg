@@ -130,6 +130,73 @@ function registrarPedidoPreco(leadData, texto, extraido) {
     if (leadData.pedidosPreco >= 2 || SO_QUER_PRECO.test(t)) leadData.precoLiberado = true;
 }
 
+// FINANCIAMENTO MOTRIX. A Motrix é um dos bancos parceiros e o anúncio traz o
+// cliente perguntando "Como funciona o financiamento Motrix?". A IA não conhecia
+// o nome, tratou como assunto fora do tema e respondeu "não consigo ajudar com
+// isso" (print de 13/10/2026). Quem chega assim já quer simular: o fluxo é
+// apresentar a Motrix e pedir o CPF, perguntar só a unidade e transferir, sem
+// diagnóstico. Tudo por regra fixa, sem depender da interpretação do modelo.
+const MENCIONA_MOTRIX = /motri[xs]/i;
+
+// Valida os dígitos verificadores. É o que separa um CPF de um telefone com DDD,
+// que também tem 11 dígitos ("83999998888").
+function cpfValido(digitos) {
+    if (!/^\d{11}$/.test(digitos) || /^(\d)\1{10}$/.test(digitos)) return false;
+    const dv = (n) => {
+        let soma = 0;
+        for (let i = 0; i < n; i++) soma += Number(digitos[i]) * (n + 1 - i);
+        const r = (soma * 10) % 11;
+        return r === 10 ? 0 : r;
+    };
+    return dv(9) === Number(digitos[9]) && dv(10) === Number(digitos[10]);
+}
+
+const CANDIDATO_CPF = /(?<!\d)\d{3}[.\s]?\d{3}[.\s]?\d{3}[-.\s]?\d{2}(?!\d)/g;
+
+// CPF válido encontrado no texto (só dígitos) ou null.
+function extrairCpf(texto) {
+    for (const m of String(texto || '').match(CANDIDATO_CPF) || []) {
+        const d = m.replace(/\D/g, '');
+        if (cpfValido(d)) return d;
+    }
+    return null;
+}
+
+// Decide o passo do fluxo Motrix para esta mensagem. Retorna null quando o fluxo
+// não se aplica (o atendimento segue normal) ou uma ação para o servidor:
+// - apresentar: 1ª menção, manda a mensagem fixa pedindo o CPF;
+// - cpfInvalido: mandou 11 dígitos que não são um CPF válido;
+// - responderEPedirCpf: falou de outra coisa; a IA responde e pede o CPF de novo;
+// - pedirUnidade: CPF recebido, falta só a loja;
+// - encaminhar: CPF recebido e a loja já é conhecida.
+// Sem o CPF depois do 2º pedido, o fluxo é abandonado e volta o atendimento normal.
+function etapaMotrix(leadData, texto) {
+    if (!leadData.motrix) {
+        if (!MENCIONA_MOTRIX.test(texto || '')) return null;
+        leadData.motrix = true;
+        if (!leadData.formaPagamento) leadData.formaPagamento = 'financiamento';
+    }
+    if (leadData.motrixEncerrado) return null;
+
+    const cpf = extrairCpf(texto);
+    if (cpf) leadData.cpf = cpf;
+    if (leadData.cpf) {
+        leadData.motrixEncerrado = true;
+        leadData.modoAtalho = true; // daqui pra frente só a loja importa
+        return { acao: leadData.loja ? 'encaminhar' : 'pedirUnidade' };
+    }
+
+    const pedidos = leadData.motrixPedidosCpf || 0;
+    if (pedidos >= 2) {
+        leadData.motrixEncerrado = true;
+        return null;
+    }
+    leadData.motrixPedidosCpf = pedidos + 1;
+    if (pedidos === 0) return { acao: 'apresentar' };
+    const tentouCpf = /\d{3}\D?\d{3}\D?\d{3}\D?\d{2}/.test(texto || '');
+    return { acao: tentouCpf ? 'cpfInvalido' : 'responderEPedirCpf' };
+}
+
 // Campos de ESCOLHA que mudam ao longo da conversa: o último valor informado
 // vence (ex.: perguntou o preço da AZ1 mas depois escolheu a AZ125; trocou a
 // forma de pagamento ou a loja). Diferente dos fatos do diagnóstico, que ficam.
@@ -175,4 +242,4 @@ function detectarPerfil(texto) {
     return null;
 }
 
-module.exports = { CAMPOS, CAMPOS_EXTRAS, determinarProximoCampo, aplicarCampos, detectarPerfil, detectarModeloMencionado, corrigirNomeModelo, diagnosticoCompleto, registrarPedidoPreco };
+module.exports = { CAMPOS, CAMPOS_EXTRAS, determinarProximoCampo, aplicarCampos, detectarPerfil, detectarModeloMencionado, corrigirNomeModelo, diagnosticoCompleto, registrarPedidoPreco, etapaMotrix, extrairCpf, cpfValido, MENCIONA_MOTRIX };
