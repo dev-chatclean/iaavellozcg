@@ -71,14 +71,14 @@ const TRANSFERIR_FECHANDO = (process.env.TRANSFERIR_FECHANDO || 'false') === 'tr
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-const { EMPRESA_INFO, PERFIS, DEPARTAMENTOS, DEPARTAMENTO_IDS, departamentoId, lojaParaDepartamento, lojaCanonica, OFICINA } = require('./data');
+const { EMPRESA_INFO, MODELOS, PERFIS, DEPARTAMENTOS, DEPARTAMENTO_IDS, departamentoId, lojaParaDepartamento, lojaCanonica, OFICINA } = require('./data');
 const { SYSTEM_SDR, promptExtracao, promptResposta } = require('./prompts');
-const { determinarProximoCampo, aplicarCampos, detectarPerfil, detectarModeloMencionado, corrigirNomeModelo, diagnosticoCompleto, registrarPedidoPreco, etapaMotrix } = require('./flow');
+const { determinarProximoCampo, aplicarCampos, detectarPerfil, detectarModeloMencionado, corrigirNomeModelo, corrigirPreco, diagnosticoCompleto, registrarPedidoPreco, etapaMotrix } = require('./flow');
 
 // Correção determinística no texto que a IA escreve. O prompt já proíbe o
 // erro, mas instrução não garante: o nome "AV1" chegou ao cliente em produção.
 function sanitizarResposta(texto) {
-    return corrigirNomeModelo(texto);
+    return corrigirPreco(corrigirNomeModelo(texto));
 }
 
 // Departamento de transbordo do lead = a loja que ele escolheu (obrigatória
@@ -524,6 +524,10 @@ Não invente o que não dá pra ver.`;
 
 // Resposta quando o lead JÁ foi encaminhado ao especialista: tira dúvidas
 // pontuais de forma natural, sem refazer a qualificação nem repetir o resumo.
+// Tabela de preços para a resposta pós-transferência. Sem ela a IA inventou
+// "AZ125 por R$ 12.390,00" (16/10/2026).
+const PRECOS_TXT = Object.values(MODELOS).map(m => `${m.nome} ${m.preco}`).join(', ');
+
 async function gerarRespostaPosEncaminhamento(leadData, mensagemCliente, historicoRecente = []) {
     // Só afirma que passou pro consultor quando a transferência foi confirmada.
     // Antes a resposta dizia "já repassei" mesmo com o ticket parado no Agente IA.
@@ -539,6 +543,7 @@ async function gerarRespostaPosEncaminhamento(leadData, mensagemCliente, histori
 Responda de forma breve, calorosa e útil (registro de WhatsApp, sem markdown, no máximo 1 emoji).
 NÃO puxe conversa. Só faça uma pergunta se ela for REALMENTE necessária para responder o que ele perguntou. É PROIBIDO terminar com "tem mais alguma dúvida?", "posso ajudar em algo mais?" ou qualquer variação: quem conduz o atendimento agora é o consultor humano, e ficar puxando assunto atropela o trabalho dele.
 - Se for uma dúvida simples sobre as motos/condições, responda com o que você sabe e PARE.
+- Preços promocionais, já com emplacamento incluso: ${PRECOS_TXT}. Se perguntarem o preço, use EXATAMENTE estes valores. NUNCA escreva outro valor de moto.
 - Se depender do consultor (valor de parcela, aprovação de crédito, prazo de entrega, negociação), diga que ele já vai continuar o atendimento pra resolver.
 - Se for sobre ${OFICINA.assuntos}, passe o telefone da nossa oficina: ${OFICINA.telefone}. Não diagnostique defeito nem cote peça/serviço.
 - Se for sobre INDICAÇÃO: ele passa o nome e o telefone do possível comprador pra um vendedor ANTES da compra; se o indicado fechar, ganha AZ1 R$ 50,00, AZ125 R$ 100,00, AZX160 R$ 150,00. Indicação reivindicada depois da compra fechada não é paga — diga isso com gentileza se for o caso.

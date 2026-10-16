@@ -197,7 +197,12 @@ function promptResposta({ isInicioConversa, mensagemSanitizada, proximoCampo, le
     const usouNomeRecente = primeiroNome.length > 1 && ultimasAssist.some(h => (h.content || '').toLowerCase().includes(primeiroNome));
 
     const RE_EMOJI = /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{FE0F}]/u;
-    const RE_PRECO = /11\.?390|14\.?190|19\.?990/;
+    // Montado do data.js: com os valores fixos aqui, a troca de preço da AZX160
+    // (19.990 → 20.990) deixou de ser detectada e a IA repetia o preço.
+    const RE_PRECO = new RegExp(Object.values(MODELOS).map(m => {
+        const s = String(m.precoNum);
+        return s.slice(0, -3) + '\\.?' + s.slice(-3);
+    }).join('|'));
     // Emoji: proíbe se qualquer uma das 2 últimas mensagens já teve — na prática
     // isso espaça o emoji em ~1 a cada 3 mensagens, como manda a regra.
     const emojiRecente = ultimasAssist.some(h => RE_EMOJI.test(h.content || ''));

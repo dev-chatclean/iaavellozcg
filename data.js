@@ -40,8 +40,8 @@ const MODELOS = {
     az125: {
         nome: 'AZ125',
         cilindrada: '125cc (Alfa)',
-        preco: 'R$ 14.190,00',
-        precoNum: 14190,
+        preco: 'R$ 13.390,00',
+        precoNum: 13390,
         perfil: 'Equilíbrio, conforto e potência para o dia a dia.',
         descricao: 'Moto completa, com conforto e potência. Injeção eletrônica, faróis full LED e freio CBS (mais segurança).',
         cores: 'Branca, Preta, Vermelha e Cinza (cor exclusiva)',

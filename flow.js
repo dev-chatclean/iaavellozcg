@@ -8,7 +8,7 @@
 //  SYSTEM (prompts.js); aqui só ditamos a próxima "dica" de campo a coletar.
 // =============================================================
 
-const { lojaCanonica } = require('./data');
+const { lojaCanonica, MODELOS } = require('./data');
 
 // Ordem oficial do fluxo Avelloz (diagnóstico → modelo → pagamento → loja).
 const CAMPOS = ['finalidade', 'transporteAtual', 'gastoMensal', 'situacaoMoto', 'modeloInteresse', 'formaPagamento', 'loja'];
@@ -46,6 +46,29 @@ function corrigirNomeModelo(texto) {
         .replace(/\bA[VZ]X?\s?-?\s?160\b/gi, 'AZX160')
         .replace(/\bA[VZ]Z?\s?-?\s?125\b/gi, 'AZ125')
         .replace(/\bA[VZ]Z?\s?-?\s?1\b/gi,   'AZ1');
+}
+
+// Conserta o PREÇO escrito ao lado do nome de um modelo. Em produção (16/10/2026)
+// a resposta pós-transferência escreveu "O valor da AZ125 é R$ 12.390,00", valor
+// que não existe em lugar nenhum: o prompt dela não tinha a tabela de preços. Como
+// em corrigirNomeModelo, a instrução não basta: esta correção é determinística e
+// roda antes do texto chegar ao cliente. Só mexe em valor na faixa de preço de
+// moto, para não tocar em bonificação de indicação (R$ 50 a R$ 150).
+const PRECO_OFICIAL = Object.fromEntries(Object.values(MODELOS).map(m => [m.nome, m.preco]));
+const VALOR_PRECO = 'R\\$\\s?\\d{1,3}(?:\\.?\\d{3})+(?:,\\d{2})?';
+// O trecho entre o nome e o valor não pode atravessar outro modelo: em "a AZ1 e
+// a AZ125 custam R$ X" o valor é da AZ125, não da AZ1.
+const PRECO_PERTO_DO_MODELO = new RegExp(`\\b(AZX160|AZ125|AZ1)\\b((?:(?!AZX160|AZ125|AZ1\\b)[^.!?\\n]){0,60}?)(${VALOR_PRECO})`, 'g');
+const numeroDoValor = (v) => Number(v.replace(/[^\d,]/g, '').split(',')[0]);
+
+function corrigirPreco(texto) {
+    if (!texto) return texto;
+    return String(texto).replace(PRECO_PERTO_DO_MODELO, (trecho, modelo, meio, valor) => {
+        const n = numeroDoValor(valor);
+        const oficial = PRECO_OFICIAL[modelo];
+        if (!oficial || n < 5000 || n > 50000 || n === numeroDoValor(oficial)) return trecho;
+        return `${modelo}${meio}${oficial}`;
+    });
 }
 
 function determinarProximoCampo(leadData) {
@@ -242,4 +265,4 @@ function detectarPerfil(texto) {
     return null;
 }
 
-module.exports = { CAMPOS, CAMPOS_EXTRAS, determinarProximoCampo, aplicarCampos, detectarPerfil, detectarModeloMencionado, corrigirNomeModelo, diagnosticoCompleto, registrarPedidoPreco, etapaMotrix, extrairCpf, cpfValido, MENCIONA_MOTRIX };
+module.exports = { CAMPOS, CAMPOS_EXTRAS, determinarProximoCampo, aplicarCampos, detectarPerfil, detectarModeloMencionado, corrigirNomeModelo, corrigirPreco, diagnosticoCompleto, registrarPedidoPreco, etapaMotrix, extrairCpf, cpfValido, MENCIONA_MOTRIX };
