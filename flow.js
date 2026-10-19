@@ -60,6 +60,13 @@ const VALOR_PRECO = 'R\\$\\s?\\d{1,3}(?:\\.?\\d{3})+(?:,\\d{2})?';
 // a AZ125 custam R$ X" o valor é da AZ125, não da AZ1.
 const PRECO_PERTO_DO_MODELO = new RegExp(`\\b(AZX160|AZ125|AZ1)\\b((?:(?!AZX160|AZ125|AZ1\\b)[^.!?\\n]){0,60}?)(${VALOR_PRECO})`, 'g');
 const numeroDoValor = (v) => Number(v.replace(/[^\d,]/g, '').split(',')[0]);
+// Preço que já valeu e mudou (19/10/2026: AZ125 de 13.390 para 14.390). O valor
+// antigo continua no histórico das conversas em andamento e a IA o repete, muitas
+// vezes em outra frase ("a AZ125... Ela tá com preço de R$ 13.390,00"), longe do
+// nome do modelo. Como esses números são inequívocos, troca em qualquer posição.
+const PRECO_ANTIGO = Object.fromEntries(Object.values(MODELOS)
+    .flatMap(m => (m.precosAntigos || []).map(n => [n, m.preco])));
+const VALOR_SOLTO = new RegExp(VALOR_PRECO, 'g');
 
 function corrigirPreco(texto) {
     if (!texto) return texto;
@@ -68,7 +75,7 @@ function corrigirPreco(texto) {
         const oficial = PRECO_OFICIAL[modelo];
         if (!oficial || n < 5000 || n > 50000 || n === numeroDoValor(oficial)) return trecho;
         return `${modelo}${meio}${oficial}`;
-    });
+    }).replace(VALOR_SOLTO, (valor) => PRECO_ANTIGO[numeroDoValor(valor)] || valor);
 }
 
 function determinarProximoCampo(leadData) {

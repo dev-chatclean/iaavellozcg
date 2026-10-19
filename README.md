@@ -50,7 +50,7 @@ Acolher (conhece a marca?) → interesse (pra que quer a moto) → **diagnóstic
 | Modelo | Cilindrada | Preço (emplacamento incluso) |
 |---|---|---|
 | AZ1 | 50cc | R$ 11.390,00 |
-| AZ125 | 125cc (Alfa) | R$ 13.390,00 |
+| AZ125 | 125cc (Alfa) | R$ 14.390,00 |
 | AZX160 | 160cc | R$ 20.990,00 |
 
 ## Unidades
