@@ -10,7 +10,9 @@
     "sim": "node sim-lead.js",
     "test:preco": "node test-preco.js",
     "test:nomes": "node test-nomes.js",
-    "test:motrix": "node test-motrix.js"
+    "test:motrix": "node test-motrix.js",
+    "test:loja": "node test-loja.js",
+    "test": "node test-preco.js && node test-nomes.js && node test-motrix.js && node test-loja.js"
   },
   "keywords": [
     "whatsapp",

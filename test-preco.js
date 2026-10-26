@@ -33,7 +33,7 @@ caso('print 2: "Qual é o preço?" duas vezes libera no 2º pedido', () => {
     const [p1, p2] = conversa([{ texto: 'Qual é o preço?' }, { texto: 'Qual é o preço?' }]);
     assert.ok(p1.includes(BLOQUEADO) && !p1.includes(LIBERADO), '1º pedido deveria ficar bloqueado');
     assert.ok(p2.includes(LIBERADO), '2º pedido deveria liberar');
-    assert.ok(/11\.390/.test(p2) && /14\.390/.test(p2) && /20\.990/.test(p2) && !/19\.990/.test(p2) && !/14\.190/.test(p2) && !/13\.390/.test(p2), 'deveria passar os valores dos 3 modelos');
+    assert.ok(/AZ1: R\$ 11\.390/.test(p2) && /AZ125: R\$ 14\.390/.test(p2) && /AZ170 Bravo: R\$ 19\.990/.test(p2) && /AZX160: R\$ 20\.990/.test(p2) && !/14\.190/.test(p2) && !/13\.390/.test(p2), 'deveria passar os valores dos 4 modelos');
 });
 
 caso('print 1: "Só quero saber o preço" libera de cara', () => {
@@ -95,9 +95,27 @@ caso('print 19/10: AZ125 a R$ 13.390,00 (valor antigo) vira R$ 14.390,00', () =>
         'Uma opção que pode te atender bem é a AZ125, que tem um bom equilíbrio entre conforto e economia. Ela tá com preço promocional de R$ 14.390,00 já com emplacamento incluso.');
 });
 
-caso('lista com os três valores: cada um fica com o do seu modelo', () => {
-    const t = 'A AZ1 está R$ 11.390,00, a AZ125 R$ 14.390,00 e a AZX160 R$ 20.990,00.';
+caso('lista com os quatro valores: cada um fica com o do seu modelo', () => {
+    const t = 'A AZ1 está R$ 11.390,00, a AZ125 R$ 14.390,00, a AZ170 Bravo R$ 19.990,00 e a AZX160 R$ 20.990,00.';
     assert.strictEqual(corrigirPreco(t), t);
+});
+
+caso('AZ170 Bravo: R$ 19.990,00 não vira o preço da AZX160 (19.990 já foi preço dela)', () => {
+    for (const t of [
+        'A AZ170 Bravo tá com preço promocional de R$ 19.990,00 já com emplacamento.',
+        'A Bravo sai por R$ 19.990,00.',
+        'Entre a AZX160 e a Bravo, que sai por R$ 19.990,00',
+        'A AZ170 é a mais potente. Ela tá com preço de R$ 19.990,00 já emplacada.'
+    ]) assert.strictEqual(corrigirPreco(t), t);
+});
+
+caso('AZ170 com o preço do site (R$ 16.990, sem emplacamento) vira R$ 19.990,00', () => {
+    assert.strictEqual(corrigirPreco('A AZ170 Bravo está R$ 16.990,00'), 'A AZ170 Bravo está R$ 19.990,00');
+    assert.strictEqual(corrigirPreco('a Bravo sai R$ 16990'), 'a Bravo sai R$ 19.990,00');
+});
+
+caso('"AZ1" não casa dentro de "AZ170"', () => {
+    assert.strictEqual(corrigirPreco('A AZ170 sai por R$ 19.990,00'), 'A AZ170 sai por R$ 19.990,00');
 });
 
 caso('valor depois de outro modelo não é atribuído ao primeiro', () => {

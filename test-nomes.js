@@ -67,4 +67,16 @@ ok('detecção de modelo entende o nome errado', () => {
     assert.strictEqual(detectarModeloMencionado('nenhum modelo aqui'), null);
 });
 
-console.log(`\n${passou}/9 passaram`);
+ok('AZ170: AV170, AZ 170 e AZX170 viram AZ170, e o AZ1 não casa dentro dela', () => {
+    assert.strictEqual(corrigirNomeModelo('a AV170, a AZ 170 e a AZX170 Bravo'), 'a AZ170, a AZ170 e a AZ170 Bravo');
+    assert.strictEqual(corrigirNomeModelo('A AZ170 Bravo é lançamento'), 'A AZ170 Bravo é lançamento');
+});
+
+ok('detecção da AZ170 pelo código ou pelo nome Bravo (maiúsculo)', () => {
+    assert.strictEqual(detectarModeloMencionado('a AZ170 tem 18,3 cv'), 'AZ170');
+    assert.strictEqual(detectarModeloMencionado('A Bravo faz até 40 km/L'), 'AZ170');
+    assert.strictEqual(detectarModeloMencionado('fiquei bravo com a demora'), null);
+});
+
+const total = 11;
+console.log(`\n${passou}/${total} passaram`);

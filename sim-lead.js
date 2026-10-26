@@ -9,7 +9,8 @@
 
 require('dotenv').config();
 const OpenAI = require('openai');
-const { SYSTEM_SDR, promptExtracao, promptResposta } = require('./prompts');
+const { chamarModelo, MODELO, ESFORCO, ESFORCO_EXTRACAO } = require('./ia');
+const { SYSTEM_SDR, promptExtracao, promptResposta, EXTRACAO_SCHEMA } = require('./prompts');
 const { PERFIS, DEPARTAMENTOS, lojaParaDepartamento } = require('./data');
 const { determinarProximoCampo, aplicarCampos, detectarPerfil, registrarPedidoPreco } = require('./flow');
 const { estaEmExpediente } = require('./horario');
@@ -41,28 +42,33 @@ const ROTEIRO = [
     'pode ser na loja Malvinas'                             // loja
 ];
 
+let segundosIA = 0;
+async function medir(chamada) {
+    const t0 = Date.now();
+    const r = await chamada;
+    segundosIA += (Date.now() - t0) / 1000;
+    tokensEntrada += r.uso.input_tokens || 0; tokensSaida += r.uso.output_tokens || 0;
+    return r.texto;
+}
+
 async function extrair(mensagem, campoAtual, hist) {
     const prompt = promptExtracao({ mensagemSanitizada: mensagem.substring(0, 1000), campoAtual });
-    const c = await openai.chat.completions.create({
-        model: 'gpt-4o-mini', temperature: 0,
-        messages: [...hist, { role: 'user', content: prompt }],
-        response_format: { type: 'json_object' }
-    });
-    tokensEntrada += c.usage.prompt_tokens; tokensSaida += c.usage.completion_tokens;
-    let res = c.choices[0].message.content.trim();
-    if (res.includes('```')) res = res.replace(/```json?/g, '').replace(/```/g, '').trim();
-    try { return JSON.parse(res); } catch { return null; }
+    try {
+        return JSON.parse(await medir(chamarModelo(openai, {
+            mensagens: [...hist, { role: 'user', content: prompt }],
+            esforco: ESFORCO_EXTRACAO,
+            schema: EXTRACAO_SCHEMA
+        })));
+    } catch (e) { console.error('  (extração falhou:', e.message + ')'); return null; }
 }
 
 async function responder(mensagem, proximoCampo, hist) {
     const isInicioConversa = leadData.conversationHistory.length === 0;
-    const prompt = promptResposta({ isInicioConversa, mensagemSanitizada: mensagem.substring(0, 1000), proximoCampo, leadData, expediente: exp });
-    const c = await openai.chat.completions.create({
-        model: 'gpt-4o-mini', temperature: 0.7,
-        messages: [{ role: 'system', content: SYSTEM_SDR }, ...hist, { role: 'user', content: prompt }]
-    });
-    tokensEntrada += c.usage.prompt_tokens; tokensSaida += c.usage.completion_tokens;
-    return c.choices[0].message.content.trim();
+    const contexto = promptResposta({ isInicioConversa, proximoCampo, leadData, expediente: exp });
+    return medir(chamarModelo(openai, {
+        instrucoes: SYSTEM_SDR,
+        mensagens: [...hist, { role: 'developer', content: contexto }, { role: 'user', content: mensagem.substring(0, 1000) }]
+    }));
 }
 
 function resumoEquipe() {
@@ -101,7 +107,7 @@ async function turno(texto) {
     leadData.perguntouAgora = null;
     registrarPedidoPreco(leadData, texto, extraido);
     if (extraido) {
-        aplicarCampos(leadData, extraido);
+        aplicarCampos(leadData, extraido, texto);
         if (extraido.objecao) leadData.objecaoAtiva = extraido.objecao;
         if (extraido.perguntou) leadData.perguntouAgora = true;
         if (!leadData.perfilKey) {
@@ -117,6 +123,7 @@ async function turno(texto) {
 
 (async () => {
     console.log('\n════════ SIMULAÇÃO — Qualificação de lead (motoboy / moto alugada) ════════');
+    console.log(`   Modelo: ${MODELO} (raciocínio ${ESFORCO}, extração ${ESFORCO_EXTRACAO})`);
     console.log(exp.aberto
         ? '   Modo: EXPEDIENTE — transfere ao vivo\n'
         : `   Modo: PLANTÃO (${exp.motivo}) — encaminha e sugere retorno para ${exp.proximoExpediente}\n`);
@@ -135,7 +142,9 @@ async function turno(texto) {
             break;
         }
     }
-    const custo = (tokensEntrada * 0.15 / 1e6) + (tokensSaida * 0.60 / 1e6);
+    // Preço do gpt-6-luna (US$ por 1M tokens, out/2026): entrada 0,10, saída 0,50.
+    // A saída inclui os tokens de raciocínio.
+    const custo = (tokensEntrada * 0.10 / 1e6) + (tokensSaida * 0.50 / 1e6);
     console.log('──────── custo desta conversa ────────');
-    console.log(`tokens: ${tokensEntrada} entrada + ${tokensSaida} saída | ~US$ ${custo.toFixed(4)}`);
+    console.log(`tokens: ${tokensEntrada} entrada + ${tokensSaida} saída (com raciocínio) | ~US$ ${custo.toFixed(4)} | ${segundosIA.toFixed(0)}s esperando a IA`);
 })().catch(e => console.error('ERR', e.message));

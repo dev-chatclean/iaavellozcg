@@ -8,7 +8,7 @@
 //  SYSTEM (prompts.js); aqui só ditamos a próxima "dica" de campo a coletar.
 // =============================================================
 
-const { lojaCanonica, MODELOS } = require('./data');
+const { lojaCanonica, lojaMencionada, MODELOS } = require('./data');
 
 // Ordem oficial do fluxo Avelloz (diagnóstico → modelo → pagamento → loja).
 const CAMPOS = ['finalidade', 'transporteAtual', 'gastoMensal', 'situacaoMoto', 'modeloInteresse', 'formaPagamento', 'loja'];
@@ -20,12 +20,14 @@ const CAMPOS_EXTRAS = ['nome', 'nomeCompleto', 'cpf', 'dataNascimento', 'telefon
 // State machine: retorna o próximo campo a coletar (com a instrução p/ o modelo)
 // ou null quando a qualificação está completa (marca leadData.qualificacaoCompleta).
 // Modelo citado num texto (usado para saber qual moto a IA já apresentou).
-// A ordem importa: AZX160 e AZ125 são testados antes de AZ1, senão "AZ1"
-// casaria dentro de "AZ125".
+// A ordem importa: AZX160, AZ170 e AZ125 são testados antes de AZ1, senão "AZ1"
+// casaria dentro de "AZ125". "Bravo" só conta com maiúscula: em minúscula é o
+// adjetivo ("fiquei bravo").
 function detectarModeloMencionado(texto) {
     if (!texto) return null;
     const t = corrigirNomeModelo(texto); // "AV1" (erro da IA / do cliente) vira AZ1
     if (/\bAZX\s?-?\s?160\b/i.test(t)) return 'AZX160';
+    if (/\bAZ\s?-?\s?170\b/i.test(t) || /\bBravo\b/.test(t)) return 'AZ170';
     if (/\bAZ\s?-?\s?125\b/i.test(t)) return 'AZ125';
     if (/\bAZ\s?-?\s?1\b/i.test(t))   return 'AZ1';
     return null;
@@ -39,11 +41,13 @@ function detectarModeloMencionado(texto) {
 //
 // A ordem importa: os nomes mais longos primeiro, senão o padrão de "AZ1"
 // casaria dentro de "AZ125". Também normaliza "AZ 1" e "AZ-1" para a grafia
-// oficial, que é sem espaço nem hífen.
+// oficial, que é sem espaço nem hífen. A AZ170 também aparece como "AZX170",
+// por analogia com a AZX160.
 function corrigirNomeModelo(texto) {
     if (!texto) return texto;
     return String(texto)
         .replace(/\bA[VZ]X?\s?-?\s?160\b/gi, 'AZX160')
+        .replace(/\bA[VZ]X?\s?-?\s?170\b/gi, 'AZ170')
         .replace(/\bA[VZ]Z?\s?-?\s?125\b/gi, 'AZ125')
         .replace(/\bA[VZ]Z?\s?-?\s?1\b/gi,   'AZ1');
 }
@@ -54,11 +58,15 @@ function corrigirNomeModelo(texto) {
 // em corrigirNomeModelo, a instrução não basta: esta correção é determinística e
 // roda antes do texto chegar ao cliente. Só mexe em valor na faixa de preço de
 // moto, para não tocar em bonificação de indicação (R$ 50 a R$ 150).
-const PRECO_OFICIAL = Object.fromEntries(Object.values(MODELOS).map(m => [m.nome, m.preco]));
+// O apelido ("a Bravo") conta como o nome do modelo.
+const PRECO_OFICIAL = Object.fromEntries(Object.values(MODELOS).flatMap(m =>
+    [[m.nome, m.preco], ...(m.apelido ? [[m.apelido, m.preco]] : [])]));
 const VALOR_PRECO = 'R\\$\\s?\\d{1,3}(?:\\.?\\d{3})+(?:,\\d{2})?';
 // O trecho entre o nome e o valor não pode atravessar outro modelo: em "a AZ1 e
-// a AZ125 custam R$ X" o valor é da AZ125, não da AZ1.
-const PRECO_PERTO_DO_MODELO = new RegExp(`\\b(AZX160|AZ125|AZ1)\\b((?:(?!AZX160|AZ125|AZ1\\b)[^.!?\\n]){0,60}?)(${VALOR_PRECO})`, 'g');
+// a AZ125 custam R$ X" o valor é da AZ125, não da AZ1. Os nomes mais longos vêm
+// primeiro e "AZ1" exige fim de palavra, para não casar dentro de "AZ170".
+const NOMES_PRECO = Object.keys(PRECO_OFICIAL).sort((a, b) => b.length - a.length).map(n => n + '\\b').join('|');
+const PRECO_PERTO_DO_MODELO = new RegExp(`\\b(${NOMES_PRECO})((?:(?!${NOMES_PRECO})[^.!?\\n]){0,60}?)(${VALOR_PRECO})`, 'g');
 const numeroDoValor = (v) => Number(v.replace(/[^\d,]/g, '').split(',')[0]);
 // Preço que já valeu e mudou (19/10/2026: AZ125 de 13.390 para 14.390). O valor
 // antigo continua no histórico das conversas em andamento e a IA o repete, muitas
@@ -121,7 +129,7 @@ function determinarProximoCampo(leadData) {
     if (falta('situacaoMoto'))    return { campo: 'situacaoMoto',    pergunta: 'Descubra se ele já tem moto e a situação (própria, alugada, velha, manutenção cara). Se roda de app, pergunte quanto paga de aluguel por semana/mês.' };
     if (falta('modeloInteresse')) return { campo: 'modeloInteresse', pergunta: leadData.modeloApresentado
         ? `Você JÁ recomendou a ${leadData.modeloApresentado} e JÁ mostrou a conta do gasto anual. NÃO recomende outro modelo, NÃO repita o preço e NÃO refaça o cálculo: apenas confirme, numa pergunta curta, se é essa mesma que ele quer levar.`
-        : 'Diagnóstico feito: mostre a conta (o gasto dele projetado no ano) UMA vez e recomende o modelo que encaixa (AZ1 economia, AZ125 equilíbrio, AZX160 potência). Confirme qual interessou.' };
+        : 'Diagnóstico feito: mostre a conta (o gasto dele projetado no ano) UMA vez e recomende o modelo que encaixa (AZ1 economia, AZ125 equilíbrio, AZ170 Bravo mais potência e autonomia, AZX160 estilo trail/aventura). Confirme qual interessou.' };
     // A forma de pagamento NÃO bloqueia o fechamento depois que o cliente escolheu
     // a unidade: quem fecha a condição é o consultor da loja. Insistir aqui fazia a
     // IA voltar atrás e reperguntar pagamento depois de o cliente já ter decidido
@@ -235,7 +243,10 @@ const MUTAVEIS = ['modeloInteresse', 'formaPagamento', 'loja', 'corModelo', 'cnh
 // Aplica os campos extraídos ao leadData. Por padrão NÃO sobrescreve o que já
 // foi coletado — exceto os campos MUTAVEIS (último valor vence) e os que o
 // cliente está CORRIGINDO explicitamente (extraido.correcao = lista de campos).
-function aplicarCampos(leadData, extraido) {
+// `textoCliente` é a fala do cliente nesta mensagem, sem a citação: a loja só é
+// aceita quando ele a cita ali (ver lojaMencionada). A citação fica de fora
+// porque costuma ser a própria pergunta da IA listando as três unidades.
+function aplicarCampos(leadData, extraido, textoCliente) {
     if (!extraido) return;
     const correcoes = Array.isArray(extraido.correcao) ? extraido.correcao : [];
     for (const c of [...CAMPOS, ...CAMPOS_EXTRAS]) {
@@ -244,6 +255,10 @@ function aplicarCampos(leadData, extraido) {
         // como "Campina Grande" antes fechava a qualificação sem destino: o
         // ticket ficava no Agente IA e a equipe nem era alertada.
         if (c === 'loja' && v) v = lojaCanonica(v);
+        if (c === 'loja' && v && !lojaMencionada(textoCliente, v)) {
+            console.warn(`🏬 loja "${v}" descartada: o cliente não citou essa unidade.`);
+            v = null;
+        }
         if (v === null || v === undefined || v === '') continue;
         if (!leadData[c] || correcoes.includes(c) || MUTAVEIS.includes(c)) {
             leadData[c] = v;

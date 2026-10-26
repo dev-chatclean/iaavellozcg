@@ -8,23 +8,36 @@ Consultor virtual da **Avelloz Campina** (concessionária de motos em Campina Gr
 
 ```
 Cliente WhatsApp → ChatClean CRM ──POST /webhook──▶ servidor Node.js
-                                                       ↓ GPT-4o-mini (extrai + responde)
+                                                       ↓ gpt-6-luna com raciocínio (extrai + responde)
 Cliente WhatsApp ◀── ChatClean Push API ◀──POST CC_PUSH_URL {number, body, externalKey}
 ```
 
 O ChatClean cuida só do transporte. Toda a inteligência (persona, diagnóstico, objeções, transbordo) roda aqui.
+
+## Modelo de IA
+
+Todas as chamadas passam por `ia.js` e usam a **Responses API** da OpenAI com o **`gpt-6-luna`** e raciocínio no máximo (`reasoning.effort: max`). Ele substituiu o gpt-4o-mini/gpt-4o em 26/10/2026, que alucinava (loja, preço, nome de modelo). A OpenAI aposenta o gpt-4o-mini em 14/01/2027 e indica o gpt-6-luna como substituto.
+
+- **Resposta:** `instructions` = `SYSTEM_SDR`; depois o histórico, o contexto calculado (`promptResposta`, papel *developer*) e por último a fala do cliente (papel *user*). A fala fica fora do contexto para nunca valer como instrução.
+- **Extração:** saída em **JSON Schema estrito** (`EXTRACAO_SCHEMA` em `prompts.js`): loja e modelo só aceitam valores que existem.
+- **Imagem:** a visão é do próprio gpt-6-luna. Áudio e vídeo continuam no Whisper.
+- Modelo de raciocínio não aceita `temperature`; quem controla a qualidade é o esforço de raciocínio.
+- `store: false`: a conversa (com CPF e telefone) não fica guardada na OpenAI.
+- **Latência:** com raciocínio no máximo, um turno (extração + resposta) leva mais que no gpt-4o-mini. Cada chamada tem teto de `OPENAI_TIMEOUT_MS` (120 s) e, se estourar, o cliente recebe a mensagem de instabilidade. Para acelerar, baixe `OPENAI_REASONING_EFFORT_EXTRACAO` (ex.: `medium`) sem mexer na resposta.
+- As correções determinísticas (`corrigirNomeModelo`, `corrigirPreco`, trava da loja) continuam valendo como rede de segurança.
 
 ## O que o bot faz
 
 - **Persona oficial Avelloz:** consultor humano, tom de WhatsApp, sem markdown, no máximo 1 emoji, SEMPRE termina com uma pergunta, anti-jailbreak, nunca revela que é IA.
 - **Diagnóstico ANTES do produto (regra inegociável):** não revela preço, modelo nem condição antes de entender transporte atual + gasto mensal + situação de moto. Se o cliente pede preço cedo, redireciona com naturalidade. **Exceção:** se ele insistir (2º pedido de preço, ou "só quero saber o preço"), a IA passa os valores dos três modelos e retoma a conversa, em vez de perder o lead (`registrarPedidoPreco` em `flow.js`, regressão em `npm run test:preco`).
 - **Vende liberdade e economia:** mostra a conta do que o cliente já gasta hoje (Uber/ônibus/combustível/aluguel de moto) projetada no ano. Trata o perfil especial de quem roda de aplicativo (aluga / começando / quer trocar).
-- **Preços liberados** (após o diagnóstico): preço promocional já com emplacamento incluso nos três modelos. **Nunca informa valor de parcela** (transfere pro humano).
+- **Preços liberados** (após o diagnóstico): preço promocional já com emplacamento incluso em todos os modelos. **Nunca informa valor de parcela** (transfere pro humano).
 - **Fechamento:** identifica a loja (Matriz, Malvinas ou Monteiro — obrigatório), coleta os dados de simulação (CPF, nascimento, nome, telefone, CNH, cor/modelo) e **transfere o ticket para o departamento da loja escolhida** (ver abaixo).
-- **Nome dos modelos blindado:** o modelo de linguagem escrevia "AV1" puxado por "Avelloz" (o cliente chegou a receber "AV1 (50cc)"). Além da regra no prompt, `corrigirNomeModelo` (`flow.js`) conserta o texto na geração e no envio — AV1/AZ 1 → AZ1, AV125 → AZ125, AZ160/AVX160 → AZX160. Regressão em `npm run test:nomes`.
+- **Nome dos modelos blindado:** o modelo de linguagem escrevia "AV1" puxado por "Avelloz" (o cliente chegou a receber "AV1 (50cc)"). Além da regra no prompt, `corrigirNomeModelo` (`flow.js`) conserta o texto na geração e no envio — AV1/AZ 1 → AZ1, AV125 → AZ125, AV170/AZX170 → AZ170, AZ160/AVX160 → AZX160. Regressão em `npm run test:nomes`.
+- **Loja só quando o cliente diz:** a extração chegou a inventar "Monteiro" e a IA transferia para lá clientes que não pediram (um deles morava em Campina). Agora a loja extraída só é aceita se a fala do cliente citar aquela unidade (nome, "Centro"/"João Suassuna" ou "Rocha Cavalcante"). Morar em Campina não escolhe loja. A citação da mensagem da IA não conta (`lojaMencionada` em `data.js`, regressão em `npm run test:loja`).
 - **Financiamento Motrix:** a Motrix é um dos bancos parceiros. Quem cita "Motrix" (ex.: a pergunta do anúncio, "Como funciona o financiamento Motrix?") recebe uma mensagem fixa apresentando o banco e pedindo o CPF; com o CPF (validado pelos dígitos verificadores, para não confundir com telefone), a IA pergunta só a unidade e transfere, com a nota marcada **FINANCIAMENTO MOTRIX — SIMULAR**. Sem CPF, pede mais uma vez e volta ao fluxo normal (`etapaMotrix` em `flow.js`, regressão em `npm run test:motrix`).
 - **Peças, revisão e manutenção:** assunto da oficina — a IA passa o contato direto **(83) 98207-3221** e não tenta diagnosticar defeito nem cotar serviço.
-- **Programa de indicação ("Indicou, comprou, ganhou!"):** quem indica passa nome e telefone do possível comprador a um vendedor **antes** da compra; fechando, ganha R$ 50 (AZ1), R$ 100 (AZ125) ou R$ 150 (AZX160). Indicação reivindicada **depois** da compra não é paga.
+- **Programa de indicação ("Indicou, comprou, ganhou!"):** quem indica passa nome e telefone do possível comprador a um vendedor **antes** da compra; fechando, ganha R$ 50 (AZ1), R$ 100 (AZ125) ou R$ 150 (AZX160). Para a AZ170 Bravo o valor ainda não foi definido, e a IA diz que o consultor confirma. Indicação reivindicada **depois** da compra não é paga.
 - **Regras específicas:** não aceita moto usada na troca, não faz test drive, nunca promete prazo de entrega, CNH não é obrigatório pra comprar.
 - **Mídia:** áudio transcrito (Whisper); imagem lida por visão (gpt-4o); documento/vídeo têm acuse humanizado.
 - **Estado durável:** conversas no Redis (fallback em memória) + follow-up de reativação após 30 min de inatividade.
@@ -34,8 +47,9 @@ O ChatClean cuida só do transporte. Toda a inteligência (persona, diagnóstico
 | Arquivo | Papel |
 |---|---|
 | `index.js` | Servidor Express: webhook, Push, state machine, Whisper, visão, follow-up, transbordo por loja |
+| `ia.js` | Chamada única ao modelo (Responses API, gpt-6-luna, raciocínio), usada pelo servidor e pelos testers |
 | `data.js` | Conteúdo de negócio (empresa, modelos+preços, formas de pagamento, lojas, oficina, indicação, perfis, objeções, departamentos + IDs) |
-| `prompts.js` | `SYSTEM_SDR` (prompt-mestre Avelloz) + extração (temp 0) + resposta (temp 0.7) |
+| `prompts.js` | `SYSTEM_SDR` (prompt-mestre Avelloz) + extração (com `EXTRACAO_SCHEMA`) + contexto da resposta |
 | `flow.js` | State machine de qualificação (pura, compartilhada com os testers) |
 | `horario.js` | Expediente do time → modo plantão |
 | `store.js` | Estado das conversas em Redis + fallback em memória |
@@ -51,7 +65,10 @@ Acolher (conhece a marca?) → interesse (pra que quer a moto) → **diagnóstic
 |---|---|---|
 | AZ1 | 50cc | R$ 11.390,00 |
 | AZ125 | 125cc (Alfa) | R$ 14.390,00 |
+| AZ170 Bravo | 170cc (lançamento) | R$ 19.990,00 |
 | AZX160 | 160cc | R$ 20.990,00 |
+
+A ficha da AZ170 Bravo veio da [página oficial](https://www.avelloz.com.br/pagina-az170-bravo-2026/). O site mostra R$ 16.990,00, preço sugerido sem emplacamento e sem frete; o valor que a IA usa é o da loja, com emplacamento.
 
 ## Unidades
 
@@ -100,6 +117,8 @@ npm run sim               # simulação de qualificação completa (motoboy/moto
 npm run test:preco        # regressão: liberar o preço quando o cliente insiste
 npm run test:nomes        # regressão: nome dos modelos (AZ1/AZ125/AZX160)
 npm run test:motrix       # regressão: fluxo do financiamento Motrix
+npm run test:loja         # regressão: loja só quando o cliente cita a unidade
+npm test                  # todas as regressões acima (sem OpenAI)
 npm start                 # sobe o servidor (webhook/Push)
 ```
 

@@ -70,9 +70,14 @@ const TRANSFERIR_DEPARTAMENTO = (process.env.TRANSFERIR_DEPARTAMENTO || 'true') 
 const TRANSFERIR_FECHANDO = (process.env.TRANSFERIR_FECHANDO || 'false') === 'true';
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const { chamarModelo, MODELO, ESFORCO, ESFORCO_EXTRACAO, TIMEOUT_MS } = require('./ia');
+// Teto de um turno inteiro (extração + resposta, cada uma até TIMEOUT_MS). Com
+// raciocínio no máximo o turno passa fácil de 60s, o teto antigo: o lock caía no
+// meio da geração e outra mensagem do mesmo cliente era processada em paralelo.
+const PROCESSAMENTO_TIMEOUT = 2 * TIMEOUT_MS + 30000;
 
-const { EMPRESA_INFO, MODELOS, PERFIS, DEPARTAMENTOS, DEPARTAMENTO_IDS, departamentoId, lojaParaDepartamento, lojaCanonica, OFICINA } = require('./data');
-const { SYSTEM_SDR, promptExtracao, promptResposta } = require('./prompts');
+const { EMPRESA_INFO, MODELOS, nomeExibicao, PERFIS, DEPARTAMENTOS, DEPARTAMENTO_IDS, departamentoId, lojaParaDepartamento, lojaCanonica, OFICINA, INDICACAO } = require('./data');
+const { SYSTEM_SDR, promptExtracao, promptResposta, EXTRACAO_SCHEMA } = require('./prompts');
 const { determinarProximoCampo, aplicarCampos, detectarPerfil, detectarModeloMencionado, corrigirNomeModelo, corrigirPreco, diagnosticoCompleto, registrarPedidoPreco, etapaMotrix } = require('./flow');
 
 // Correção determinística no texto que a IA escreve. O prompt já proíbe o
@@ -451,21 +456,18 @@ async function varrerFollowUps() {
 setInterval(varrerFollowUps, FOLLOWUP_SWEEP).unref?.();
 
 // =============================================================
-//  IA — EXTRAÇÃO DE INFORMAÇÕES (gpt-4o-mini, temperatura 0)
+//  IA — EXTRAÇÃO DE INFORMAÇÕES (JSON Schema estrito)
 // =============================================================
 async function extrairInformacoesComIA(mensagem, campoAtual, historicoRecente = []) {
     try {
         const mensagemSanitizada = mensagem.replace(/[<>]/g, '').substring(0, 1000);
         const prompt = promptExtracao({ mensagemSanitizada, campoAtual });
-        const completion = await openai.chat.completions.create({
-            model: 'gpt-4o-mini',
-            messages: [...historicoRecente, { role: 'user', content: prompt }],
-            temperature: 0,
-            response_format: { type: 'json_object' } // garante JSON válido (o prompt já pede JSON)
+        const { texto } = await chamarModelo(openai, {
+            mensagens: [...historicoRecente, { role: 'user', content: prompt }],
+            esforco: ESFORCO_EXTRACAO,
+            schema: EXTRACAO_SCHEMA
         });
-        let res = completion.choices[0].message.content.trim();
-        if (res.includes('```')) res = res.replace(/```json?/g, '').replace(/```/g, '').trim();
-        return JSON.parse(res);
+        return JSON.parse(texto);
     } catch (e) {
         console.error('Erro ao extrair informações:', e.message);
         return null;
@@ -473,28 +475,30 @@ async function extrairInformacoesComIA(mensagem, campoAtual, historicoRecente = 
 }
 
 // =============================================================
-//  IA — GERAÇÃO DE RESPOSTA (gpt-4o-mini, temperatura 0.7)
+//  IA — GERAÇÃO DE RESPOSTA
+//  Ordem das mensagens: histórico → contexto calculado (developer) → fala do
+//  cliente (user). A fala vem por último e separada do contexto, para o modelo
+//  responder a ela e para o texto do cliente nunca valer como instrução.
 // =============================================================
 async function gerarRespostaIA(leadData, mensagemCliente, proximoCampo, historicoRecente = [], expediente = null) {
     const mensagemSanitizada = mensagemCliente.replace(/[<>]/g, '').substring(0, 1000);
     const isInicioConversa = leadData.conversationHistory.length === 0;
-    const prompt = promptResposta({ isInicioConversa, mensagemSanitizada, proximoCampo, leadData, expediente });
-    const completion = await openai.chat.completions.create({
-        model: 'gpt-4o-mini',
-        messages: [
-            { role: 'system', content: SYSTEM_SDR },
+    const contexto = promptResposta({ isInicioConversa, proximoCampo, leadData, expediente });
+    const { texto } = await chamarModelo(openai, {
+        instrucoes: SYSTEM_SDR,
+        mensagens: [
             ...historicoRecente,
-            { role: 'user', content: prompt }
-        ],
-        temperature: 0.7
+            { role: 'developer', content: contexto },
+            { role: 'user', content: mensagemSanitizada }
+        ]
     });
     // Corrige aqui, e não só no envio, para o nome certo entrar no histórico da
     // conversa (que volta como contexto e ensinaria o erro ao próprio modelo).
-    return sanitizarResposta(completion.choices[0].message.content.trim());
+    return sanitizarResposta(texto);
 }
 
-// A IA "enxerga" a imagem enviada pelo cliente (gpt-4o com visão) e descreve
-// o conteúdo para usar no atendimento. Retorna null se falhar.
+// A IA "enxerga" a imagem enviada pelo cliente (visão do próprio modelo) e
+// descreve o conteúdo para usar no atendimento. Retorna null se falhar.
 async function analisarImagem(mediaUrl) {
     if (!mediaUrl) return null;
     try {
@@ -503,19 +507,16 @@ async function analisarImagem(mediaUrl) {
 - Se for um PRINT de conversa, anúncio ou simulação, resuma do que se trata.
 - Se for um documento (CNH, comprovante, print de dados), diga o que é sem transcrever dados sensíveis.
 Não invente o que não dá pra ver.`;
-        const completion = await openai.chat.completions.create({
-            model: 'gpt-4o',
-            messages: [{
+        const { texto } = await chamarModelo(openai, {
+            mensagens: [{
                 role: 'user',
                 content: [
-                    { type: 'text', text: instrucao },
-                    { type: 'image_url', image_url: { url: mediaUrl } }
+                    { type: 'input_text', text: instrucao },
+                    { type: 'input_image', image_url: mediaUrl, detail: 'auto' }
                 ]
-            }],
-            max_tokens: 300,
-            temperature: 0.3
+            }]
         });
-        return completion.choices[0].message.content.trim();
+        return texto;
     } catch (e) {
         console.error('❌ Erro ao analisar imagem (visão):', e.message);
         return null;
@@ -526,7 +527,8 @@ Não invente o que não dá pra ver.`;
 // pontuais de forma natural, sem refazer a qualificação nem repetir o resumo.
 // Tabela de preços para a resposta pós-transferência. Sem ela a IA inventou
 // "AZ125 por R$ 12.390,00" (16/10/2026).
-const PRECOS_TXT = Object.values(MODELOS).map(m => `${m.nome} ${m.preco}`).join(', ');
+const PRECOS_TXT = Object.values(MODELOS).map(m => `${nomeExibicao(m)} ${m.preco}`).join(', ');
+const INDICACAO_VALORES_TXT = Object.entries(INDICACAO.valores).map(([m, v]) => `${m} ${v}`).join(', ');
 
 async function gerarRespostaPosEncaminhamento(leadData, mensagemCliente, historicoRecente = []) {
     // Só afirma que passou pro consultor quando a transferência foi confirmada.
@@ -546,18 +548,13 @@ NÃO puxe conversa. Só faça uma pergunta se ela for REALMENTE necessária para
 - Preços promocionais, já com emplacamento incluso: ${PRECOS_TXT}. Se perguntarem o preço, use EXATAMENTE estes valores. NUNCA escreva outro valor de moto.
 - Se depender do consultor (valor de parcela, aprovação de crédito, prazo de entrega, negociação), diga que ele já vai continuar o atendimento pra resolver.
 - Se for sobre ${OFICINA.assuntos}, passe o telefone da nossa oficina: ${OFICINA.telefone}. Não diagnostique defeito nem cote peça/serviço.
-- Se for sobre INDICAÇÃO: ele passa o nome e o telefone do possível comprador pra um vendedor ANTES da compra; se o indicado fechar, ganha AZ1 R$ 50,00, AZ125 R$ 100,00, AZX160 R$ 150,00. Indicação reivindicada depois da compra fechada não é paga — diga isso com gentileza se for o caso.
-Nunca informe valor de parcela nem prometa prazo. Não refaça a qualificação e não repita o resumo.`;
-        const completion = await openai.chat.completions.create({
-            model: 'gpt-4o-mini',
-            messages: [
-                { role: 'system', content: 'Você é um consultor do time da Avelloz Campina. Escrita natural, curta, registro de WhatsApp.' },
-                ...historicoRecente,
-                { role: 'user', content: prompt }
-            ],
-            temperature: 0.6
+- Se for sobre INDICAÇÃO: ele passa o nome e o telefone do possível comprador pra um vendedor ANTES da compra; se o indicado fechar, ganha ${INDICACAO_VALORES_TXT}. ${INDICACAO.semValorDefinido} Indicação reivindicada depois da compra fechada não é paga — diga isso com gentileza se for o caso.
+Nunca informe valor de parcela nem prometa prazo. Não refaça a qualificação e não repita o resumo. Não afirme nada sobre as motos que não esteja neste texto: na dúvida, o consultor confirma.`;
+        const { texto } = await chamarModelo(openai, {
+            instrucoes: 'Você é um consultor do time da Avelloz Campina. Escrita natural, curta, registro de WhatsApp. Nunca diga que é IA.',
+            mensagens: [...historicoRecente, { role: 'user', content: prompt }]
         });
-        return sanitizarResposta(completion.choices[0].message.content.trim()) || fallback;
+        return sanitizarResposta(texto) || fallback;
     } catch (e) {
         console.error('❌ Erro na resposta pós-encaminhamento:', e.message);
         return fallback;
@@ -694,11 +691,11 @@ async function processarMensagem({ chatId, contactId, texto, tipo, mediaBase64, 
             console.log(`⏱️ Timeout: liberando processamento para ${chatId}`);
             processandoMensagem.delete(chatId);
         }
-    }, 60000);
+    }, PROCESSAMENTO_TIMEOUT);
 
     // Lock cross-instância (Redis): impede que outro container processe o mesmo
     // lead ao mesmo tempo. Sem Redis, é no-op (o lock em memória acima já basta).
-    const lockRedis = await store.acquireLock(chatId, 60000);
+    const lockRedis = await store.acquireLock(chatId, PROCESSAMENTO_TIMEOUT);
     if (!lockRedis) {
         console.log(`🔒 ${chatId} já está sendo processado por outra instância — pulando.`);
         clearTimeout(timeoutId);
@@ -808,7 +805,7 @@ async function processarMensagem({ chatId, contactId, texto, tipo, mediaBase64, 
             return;
         }
 
-        // Imagem → a IA ENXERGA (visão gpt-4o) e usa o conteúdo na resposta.
+        // Imagem → a IA ENXERGA (visão do modelo) e usa o conteúdo na resposta.
         if (tipo === 'image') {
             const desc = await analisarImagem(mediaUrl);
             if (desc) {
@@ -954,7 +951,7 @@ async function processarMensagem({ chatId, contactId, texto, tipo, mediaBase64, 
         registrarPedidoPreco(leadData, textoCliente, extraido);
 
         if (extraido) {
-            aplicarCampos(leadData, extraido);
+            aplicarCampos(leadData, extraido, textoCliente);
             if (extraido.objecao) leadData.objecaoAtiva = extraido.objecao;
             if (extraido.perguntou) leadData.perguntouAgora = true;
             if (extraido.tipoContato) leadData.tipoContato = extraido.tipoContato;
@@ -1554,6 +1551,7 @@ app.get('/diag', async (req, res) => {
         pushConfigurado: !!CC_PUSH_URL,
         equipeNumero: !!EQUIPE_NUMERO,
         transferenciaDepartamento: { ativa: TRANSFERIR_DEPARTAMENTO, fechandoTicket: TRANSFERIR_FECHANDO, ids: DEPARTAMENTO_IDS },
+        ia: { modelo: MODELO, raciocinio: ESFORCO, raciocinioExtracao: ESFORCO_EXTRACAO, timeoutMs: TIMEOUT_MS },
         pipeline: pipeline.diag()
     });
 });
@@ -1613,6 +1611,7 @@ const server = app.listen(PORT, () => {
     console.log('🚀 ================================');
     console.log(`🏍️  IA ${EMPRESA_INFO.nome} — VIA CHATCLEAN (Webhook + Push)`);
     console.log(`📡 Servidor rodando na porta ${PORT}`);
+    console.log(`🧠 Modelo: ${MODELO} (raciocínio ${ESFORCO}, extração ${ESFORCO_EXTRACAO})`);
     console.log(`🔗 Webhook: https://SEU_DOMINIO/webhook`);
     console.log(`❤️  Health:  https://SEU_DOMINIO/health`);
     console.log('🚀 ================================');

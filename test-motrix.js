@@ -37,7 +37,7 @@ caso('loja escolhida depois do CPF fecha a qualificação (transfere)', () => {
     etapaMotrix(lead, 'financiamento motrix');
     etapaMotrix(lead, `meu cpf é ${CPF}`);
     assert.strictEqual(etapaMotrix(lead, 'Malvinas'), null, 'depois do CPF o fluxo Motrix sai de cena');
-    aplicarCampos(lead, { loja: 'Malvinas' });
+    aplicarCampos(lead, { loja: 'Malvinas' }, 'Malvinas');
     assert.strictEqual(determinarProximoCampo(lead), null);
     assert.ok(lead.qualificacaoCompleta);
 });

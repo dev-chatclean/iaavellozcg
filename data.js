@@ -23,7 +23,9 @@ const EMPRESA_INFO = {
 //  CATÁLOGO DE MODELOS (preços promocionais JÁ COM EMPLACAMENTO)
 //  Regras (ver prompts.js): só liberar modelo/preço APÓS o diagnóstico
 //  mínimo. Nunca informar valor de PARCELA (transferir para humano).
-//  Nunca mudar o nome dos produtos: AZ1, AZ125, AZX160.
+//  Nunca mudar o nome dos produtos: AZ1, AZ125, AZ170 Bravo, AZX160.
+//  `nome` é o código usado na lógica (extração, correções, resumo);
+//  `apelido` é como o cliente também chama a moto ("a Bravo").
 // -------------------------------------------------------------
 const MODELOS = {
     az1: {
@@ -50,12 +52,30 @@ const MODELOS = {
         comparativo: 'Moto urbana 125cc que concorre com Pop/Biz/Jet e outras 125cc. Motor 123,67 cm³ com injeção eletrônica, 8,5 cv, câmbio semiautomático de 4 marchas (sem embreagem). Design moderno, farol LED, painel digital, entradas USB (A e C), freios CBS, rodas aro 17. Foco em conforto, agilidade e baixo consumo.',
         imagem: 'https://www.instagram.com/p/DOHMiySkqHw/?igsh=MWZoNmVjZGxocGloYQ=='
     },
+    // Lançamento (26/10/2026). Ficha técnica tirada da página oficial da Avelloz;
+    // o preço com emplacamento foi passado pela loja (o site mostra R$ 16.990,00
+    // sugerido, sem emplacamento nem frete).
+    az170: {
+        nome: 'AZ170',
+        apelido: 'Bravo',
+        nomeComercial: 'AZ170 Bravo',
+        cilindrada: '170cc',
+        preco: 'R$ 19.990,00',
+        precoNum: 19990,
+        perfil: 'A mais potente da linha: desempenho e autonomia pra quem roda muito, na cidade e na estrada.',
+        descricao: 'Lançamento da Avelloz. Motor 170cc com injeção eletrônica e 18,3 cv, câmbio de 5 marchas e partida elétrica. Faz até 40 km com 1L de gasolina e tem tanque de 16 litros, então roda muito sem parar pra abastecer. Painel 100% digital, farol full LED, freio combinado CBS com disco na dianteira, rodas aro 18 e entradas USB tipo A e tipo C.',
+        cores: 'Azul, Vermelha e Preta',
+        comparativo: 'Motor 170cc (65 x 51,2 mm) com 18,3 cv a 9.000 rpm e torque de 15 N.m a 7.000 rpm, velocidade máxima acima de 100 km/h. Câmbio de 5 marchas, injeção eletrônica (EFI). Consumo de até 40 km/L, tanque de 16 litros. Freio dianteiro a disco de 240 mm e traseiro a tambor, com CBS. Pneus 3.00-18 na frente e 3.25-18 atrás. Peso seco de 120 kg, altura do banco de 800 mm, 220 mm de distância do solo, carga máxima de 150 kg. Painel digital, iluminação full LED, USB A e C.',
+        imagem: 'https://www.avelloz.com.br/pagina-az170-bravo-2026/'
+    },
     az160: {
         nome: 'AZX160',
         cilindrada: '160cc',
         preco: 'R$ 20.990,00',
         precoNum: 20990,
-        precosAntigos: [19990],
+        // 19.990 já foi preço da AZX160, mas hoje é o da AZ170 Bravo: não pode
+        // entrar aqui, senão o corretor trocaria o preço da Bravo pelo da AZX160.
+        precosAntigos: [],
         perfil: 'Potência, conforto e estilo para cidade e estrada.',
         descricao: 'Alta potência, confortável, econômica, já vem com proteção de carenagem e muito estilo. Entrada USB e Tipo C, farol full LED, pneus aro 19 dianteiro e 17 traseiro, painel digital, injeção eletrônica e freio CBS.',
         cores: 'Preta, Vermelha e Azul',
@@ -63,6 +83,13 @@ const MODELOS = {
         imagem: 'https://www.instagram.com/p/DOHMkywki9w/?igsh=MW5nejRvbGx0ZXJtcg=='
     }
 };
+
+// Nome de exibição ("AZ170 Bravo") e lista para os textos ("AZ1, AZ125, AZ170 Bravo e AZX160").
+const nomeExibicao = (m) => m.nomeComercial || m.nome;
+const NOMES_MODELOS = (() => {
+    const n = Object.values(MODELOS).map(nomeExibicao);
+    return n.slice(0, -1).join(', ') + ' e ' + n[n.length - 1];
+})();
 
 // -------------------------------------------------------------
 //  FORMAS DE PAGAMENTO
@@ -125,6 +152,9 @@ const INDICACAO = {
         AZ125:  'R$ 100,00',
         AZX160: 'R$ 150,00'
     },
+    // A loja ainda não definiu a bonificação da AZ170 Bravo. Até lá a IA não
+    // cita valor para ela: diz que o consultor confirma.
+    semValorDefinido: 'Para a AZ170 Bravo o valor da bonificação ainda não foi definido: diga que o consultor confirma.',
     regraCritica: 'A indicação só vale se for passada ao vendedor ANTES da compra. Se o cliente comprar e só depois a pessoa aparecer dizendo que indicou, infelizmente não recebe.'
 };
 
@@ -157,7 +187,7 @@ const OBJECOES = {
     moto_usada_troca:   'A Avelloz NÃO trabalha com troca/aceite de moto usada. Conduza com simpatia para as formas de pagamento (cartão, financiamento, consórcio, à vista).',
     test_drive:         'A Avelloz NÃO oferece test drive. Convide o cliente a conhecer a moto pessoalmente na loja.',
     loja_outra_cidade:  'A Avelloz Campina só tem TRÊS unidades: Matriz e Malvinas, em Campina Grande, e a de Monteiro. Se ele citou outra cidade, diga com honestidade e sem rodeio que ali não temos loja, cite as três que existem e pergunte qual fica melhor pra ele visitar. Nunca confirme nem dê esperança de unidade que não existe.',
-    moto_eletrica:      'A Avelloz NÃO vende moto elétrica: todos os modelos (AZ1, AZ125, AZX160) são a combustão (gasolina). Seja direto e honesto: não trabalhamos com elétrica. Não confunda com "partida elétrica" ou "injeção eletrônica", que são apenas itens de série das motos a combustão. Redirecione com naturalidade pra economia de combustível dos modelos que temos (alto rendimento km/L).',
+    moto_eletrica:      `A Avelloz NÃO vende moto elétrica: todos os modelos (${NOMES_MODELOS}) são a combustão (gasolina). Seja direto e honesto: não trabalhamos com elétrica. Não confunda com "partida elétrica" ou "injeção eletrônica", que são apenas itens de série das motos a combustão. Redirecione com naturalidade pra economia de combustível dos modelos que temos (alto rendimento km/L).`,
     prazo_entrega:      'NUNCA prometa prazo de entrega. Diga que o consultor humano confirma os prazos certinhos.',
     marca_desconhecida: 'A Avelloz é referência em moto econômica e com facilidade de pagamento. Valorize a economia (km/L), o emplacamento incluso e as condições, e já puxe a próxima pergunta.'
 };
@@ -226,6 +256,22 @@ function lojaCanonica(lojaTexto) {
     return dep ? dep.replace(/^Loja\s+/, '') : null;
 }
 
+// A fala do cliente cita ESTA loja? É a trava contra loja inventada pela
+// extração: em 10/2026 a IA transferiu vários clientes para Monteiro sem eles
+// pedirem ("Quero saber o valor!" virou loja Monteiro, e quem morava em Campina
+// foi parar lá). Loja só é aceita quando o cliente diz o nome dela ou um
+// endereço que só ela tem. Cada loja é testada por conta própria, então "não
+// quero Monteiro, prefiro Malvinas" não confunde uma com a outra.
+const CITA_LOJA = {
+    Matriz:   /matriz|\bcentro\b|jo[aã]o\s+suassuna/i,
+    Malvinas: /malvina|rocha\s+cavalcante|francisco\s+lopes/i,
+    Monteiro: /monteiro/i
+};
+function lojaMencionada(texto, loja) {
+    const re = CITA_LOJA[lojaCanonica(loja)];
+    return !!re && re.test(String(texto || ''));
+}
+
 // -------------------------------------------------------------
 //  CAMPOS DE QUALIFICAÇÃO (ordem do fluxo SDR Avelloz)
 //  O diagnóstico da realidade atual vem ANTES de modelo/preço.
@@ -242,6 +288,8 @@ const CAMPOS_SIMULACAO = ['nomeCompleto', 'cpf', 'dataNascimento', 'telefone', '
 module.exports = {
     EMPRESA_INFO,
     MODELOS,
+    NOMES_MODELOS,
+    nomeExibicao,
     FORMAS_PAGAMENTO,
     LOJAS,
     OFICINA,
@@ -253,6 +301,7 @@ module.exports = {
     departamentoId,
     lojaParaDepartamento,
     lojaCanonica,
+    lojaMencionada,
     CAMPOS_QUALIFICACAO,
     CAMPOS_SIMULACAO
 };
